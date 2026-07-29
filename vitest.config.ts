@@ -3,10 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
 	test: {
 		environment: "node",
-		include: [
-			"src/**/*.test.ts",
-			"src/**/*.spec.ts",
-		],
+		include: ["src/**/*.test.ts", "src/**/*.spec.ts"],
 		projects: [
 			{
 				extends: true,
@@ -16,6 +13,6 @@ export default defineConfig({
 					environment: "node",
 				},
 			},
-		]
+		],
 	},
 });
