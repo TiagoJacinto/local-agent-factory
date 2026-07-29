@@ -6,8 +6,16 @@ export default defineConfig({
 		include: [
 			"src/**/*.test.ts",
 			"src/**/*.spec.ts",
-			"features/**/*.test.ts",
-			"features/**/*.spec.ts",
 		],
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: "hvut",
+					include: ["features/**/*.hvut.ts"],
+					environment: "node",
+				},
+			},
+		]
 	},
 });
