@@ -1,5 +1,6 @@
 export type PrimitiveType = "AI" | "Harness" | "Gate";
 export type InvocationStatus = "Succeeded" | "Failed";
+export type PrimitiveResultType<T extends PrimitiveType> = `${T}InvocationResult`; 
 
 export interface Artifact {
 	readonly id: string;
@@ -17,53 +18,43 @@ export interface PrimitiveCallOptions {
 	readonly outputArtifact?: string;
 }
 
-export interface InvocationResult {
+export interface InvocationResult<T extends PrimitiveType = PrimitiveType> {
 	readonly order: number;
 	readonly invocationId: string;
 	readonly name: string;
-	readonly primitiveType: PrimitiveType;
-	readonly resultType: `${PrimitiveType}InvocationResult`;
+	readonly primitiveType: T;
+	readonly resultType: PrimitiveResultType<T>;
 	readonly status: InvocationStatus;
 	readonly input: string;
 	readonly consumedArtifact?: string;
 	readonly producedArtifact?: string;
 }
 
-export interface AIInvocationResult extends InvocationResult {
-	readonly primitiveType: "AI";
-	readonly resultType: "AIInvocationResult";
+export type AIInvocationResult = InvocationResult<"AI">;
+export type HarnessInvocationResult = InvocationResult<"Harness">;
+export type GateInvocationResult = InvocationResult<"Gate">;
+
+export interface PrimitiveInvocationArguments {
+	readonly invocationId: string;
+	readonly name: string;
+	readonly input: string;
+	readonly options?: PrimitiveCallOptions;
 }
 
-export interface HarnessInvocationResult extends InvocationResult {
-	readonly primitiveType: "Harness";
-	readonly resultType: "HarnessInvocationResult";
-}
-
-export interface GateInvocationResult extends InvocationResult {
-	readonly primitiveType: "Gate";
-	readonly resultType: "GateInvocationResult";
-}
+export type PrimitiveFunction<T extends PrimitiveType> = (
+	...args: [
+		PrimitiveInvocationArguments["invocationId"],
+		PrimitiveInvocationArguments["name"],
+		PrimitiveInvocationArguments["input"],
+		PrimitiveInvocationArguments["options"]?,
+	]
+) => Promise<InvocationResult<T>>;
 
 export interface WorkflowPrimitives {
 	readonly context: RunContext;
-	readonly ai: (
-		invocationId: string,
-		name: string,
-		input: string,
-		options?: PrimitiveCallOptions,
-	) => Promise<AIInvocationResult>;
-	readonly harness: (
-		invocationId: string,
-		name: string,
-		input: string,
-		options?: PrimitiveCallOptions,
-	) => Promise<HarnessInvocationResult>;
-	readonly gate: (
-		invocationId: string,
-		name: string,
-		input: string,
-		options?: PrimitiveCallOptions,
-	) => Promise<GateInvocationResult>;
+	readonly ai: PrimitiveFunction<"AI">;
+	readonly harness: PrimitiveFunction<"Harness">;
+	readonly gate: PrimitiveFunction<"Gate">;
 }
 
 export type WorkflowController = (primitives: WorkflowPrimitives) => Promise<void> | void;
@@ -92,7 +83,13 @@ export type PrimitiveAdapter = (input: {
 	context: RunContext;
 	inputArtifact?: Artifact;
 	outputArtifact?: string;
-}) => Promise<PrimitiveAdapterOutput | void> | PrimitiveAdapterOutput | void;
+}) => Promise<PrimitiveAdapterOutput | undefined> | PrimitiveAdapterOutput | undefined;
+
+interface ResolvedPrimitiveAdapters {
+	readonly ai: PrimitiveAdapter;
+	readonly harness: PrimitiveAdapter;
+	readonly gate: PrimitiveAdapter;
+}
 
 export interface PrimitiveAdapters {
 	readonly ai?: PrimitiveAdapter;
@@ -104,7 +101,7 @@ const deterministicAdapter: PrimitiveAdapter = () => undefined;
 
 export class WorkflowExecutor {
 	private readonly workflows: ReadonlyMap<string, WorkflowDefinition>;
-	private readonly adapters: Required<PrimitiveAdapters>;
+	private readonly adapters: ResolvedPrimitiveAdapters;
 
 	public constructor(workflows: readonly WorkflowDefinition[], adapters: PrimitiveAdapters = {}) {
 		this.workflows = new Map(workflows.map((workflow) => [workflow.id, workflow]));
@@ -128,7 +125,7 @@ export class WorkflowExecutor {
 			name: string,
 			input: string,
 			options: PrimitiveCallOptions = {},
-		): Promise<Extract<InvocationResult, { primitiveType: T }>> => {
+		): Promise<InvocationResult<T>> => {
 			const inputArtifact = options.inputArtifact
 				? context.artifacts.get(options.inputArtifact)
 				: undefined;
@@ -136,28 +133,35 @@ export class WorkflowExecutor {
 				throw new Error(`Artifact not found: ${options.inputArtifact}`);
 			}
 
-			const adapterOutput = await adapter({ invocationId, name, input, context, inputArtifact, outputArtifact: options.outputArtifact });
+			const adapterOutput = await adapter({
+				invocationId,
+				name,
+				input,
+				context,
+				inputArtifact,
+				outputArtifact: options.outputArtifact,
+			});
 
 			if (inputArtifact) inputArtifact.consumerInvocationId = invocationId;
 			if (options.outputArtifact) {
 				context.artifacts.set(options.outputArtifact, {
 					id: options.outputArtifact,
 					producerInvocationId: invocationId,
-					value: adapterOutput && "value" in adapterOutput ? adapterOutput.value : input,
+					value: adapterOutput?.value ?? input,
 				});
 			}
 
-			const result = {
+			const result: InvocationResult<T> = {
 				order: invocations.length + 1,
 				invocationId,
 				name,
 				primitiveType,
-				resultType: `${primitiveType}InvocationResult` as `${T}InvocationResult`,
+				resultType: `${primitiveType}InvocationResult`,
 				status: "Succeeded" as const,
 				input,
 				...(options.inputArtifact ? { consumedArtifact: options.inputArtifact } : {}),
 				...(options.outputArtifact ? { producedArtifact: options.outputArtifact } : {}),
-			} as unknown as Extract<InvocationResult, { primitiveType: T }>;
+			};
 			invocations.push(result);
 			return result;
 		};
