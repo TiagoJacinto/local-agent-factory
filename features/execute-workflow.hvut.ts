@@ -51,6 +51,7 @@ describeFeature(feature, ({ Rule }) => {
 				executor = new WorkflowExecutor([workflow], {
 					harness: ({ input }) => {
 						writeFileSync(`${repo}/README.md`, `${input}\n`);
+						return Promise.resolve(undefined);
 					},
 				});
 			});
