@@ -4,9 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describeFeature, loadFeature } from "@amiceli/vitest-cucumber";
 import { expect } from "vitest";
-import { WorkflowExecutor, type WorkflowDefinition } from "../src/workflow";
+import {
+	WorkflowExecutor,
+	type WorkflowDefinition,
+} from "../../../src/workflow";
 
-const feature = await loadFeature("features/execute-workflow.feature");
+const feature = await loadFeature(
+	"docs/guess-points/2-solution/1-features/execute-workflow.feature",
+);
 type Row = Record<string, string>;
 const workflowStep = "Workflow{id: {string}, name: {string}}";
 const executeStep = "I executeWorkflow\\(workflowId: {string}\\)";
@@ -203,7 +208,7 @@ describeFeature(feature, ({ Rule }) => {
 						}),
 				);
 				But(
-					"I view InvocationResult{function: {string}} not in Workflow Run: Pure computation is not recorded as a primitive invocation",
+					"I !view InvocationResult{function: {string}} in Workflow Run: Pure computation is not recorded as a primitive invocation",
 					(_ctx: unknown, functionName: string) =>
 						expect(
 							run.invocations.some(
@@ -262,7 +267,7 @@ describeFeature(feature, ({ Rule }) => {
 						}),
 				);
 				But(
-					"I view InvocationResult{function: {string}} not in Workflow Run: Composite function itself is not recorded",
+					"I !view InvocationResult{function: {string}} in Workflow Run: Composite function itself is not recorded",
 					(_ctx: unknown, functionName: string) =>
 						expect(
 							run.invocations.some(

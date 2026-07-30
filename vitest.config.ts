@@ -9,7 +9,7 @@ export default defineConfig({
 				extends: true,
 				test: {
 					name: "hvut",
-					include: ["features/**/*.hvut.ts"],
+					include: ["tests/**/*.hvut.ts"],
 					environment: "node",
 				},
 			},
