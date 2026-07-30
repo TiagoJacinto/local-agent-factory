@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src tests",
     "lint:fix": "oxlint src tests --fix",
-    "start": "bun run src/cli.ts",
-    "dev": "bun --watch run src/cli.ts"
+    "start": "bun run src/cli.ts greet",
+    "dev": "bun --watch run src/cli.ts greet"
   },
   "bin": {
     "local-agent-factory": "./src/cli.ts"
