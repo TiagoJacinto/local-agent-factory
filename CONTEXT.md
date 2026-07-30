@@ -4,9 +4,6 @@ This context defines how workflow authors coordinate model work, tool-enabled wo
 
 ## Language
 
-**Workflow Author**:
-A person who defines a workflow's identity, name, and control flow.
-
 **Workflow**:
 A typed controller that sequences workflow primitives, composite functions, and pure computation through ordinary control flow.
 
@@ -40,7 +37,28 @@ A workflow-author-defined function that combines pure computation and workflow p
 The module that invokes a workflow controller in a run context and returns its workflow run.
 
 **Workflow Run**:
-The observable record of one workflow execution, including ordered invocation results and artifacts.
+The observable record of one workflow execution, identified by a locally generated run identifier and including its status, source revision, disposable workspace path when one was created, ordered invocation results, and artifacts.
+
+**Source Repository**:
+The local repository whose revision supplies the starting point for a workflow run and which must remain unchanged by that run.
+
+**Source Revision**:
+The commit identifying the exact source repository content requested for a workflow run.
+
+**Working Tree**:
+The observable state of tracked and untracked changes in a source repository. A clean working tree has no such changes.
+
+**Disposable Workspace**:
+An isolated local clone created from the source repository for one workflow run. Workflow and validation work occurs there rather than in the source repository, and the workspace is retained when the run fails.
+
+**Run Identifier**:
+A locally generated identity for one workflow run.
+
+**Validation**:
+The checking of generated work in the disposable workspace during a workflow run.
+
+**Validation Result**:
+The observable outcome of validation, including the disposable workspace where the checks ran.
 
 **Invocation Result**:
 The typed outcome of one primitive invocation, identified by the invocation and its system-owned primitive type.

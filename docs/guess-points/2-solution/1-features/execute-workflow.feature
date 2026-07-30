@@ -1,8 +1,10 @@
 Feature: Execute a workflow controller
-  Domain definitions: [Workflow, Workflow Primitive, Primitive Invocation, Pure Computation, Composite Function, Workflow Executor, Workflow Run, Run Context, and Artifact](../CONTEXT.md#language)
+  Domain definitions: [Workflow, WorkflowPrimitive, PrimitiveInvocation, PureComputation, CompositeFunction, WorkflowExecutor, WorkflowRun, RunContext, and Artifact](../../../../CONTEXT.md#language)
+  Actor: [WorkflowOperator](../../1-problem/1-ROLES.md#horizontal-local-agent-factory-cli)
+  Platform: [Local Agent Factory](../../3-architecture/1-PLATFORMS.md#internal-platforms)
 
-  As a workflow author,
-  I want to execute a workflow controller through one workflow executor,
+  As a WorkflowOperator,
+  I want to execute a registered workflow controller through one workflow executor,
   So that I can inspect its ordered invocation results and artifacts
 
   Rule: Record primitive invocations in controller order
@@ -46,7 +48,7 @@ Feature: Execute a workflow controller
         | invocationOrder | invocationId | name         | primitiveType | resultType         | status    |
         | 1               | draft-readme | Draft README | AI            | AIInvocationResult | Succeeded |
       And I view AIInvocationResult{invocationId: "draft-readme", prompt: "Draft an update to README.md"} in Workflow Execution: Pure computation output reaches AI
-      But I view InvocationResult{function: "BuildReadmePrompt"} not in Workflow Run: Pure computation is not recorded as a primitive invocation
+      But I !view InvocationResult{function: "BuildReadmePrompt"} in Workflow Run: Pure computation is not recorded as a primitive invocation
 
     Scenario: A composite function calls a primitive without becoming an invocation
       Given Workflow{id: "composite-function", name: "Verify README"}
@@ -57,4 +59,4 @@ Feature: Execute a workflow controller
         | invocationOrder | invocationId | name          | primitiveType | resultType              | status    |
         | 1               | verify-readme | Verify README | Harness       | HarnessInvocationResult | Succeeded |
       And I view HarnessInvocationResult{invocationId: "verify-readme", status: Succeeded} in Workflow Execution: Composite function delegates to Harness
-      But I view InvocationResult{function: "VerifyThatREADMEFollowsRepoRules"} not in Workflow Run: Composite function itself is not recorded
+      But I !view InvocationResult{function: "VerifyThatREADMEFollowsRepoRules"} in Workflow Run: Composite function itself is not recorded
