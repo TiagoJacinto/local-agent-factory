@@ -1,6 +1,15 @@
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+
 export type PrimitiveType = "AI" | "Harness" | "Gate";
 export type InvocationStatus = "Succeeded" | "Failed";
-export type PrimitiveResultType<T extends PrimitiveType> = `${T}InvocationResult`; 
+export type PrimitiveResultType<T extends PrimitiveType> = `${T}InvocationResult`;
+export type WorkflowFailure = "DirtySource" | "UnexpectedSourceRevision";
+export type WorkspaceIsolation = "IndependentClone";
+export type SourceIntegrity = "Verified";
+export type WorkspaceDisposition = "Retained";
 
 export interface Artifact {
 	readonly id: string;
@@ -28,6 +37,7 @@ export interface InvocationResult<T extends PrimitiveType = PrimitiveType> {
 	readonly input: string;
 	readonly consumedArtifact?: string;
 	readonly producedArtifact?: string;
+	readonly workspacePath?: string;
 }
 
 export type AIInvocationResult = InvocationResult<"AI">;
@@ -70,10 +80,24 @@ export interface WorkflowRun {
 	readonly status: "Succeeded" | "Failed";
 	readonly invocations: readonly InvocationResult[];
 	readonly context: RunContext;
+	readonly runIdentifier?: string;
+	readonly sourceRevision?: string;
+	readonly workspacePath?: string;
+	readonly workspaceIsolation?: WorkspaceIsolation;
+	readonly sourceIntegrity?: SourceIntegrity;
+	readonly failure?: WorkflowFailure;
+	readonly workspaceDisposition?: WorkspaceDisposition;
+}
+
+export interface WorkflowExecutionOptions {
+	readonly sourceRepository?: string;
+	readonly expectedSourceRevision?: string;
+	readonly workspaceRoot?: string;
 }
 
 export interface PrimitiveAdapterOutput {
 	readonly value?: unknown;
+	readonly status?: InvocationStatus;
 }
 
 export type PrimitiveAdapter = (input: {
@@ -83,6 +107,7 @@ export type PrimitiveAdapter = (input: {
 	context: RunContext;
 	inputArtifact?: Artifact;
 	outputArtifact?: string;
+	workspacePath?: string;
 }) => Promise<PrimitiveAdapterOutput | undefined> | PrimitiveAdapterOutput | undefined;
 
 interface ResolvedPrimitiveAdapters {
@@ -112,11 +137,53 @@ export class WorkflowExecutor {
 		};
 	}
 
-	public async executeWorkflow(workflowId: string): Promise<WorkflowRun> {
+	public async executeWorkflow(
+		workflowId: string,
+		options: WorkflowExecutionOptions = {},
+	): Promise<WorkflowRun> {
 		const workflow = this.workflows.get(workflowId);
 		if (!workflow) throw new Error(`Workflow not found: ${workflowId}`);
 
 		const context: RunContext = { artifacts: new Map() };
+		const source = options.sourceRepository
+			? inspectSource(options.sourceRepository)
+			: undefined;
+		const runIdentifier = source ? `local-run-${randomUUID()}` : undefined;
+		if (source && source.workingTree !== "Clean") {
+			return {
+				workflowId,
+				status: "Failed",
+				invocations: [],
+				context,
+				runIdentifier,
+				sourceRevision: source.revision,
+				sourceIntegrity: "Verified",
+				failure: "DirtySource",
+			};
+		}
+		if (
+			source &&
+			options.expectedSourceRevision &&
+			source.revision !== options.expectedSourceRevision
+		) {
+			return {
+				workflowId,
+				status: "Failed",
+				invocations: [],
+				context,
+				runIdentifier,
+				sourceRevision: source.revision,
+				sourceIntegrity: "Verified",
+				failure: "UnexpectedSourceRevision",
+			};
+		}
+		const workspacePath = source
+			? createWorkspace(
+					source.path,
+					runIdentifier ?? throwMissingRunIdentifier(),
+					options.workspaceRoot,
+				)
+			: undefined;
 		const invocations: InvocationResult[] = [];
 		const invoke = async <T extends PrimitiveType>(
 			primitiveType: T,
@@ -140,6 +207,7 @@ export class WorkflowExecutor {
 				context,
 				inputArtifact,
 				outputArtifact: options.outputArtifact,
+				workspacePath,
 			});
 
 			if (inputArtifact) inputArtifact.consumerInvocationId = invocationId;
@@ -157,10 +225,11 @@ export class WorkflowExecutor {
 				name,
 				primitiveType,
 				resultType: `${primitiveType}InvocationResult`,
-				status: "Succeeded" as const,
+				status: adapterOutput?.status ?? "Succeeded",
 				input,
 				...(options.inputArtifact ? { consumedArtifact: options.inputArtifact } : {}),
 				...(options.outputArtifact ? { producedArtifact: options.outputArtifact } : {}),
+				...(workspacePath ? { workspacePath } : {}),
 			};
 			invocations.push(result);
 			return result;
@@ -173,6 +242,58 @@ export class WorkflowExecutor {
 			gate: (id, name, input, options) => invoke("Gate", this.adapters.gate, id, name, input, options),
 		});
 
-		return { workflowId, status: "Succeeded", invocations, context };
+		let status: WorkflowRun["status"] = "Succeeded";
+		if (invocations.some((invocation) => invocation.status === "Failed")) {
+			status = "Failed";
+		}
+		const workspaceDisposition =
+			status === "Failed" ? ("Retained" as const) : undefined;
+		return {
+			workflowId,
+			status,
+			invocations,
+			context,
+			...(source
+				? {
+						runIdentifier,
+						sourceRevision: source.revision,
+						workspacePath,
+						workspaceIsolation: "IndependentClone" as const,
+						sourceIntegrity: "Verified" as const,
+						...(workspaceDisposition ? { workspaceDisposition } : {}),
+					}
+				: {}),
+		};
 	}
+}
+
+function throwMissingRunIdentifier(): never {
+	throw new Error("Source execution requires a run identifier");
+}
+
+function inspectSource(path: string): {
+	path: string;
+	revision: string;
+	workingTree: "Clean" | "Dirty";
+} {
+	const revision = execFileSync("git", ["-C", path, "rev-parse", "HEAD"], {
+		encoding: "utf8",
+	}).trim();
+	const workingTree = execFileSync("git", ["-C", path, "status", "--porcelain"], {
+		encoding: "utf8",
+	}).trim()
+		? "Dirty"
+		: "Clean";
+	return { path, revision, workingTree };
+}
+
+function createWorkspace(
+	sourcePath: string,
+	runIdentifier: string,
+	workspaceRoot = "/tmp",
+): string {
+	const workspacePath = join(workspaceRoot, runIdentifier);
+	mkdirSync(workspaceRoot, { recursive: true });
+	execFileSync("git", ["clone", "--quiet", sourcePath, workspacePath]);
+	return workspacePath;
 }
