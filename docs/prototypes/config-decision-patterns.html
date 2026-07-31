@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Configuration decisions without nested ifs</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0d1117;
+        --panel: #151b24;
+        --line: #273244;
+        --text: #e6edf3;
+        --muted: #8b98a9;
+        --blue: #58a6ff;
+        --green: #3fb950;
+        --red: #f85149;
+        --amber: #d29922;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+      }
+      header {
+        padding: 28px 32px;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(135deg, #172235, #0d1117);
+      }
+      main {
+        max-width: 1200px;
+        margin: auto;
+        padding: 22px 32px 60px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 25px;
+      }
+      h2 {
+        font-size: 16px;
+        margin: 0 0 10px;
+      }
+      .eyebrow {
+        color: var(--blue);
+        font:
+          700 11px ui-monospace,
+          monospace;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .question {
+        max-width: 900px;
+        font-size: 16px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 14px;
+        margin-top: 18px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+      }
+      .config label {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--line);
+        cursor: pointer;
+      }
+      .config input {
+        accent-color: var(--blue);
+      }
+      .result {
+        margin-top: 14px;
+        padding: 12px;
+        border-radius: 6px;
+        background: #10161e;
+        border: 1px solid var(--line);
+      }
+      .result strong {
+        display: block;
+        font-size: 18px;
+      }
+      .run {
+        color: var(--green);
+      }
+      .stop {
+        color: var(--red);
+      }
+      .path {
+        margin-top: 8px;
+        color: var(--muted);
+        font:
+          12px ui-monospace,
+          monospace;
+      }
+      .codegrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .code {
+        margin: 0;
+        min-height: 300px;
+        overflow: auto;
+        white-space: pre-wrap;
+        color: #dbe7f3;
+        font:
+          12px/1.55 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+      .bad {
+        border-left: 3px solid var(--red);
+      }
+      .good {
+        border-left: 3px solid var(--green);
+      }
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      .table th,
+      .table td {
+        border-bottom: 1px solid var(--line);
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      .table th {
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .active {
+        color: var(--green);
+        font-weight: 700;
+      }
+      .note {
+        margin-top: 14px;
+        color: var(--amber);
+        font-size: 12px;
+      }
+      @media (max-width: 850px) {
+        main {
+          padding: 16px;
+        }
+        .grid,
+        .codegrid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="eyebrow">throwaway prototype · configuration design</div>
+      <h1>Replace nested configuration ifs with a decision</h1>
+      <p class="question">
+        Change the configuration below. The same rules run in two designs: a
+        deeply nested flow and a normalized facts → decision → action flow.
+      </p>
+    </header>
+    <main>
+      <section class="grid">
+        <aside class="card config">
+          <h2>Configuration</h2>
+          <p class="muted">Toggle the inputs.</p>
+          <label
+            ><input id="hasSource" type="checkbox" checked /> source
+            exists</label
+          ><label
+            ><input id="clean" type="checkbox" checked /> source is clean</label
+          ><label
+            ><input id="revision" type="checkbox" checked /> revision
+            matches</label
+          ><label
+            ><input id="workspace" type="checkbox" checked /> workspace
+            exists</label
+          ><label
+            ><input id="worker" type="checkbox" checked /> worker enabled</label
+          >
+          <div class="result">
+            <span class="eyebrow">decision</span><strong id="decision"></strong>
+            <div id="path" class="path"></div>
+          </div>
+        </aside>
+        <section>
+          <div class="codegrid">
+            <article class="card bad">
+              <h2>Nested configuration ifs</h2>
+              <pre id="nested" class="code"></pre>
+            </article>
+            <article class="card good">
+              <h2>Facts → decision → action</h2>
+              <pre id="flat" class="code"></pre>
+            </article>
+          </div>
+          <div class="card" style="margin-top: 14px">
+            <h2>Decision table</h2>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Priority</th>
+                  <th>Condition</th>
+                  <th>Decision</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="rules"></tbody>
+            </table>
+            <p class="note">
+              The rules are ordered. The first matching rule wins. Add new
+              configuration rules as rows, not as another nesting level.
+            </p>
+          </div>
+        </section>
+      </section>
+      <section class="card" style="margin-top: 14px">
+        <h2>PR #24 source options: facts → decision → action</h2>
+        <p class="muted">
+          This covers the exact branches in <code>executeWorkflow</code>. The
+          decision is made before workspace creation.
+        </p>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Options</th>
+              <th>Facts</th>
+              <th>Decision</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="pr24Cases"></tbody>
+        </table>
+      </section>
+    </main>
+    <script>
+      const fields = ["hasSource", "clean", "revision", "workspace", "worker"];
+      const nestedSource = `if (config.source) {
+  if (config.source.clean) {
+    if (config.source.revisionMatches) {
+      if (config.workspace) {
+        if (config.worker.enabled) runWorker();
+        else skipWorker();
+      } else reportWorkspaceError();
+    } else rejectWrongRevision();
+  } else rejectDirtySource();
+} else skip();`;
+      const flatSource = `const facts = normalize(config);
+const decision = decide(facts);
+
+await actions[decision]();
+
+// Each rule is independent.
+// The executor does not know the config shape.`;
+      const pr24Cases = [
+        [
+          "sourceRepository omitted",
+          "source = undefined; expected revision = omitted",
+          "NoSource",
+          "skip source checks; run without a source workspace",
+        ],
+        [
+          "clean source; expected revision omitted",
+          "source.clean = true; expected revision = omitted",
+          "Verified",
+          "create workspace; execute workflow",
+        ],
+        [
+          "clean source; revision matches",
+          "source.clean = true; revisionMatches = true",
+          "Verified",
+          "create workspace; execute workflow",
+        ],
+        [
+          "clean source; revision differs",
+          "source.clean = true; revisionMatches = false",
+          "UnexpectedSourceRevision",
+          "return failed run; do not create workspace",
+        ],
+        [
+          "dirty source",
+          "source.clean = false",
+          "DirtySource",
+          "return failed run; do not create workspace",
+        ],
+      ];
+      const rules = [
+        ["1", "!source exists", "NoSource", "skip()"],
+        ["2", "source is dirty", "DirtySource", "rejectDirtySource()"],
+        [
+          "3",
+          "revision does not match",
+          "WrongRevision",
+          "rejectWrongRevision()",
+        ],
+        [
+          "4",
+          "workspace does not exist",
+          "NoWorkspace",
+          "reportWorkspaceError()",
+        ],
+        ["5", "worker is disabled", "WorkerDisabled", "skipWorker()"],
+        ["6", "all checks pass", "Run", "runWorker()"],
+      ];
+      const $ = (id) => document.getElementById(id);
+      function config() {
+        return Object.fromEntries(fields.map((id) => [id, $(id).checked]));
+      }
+      function decide(c) {
+        if (!c.hasSource) return ["NoSource", "skip()"];
+        if (!c.clean) return ["DirtySource", "rejectDirtySource()"];
+        if (!c.revision) return ["WrongRevision", "rejectWrongRevision()"];
+        if (!c.workspace) return ["NoWorkspace", "reportWorkspaceError()"];
+        if (!c.worker) return ["WorkerDisabled", "skipWorker()"];
+        return ["Run", "runWorker()"];
+      }
+      function path(c) {
+        const steps = [
+          ["source exists", c.hasSource],
+          ["source is clean", c.clean],
+          ["revision matches", c.revision],
+          ["workspace exists", c.workspace],
+          ["worker enabled", c.worker],
+        ];
+        const failed = steps.findIndex((s) => !s[1]);
+        return steps
+          .slice(0, failed < 0 ? steps.length : failed + 1)
+          .map((s, i) => (s[1] ? "✓ " : "✕ ") + s[0])
+          .join(" → ");
+      }
+      function renderPr24Cases() {
+        const body = $("pr24Cases");
+        body.replaceChildren(
+          ...pr24Cases.map((item) => {
+            const row = document.createElement("tr");
+            item.forEach((text, index) => {
+              const cell = document.createElement("td");
+              cell.textContent = text;
+              if (
+                index === 2 &&
+                (text === "DirtySource" || text === "UnexpectedSourceRevision")
+              )
+                cell.className = "stop";
+              if (index === 2 && text === "Verified") cell.className = "active";
+              row.append(cell);
+            });
+            return row;
+          }),
+        );
+      }
+      function render() {
+        const c = config(),
+          choice = decide(c);
+        $("nested").textContent = nestedSource;
+        $("flat").textContent = flatSource;
+        $("decision").textContent = choice[0];
+        $("decision").className = choice[0] === "Run" ? "run" : "stop";
+        $("path").textContent = path(c);
+        const body = $("rules");
+        body.replaceChildren(
+          ...rules.map((r, i) => {
+            const tr = document.createElement("tr");
+            const cells = r.map((text) => {
+              const td = document.createElement("td");
+              td.textContent = text;
+              return td;
+            });
+            if ((choice[0] === "Run" && i === 5) || choice[0] === r[2])
+              cells[2].className = "active";
+            tr.append(...cells);
+            return tr;
+          }),
+        );
+      }
+      fields.forEach((id) => $(id).addEventListener("change", render));
+      renderPr24Cases();
+      render();
+    </script>
+  </body>
+</html>

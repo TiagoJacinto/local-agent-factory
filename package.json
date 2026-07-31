@@ -11,7 +11,8 @@
     "lint": "oxlint src tests",
     "lint:fix": "oxlint src tests --fix",
     "start": "bun run src/cli.ts greet",
-    "dev": "bun --watch run src/cli.ts greet"
+    "dev": "bun --watch run src/cli.ts greet",
+    "prototype:pr24": "python3 -m http.server 4173 --directory docs/prototypes"
   },
   "bin": {
     "local-agent-factory": "./src/cli.ts"

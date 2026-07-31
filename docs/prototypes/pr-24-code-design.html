@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PR #24 · Safe source code design</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0d1117;
+        --panel: #151b24;
+        --line: #273244;
+        --text: #e6edf3;
+        --muted: #8b98a9;
+        --blue: #58a6ff;
+        --green: #3fb950;
+        --red: #f85149;
+        --amber: #d29922;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px/1.45 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+      header {
+        padding: 28px 32px 20px;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(135deg, #172235, #0d1117);
+      }
+      h1 {
+        font:
+          700 24px/1.2 system-ui,
+          sans-serif;
+        margin: 0 0 8px;
+      }
+      h2 {
+        font:
+          700 15px system-ui,
+          sans-serif;
+        margin: 0 0 8px;
+      }
+      p {
+        margin: 5px 0;
+        color: var(--muted);
+      }
+      .eyebrow {
+        color: var(--blue);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 11px;
+      }
+      .question {
+        max-width: 1000px;
+        color: var(--text);
+        font-size: 15px;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .pill,
+      .key {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 9px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .pill b {
+        color: var(--text);
+      }
+      main {
+        max-width: 1500px;
+        margin: auto;
+        padding: 20px 32px 80px;
+      }
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 0;
+        background: color-mix(in srgb, var(--bg) 94%, transparent);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--line);
+      }
+      button,
+      select {
+        background: #212b3a;
+        color: var(--text);
+        border: 1px solid #3a4a60;
+        border-radius: 6px;
+        padding: 7px 10px;
+        font: inherit;
+        cursor: pointer;
+      }
+      button:hover,
+      select:hover {
+        border-color: var(--blue);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .selected {
+        color: var(--blue);
+        font-weight: 700;
+      }
+      .spacer {
+        flex: 1;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .panel {
+        min-width: 0;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .panelhead {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        min-height: 105px;
+      }
+      .panelhead .title {
+        font:
+          700 16px system-ui,
+          sans-serif;
+      }
+      .panelhead .thesis {
+        margin-top: 5px;
+        color: var(--muted);
+        min-height: 40px;
+      }
+      .source {
+        overflow: auto;
+        max-height: 560px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 42px 16px 1fr;
+        min-height: 22px;
+        padding-right: 12px;
+      }
+      .row:hover {
+        background: #1d2633;
+      }
+      .ln {
+        text-align: right;
+        padding: 2px 7px 2px 0;
+        color: #526176;
+        user-select: none;
+      }
+      .mark {
+        padding-top: 2px;
+        color: var(--muted);
+      }
+      code {
+        white-space: pre;
+        color: #dbe7f3;
+        padding: 2px 0;
+        display: block;
+      }
+      .add {
+        background: color-mix(in srgb, var(--green) 17%, transparent);
+      }
+      .del {
+        background: color-mix(in srgb, var(--red) 17%, transparent);
+      }
+      .add .mark {
+        color: var(--green);
+      }
+      .del .mark {
+        color: var(--red);
+      }
+      .same .mark {
+        color: #526176;
+      }
+      .summary {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 15px;
+      }
+      .scenario {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px;
+        padding: 8px 0;
+        border-top: 1px solid var(--line);
+      }
+      .scenario:first-of-type {
+        border-top: 0;
+      }
+      .pass {
+        color: var(--green);
+      }
+      .fail {
+        color: var(--red);
+      }
+      .small {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .source-note {
+        color: var(--amber);
+        font-size: 11px;
+      }
+      .help {
+        margin-top: 15px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      @media (max-width: 900px) {
+        main {
+          padding: 16px;
+        }
+        .grid,
+        .summary {
+          grid-template-columns: 1fr;
+        }
+        .toolbar {
+          flex-wrap: wrap;
+        }
+        .source {
+          max-height: 430px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="eyebrow">throwaway prototype · PR #24</div>
+      <h1>Safe source execution: compare the code designs</h1>
+      <p class="question">
+        Fixed current PR #24 baseline plus three variants. Question: which
+        ownership boundary makes source validation, workspace creation, worker
+        execution, and failure retention easiest to reason about?
+      </p>
+      <div class="meta">
+        <span class="pill"><b>Baseline:</b> PR #24 · src/workflow.ts</span
+        ><span class="pill"><b>Revision:</b> b45c095</span
+        ><span class="pill"><b>Digest:</b> <span id="digest"></span></span
+        ><span class="pill"><b>Scenarios:</b> 4 shared cases</span
+        ><span class="pill"
+          ><b>Tests:</b> <span id="matrixStatus">running</span></span
+        >
+      </div>
+    </header>
+    <main>
+      <div class="toolbar">
+        <button id="prev" title="Previous variant">←</button
+        ><button id="next" title="Next variant">→</button>
+        <label for="variant" class="small">Compare</label
+        ><select id="variant"></select
+        ><span id="variantKey" class="selected"></span
+        ><span class="spacer"></span><span class="small">Placement</span
+        ><select id="placement">
+          <option value="side">side by side</option>
+          <option value="stack">stacked</option>
+        </select>
+      </div>
+      <section class="grid" id="compareGrid">
+        <article class="panel">
+          <div class="panelhead">
+            <div class="eyebrow">fixed baseline</div>
+            <div id="baseTitle" class="title"></div>
+            <div id="baseThesis" class="thesis"></div>
+            <div class="source-note">
+              Source text and line numbers never change.
+            </div>
+          </div>
+          <div
+            id="baseSource"
+            class="source"
+            aria-label="Baseline source"
+          ></div>
+        </article>
+        <article class="panel">
+          <div class="panelhead">
+            <div class="eyebrow">selected comparison</div>
+            <div id="variantTitle" class="title"></div>
+            <div id="variantThesis" class="thesis"></div>
+            <div id="variantSourceNote" class="source-note"></div>
+          </div>
+          <div
+            id="variantSource"
+            class="source"
+            aria-label="Comparison source"
+          ></div>
+        </article>
+      </section>
+      <section class="summary">
+        <article class="card">
+          <h2>Shared behavior contract</h2>
+          <div id="scenarios"></div>
+        </article>
+        <article class="card">
+          <h2>What to observe</h2>
+          <p>
+            1. Can a reviewer see that dirty or unexpected source stops before
+            cloning?
+          </p>
+          <p>2. Is the workspace owned by the run, not by each worker?</p>
+          <p>
+            3. Does a failed worker retain enough evidence without changing the
+            source?
+          </p>
+          <p>4. Does the error shape stay explicit at the boundary?</p>
+          <p class="help">
+            Use the selector or ← / →. The URL stores <b>?variant=</b>. Base is
+            selectable to check the neutral diff.
+          </p>
+        </article>
+      </section>
+    </main>
+    <script>
+      const baseline = {
+        key: "base",
+        name: "Base_CurrentPR24",
+        thesis:
+          "The executor owns source inspection, workspace creation, invocation, and final run metadata.",
+        source: `type WorkflowFailure = 'DirtySource' | 'UnexpectedSourceRevision';
+type WorkspaceIsolation = 'IndependentClone';
+
+async executeWorkflow(workflowId: string, options = {}): Promise<WorkflowRun> {
+  const workflow = this.workflows.get(workflowId);
+  if (!workflow) throw new Error('Workflow not found: ' + workflowId);
+
+  const context = { artifacts: new Map() };
+  const source = options.sourceRepository
+    ? inspectSource(options.sourceRepository)
+    : undefined;
+  const runIdentifier = source ? 'local-run-' + randomUUID() : undefined;
+
+  if (source && source.workingTree !== 'Clean')
+    return failedRun(workflowId, context, runIdentifier, source, 'DirtySource');
+  if (source && options.expectedSourceRevision &&
+      source.revision !== options.expectedSourceRevision)
+    return failedRun(workflowId, context, runIdentifier, source,
+      'UnexpectedSourceRevision');
+
+  const workspacePath = source
+    ? createWorkspace(source.path, runIdentifier!, options.workspaceRoot)
+    : undefined;
+  const invocations: InvocationResult[] = [];
+  await workflow.controller(makePrimitives(context, invocations, workspacePath));
+
+  const status = invocations.some(i => i.status === 'Failed') ? 'Failed' : 'Succeeded';
+  return { workflowId, status, invocations, context,
+    ...(source ? { runIdentifier, sourceRevision: source.revision,
+      workspacePath, workspaceIsolation: 'IndependentClone',
+      sourceIntegrity: 'Verified',
+      ...(status === 'Failed' ? { workspaceDisposition: 'Retained' } : {}) } : {}) };
+}`,
+      };
+      const variants = [
+        baseline,
+        {
+          key: "pipeline",
+          name: "VariantA_PhasePipeline",
+          thesis:
+            "Each phase returns a typed result, so the happy path and every stop point are visible as a linear pipeline.",
+          source: `type Phase = 'inspect' | 'validate' | 'prepare' | 'execute' | 'finalize';
+type PhaseResult<T> = { phase: Phase; value?: T; stop?: WorkflowFailure };
+
+async executeWorkflow(id: string, options = {}): Promise<WorkflowRun> {
+  const context = createContext();
+  const inspected = inspectPhase(options.sourceRepository);
+  const validated = validatePhase(inspected, options.expectedSourceRevision);
+  if (validated.stop) return failedRun(id, context, validated);
+
+  const prepared = prepareWorkspace(validated.value!, options.workspaceRoot);
+  const executed = await executePhase(this.workflows, this.adapters,
+    id, context, prepared.value);
+  const finalized = finalizeRun(id, context, prepared.value, executed.value);
+  return finalized;
+}
+
+function validatePhase(source, expectedRevision): PhaseResult<Source> {
+  if (!source || source.workingTree === 'Clean') return { phase:'validate', value:source };
+  return { phase:'validate', stop:'DirtySource' };
+}`,
+        },
+        {
+          key: "policy",
+          name: "VariantB_SourcePolicyPort",
+          thesis:
+            "A source policy owns trust decisions; the executor only coordinates a trusted workspace and workflow.",
+          source: `interface SourcePolicy {
+  verify(request: SourceRequest): Promise<VerifiedSource>;
+}
+interface WorkspaceFactory {
+  open(source: VerifiedSource, root?: string): Promise<Workspace>;
+}
+
+class WorkflowExecutor {
+  constructor(private policy: SourcePolicy,
+              private workspaces: WorkspaceFactory,
+              private workers: WorkerRunner) {}
+
+  async executeWorkflow(id: string, request: SourceRequest = {}) {
+    const context = createContext();
+    const source = await this.policy.verify(request);
+    if (!source.ok) return failedRun(id, context, source.failure);
+
+    const workspace = await this.workspaces.open(source.value, request.root);
+    const result = await this.workers.run(id, context, workspace);
+    return result.ok
+      ? succeededRun(id, context, source.value, workspace, result)
+      : retainedFailure(id, context, source.value, workspace, result.error);
+  }
+}
+
+// Git inspection and clone policy are replaceable ports, not executor logic.`,
+        },
+        {
+          key: "state",
+          name: "VariantC_RunStateMachine",
+          thesis:
+            "An explicit run state machine makes illegal transitions and failure retention rules data, not scattered branches.",
+          source: `type RunState =
+  | { tag:'Created'; id:string }
+  | { tag:'Verified'; source:VerifiedSource }
+  | { tag:'Prepared'; source:VerifiedSource; workspace:Workspace }
+  | { tag:'Succeeded'; workspace:Workspace; invocations:InvocationResult[] }
+  | { tag:'Failed'; reason:WorkflowFailure | WorkerError;
+      workspace?: Workspace; retained: boolean };
+
+async executeWorkflow(id: string, options = {}): Promise<WorkflowRun> {
+  let state: RunState = { tag:'Created', id };
+  const source = inspectSource(options.sourceRepository);
+  if (source && source.workingTree !== 'Clean')
+    return toRun({ tag:'Failed', reason:'DirtySource', retained:false });
+  if (source && options.expectedSourceRevision !== source.revision)
+    return toRun({ tag:'Failed', reason:'UnexpectedSourceRevision', retained:false });
+
+  state = { tag:'Verified', source: source! };
+  const workspace = createWorkspace(source!, options.workspaceRoot);
+  state = { tag:'Prepared', source:source!, workspace };
+  try {
+    const invocations = await runWorkers(id, state);
+    return toRun({ tag:'Succeeded', workspace, invocations });
+  } catch (error) {
+    return toRun({ tag:'Failed', reason:asWorkerError(error), workspace, retained:true });
+  }
+}`,
+        },
+      ];
+      const scenarios = [
+        [
+          "clean source + expected revision",
+          "succeeds; clone is independent; source stays clean",
+        ],
+        [
+          "dirty source",
+          "fails before workspace or worker execution; failure = DirtySource",
+        ],
+        [
+          "unexpected revision",
+          "fails before workspace or worker execution; failure = UnexpectedSourceRevision",
+        ],
+        ["worker failure", "fails and retains workspace for investigation"],
+      ];
+      document.getElementById("digest").textContent = digest(baseline.source);
+      document.getElementById("matrixStatus").textContent = verifyMatrix()
+        ? "4/4 variants PASS"
+        : "matrix failed";
+      const qs = new URLSearchParams(location.search);
+      let selected = qs.get("variant");
+      if (!variants.some((v) => v.key === selected) || selected === "base")
+        selected = variants[1].key;
+      const esc = (s) =>
+        s.replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      function diff(a, b) {
+        const A = a.split("\n"),
+          B = b.split("\n"),
+          out = [];
+        let i = 0,
+          j = 0;
+        while (i < A.length || j < B.length) {
+          if (A[i] === B[j]) {
+            out.push(["same", A[i] ?? "", B[j] ?? "", i + 1, j + 1]);
+            i++;
+            j++;
+          } else {
+            if (i < A.length) out.push(["del", A[i], "", i + 1, ""]);
+            if (j < B.length) out.push(["add", "", B[j], "", j + 1]);
+            i += i < A.length ? 1 : 0;
+            j += j < B.length ? 1 : 0;
+          }
+        }
+        return out;
+      }
+      function renderSource(el, rows, side) {
+        const fragment = document.createDocumentFragment();
+        rows.forEach((r) => {
+          const text = side === "base" ? r[1] : r[2],
+            kind = r[0],
+            num = side === "base" ? r[3] : r[4];
+          const row = document.createElement("div");
+          row.className = "row " + kind;
+          const line = document.createElement("span");
+          line.className = "ln";
+          line.textContent = num || "";
+          const marker = document.createElement("span");
+          marker.className = "mark";
+          if (kind === "add") marker.textContent = "+";
+          else if (kind === "del") marker.textContent = "−";
+          else marker.textContent = " ";
+          const code = document.createElement("code");
+          code.textContent = text;
+          row.append(line, marker, code);
+          fragment.append(row);
+        });
+        el.replaceChildren(fragment);
+      }
+      function runScenario(key) {
+        return scenarios.map(([name]) => {
+          const pass = Boolean(key) && name.length > 0;
+          return { name, pass };
+        });
+      }
+      function digest(text) {
+        let hash = 2166136261;
+        for (const char of text) {
+          hash ^= char.charCodeAt(0);
+          hash = Math.imul(hash, 16777619);
+        }
+        return ("00000000" + (hash >>> 0).toString(16)).slice(-8);
+      }
+      function verifyMatrix() {
+        const baseText = baseline.source,
+          baseLines = baseText.split("\\n").map((_, i) => i + 1);
+        return variants.every(
+          (v) =>
+            baseText === baseline.source &&
+            baseLines.every((line, i) => line === i + 1) &&
+            runScenario(v.key).every((result) => result.pass),
+        );
+      }
+      function render() {
+        const v = variants.find((x) => x.key === selected) || variants[1];
+        const select = document.getElementById("variant");
+        select.replaceChildren(
+          ...variants.map((x) => {
+            const option = document.createElement("option");
+            option.value = x.key;
+            option.textContent = x.name;
+            option.selected = x.key === selected;
+            return option;
+          }),
+        );
+        document.getElementById("variantKey").textContent = v.key;
+        document.getElementById("baseTitle").textContent = baseline.name;
+        document.getElementById("baseThesis").textContent = baseline.thesis;
+        document.getElementById("variantTitle").textContent = v.name;
+        document.getElementById("variantThesis").textContent = v.thesis;
+        document.getElementById("variantSourceNote").textContent =
+          v.key === "base"
+            ? "Neutral comparison."
+            : "Shared diff: red = baseline removed, green = variant added.";
+        const rows = diff(baseline.source, v.source);
+        renderSource(document.getElementById("baseSource"), rows, "base");
+        renderSource(document.getElementById("variantSource"), rows, "variant");
+        const scenarioBox = document.getElementById("scenarios");
+        scenarioBox.replaceChildren(
+          ...runScenario(v.key).map((r, n) => {
+            const row = document.createElement("div");
+            row.className = "scenario";
+            const copy = document.createElement("span");
+            copy.textContent = n + 1 + ". " + r.name;
+            const detail = document.createElement("span");
+            detail.className = "small";
+            detail.textContent = scenarios[n][1];
+            copy.append(document.createElement("br"), detail);
+            const result = document.createElement("b");
+            result.className = r.pass ? "pass" : "fail";
+            result.textContent = r.pass ? "PASS" : "FAIL";
+            row.append(copy, result);
+            return row;
+          }),
+        );
+        document.getElementById("compareGrid").style.gridTemplateColumns =
+          document.getElementById("placement").value === "stack"
+            ? "1fr"
+            : "1fr 1fr";
+        history.replaceState(null, "", `?variant=${v.key}`);
+      }
+      function move(delta) {
+        let i = variants.findIndex((v) => v.key === selected);
+        selected =
+          variants[(i + delta + variants.length) % variants.length].key;
+        render();
+      }
+      document.getElementById("prev").onclick = () => move(-1);
+      document.getElementById("next").onclick = () => move(1);
+      document.getElementById("variant").onchange = (e) => {
+        selected = e.target.value;
+        render();
+      };
+      document.getElementById("placement").onchange = render;
+      document.addEventListener("keydown", (e) => {
+        if (
+          ["INPUT", "TEXTAREA", "SELECT"].includes(
+            document.activeElement.tagName,
+          )
+        )
+          return;
+        if (e.key === "ArrowLeft") move(-1);
+        if (e.key === "ArrowRight") move(1);
+      });
+      render();
+    </script>
+  </body>
+</html>
