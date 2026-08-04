@@ -68,3 +68,24 @@ The evolving state shared by primitive invocations during one workflow run.
 
 **Artifact**:
 A named output produced by one primitive invocation, retained in the run context, and available to later primitive invocations.
+
+**Agent Role**:
+A named responsibility in a workflow, with its purpose, instructions, model choice, tools, and allowed repository changes.
+
+**Workflow Envelope**:
+A typed report from one workflow phase that carries its status, summary, declared artifacts, and information needed by the next phase.
+
+**Workflow Trace**:
+The observable history of a workflow run, including phases, primitive invocations, validation results, workflow envelopes, and process activity.
+
+**Workflow Session**:
+The resumable execution context associated with a workflow run and its agent conversations.
+
+**Workflow Registry**:
+The collection of named workflow definitions that an operator can execute.
+
+**Workflow Package**:
+A reusable set of workflow definitions, agent roles, instructions, configuration, and supporting runtime files that can be installed in a repository.
+
+**Target Repository**:
+A repository that receives a Workflow Package and its configuration.

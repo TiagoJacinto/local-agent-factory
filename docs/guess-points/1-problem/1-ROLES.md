@@ -35,3 +35,40 @@ The Workflow Operator calls the Local Agent Factory from outside the system thro
 2. Request its execution, including the source repository and expected revision when required.
 3. Inspect the CLI's workflow-run output.
 4. Inspect ordered primitive invocation results and artifacts reported for that run.
+
+### Factory Maintainer
+
+A **Factory Maintainer** installs and configures a reusable workflow package in a repository so that a Workflow Operator can run its registered workflows.
+
+#### Horizontal: Local Agent Factory setup
+
+The Factory Maintainer uses the Local Agent Factory setup capability from outside the system.
+
+| Vertical | Interface available to the role | Permitted interaction |
+| --- | --- | --- |
+| Factory installation | Local Agent Factory setup | Install a workflow package into a target repository. |
+| Factory configuration | Local Agent Factory setup | Set agent roles, instructions, models, tools, and repository write boundaries. |
+| Factory verification | Local Agent Factory setup | Verify the installed workflow registry and configuration. |
+
+#### Access boundary
+
+- **Setup:** Access is limited to installing and configuring the workflow package.
+- **Execution:** The role does not perform workflow work as part of installation.
+
+### Workflow Observer
+
+A **Workflow Observer** inspects live and completed workflow traces, phase details, validation evidence, envelopes, and process activity.
+
+#### Horizontal: Local Agent Factory trace viewer
+
+The Workflow Observer uses the Local Agent Factory trace viewer from outside the system.
+
+| Vertical | Interface available to the role | Permitted interaction |
+| --- | --- | --- |
+| Trace inspection | Local Agent Factory trace viewer | Inspect a workflow trace while the run is active or after it finishes. |
+| Evidence inspection | Local Agent Factory trace viewer | Inspect validation results, envelopes, artifacts, and process activity for a run. |
+
+#### Access boundary
+
+- **Trace viewer:** Access is limited to inspecting workflow evidence.
+- **Mutation:** The role cannot change a workflow run through the trace viewer.

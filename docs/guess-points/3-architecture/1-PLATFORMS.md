@@ -8,7 +8,9 @@ A **platform** is a feature-bearing execution environment presented as a black b
 
 An **internal platform** is a platform that we own and can change as part of this system.
 
-- **Local Agent Factory** — provides a CLI through which Workflow Operators execute registered workflows and inspect their runs. It coordinates model work, tool-enabled work, human decisions, and ordinary computation behind that boundary.
+- **Local Agent Factory** — provides workflow installation, configuration, execution, and run inspection through stable local boundaries. It coordinates model work, tool-enabled work, human decisions, and ordinary computation behind those boundaries.
+- **Local Agent Factory setup** — installs and verifies a reusable workflow package and its configuration in a target repository.
+- **Local Agent Factory trace viewer** — presents live and completed Workflow Traces, including phases, primitive invocations, validation results, envelopes, artifacts, and process activity.
 
 ## External platforms
 
