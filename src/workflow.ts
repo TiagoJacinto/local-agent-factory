@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 export type PrimitiveType = "AI" | "Harness" | "Gate";
@@ -16,7 +17,7 @@ export type WorkflowFailure =
 	| "ValidationFailed"
 	| "CorrectionBudgetExceeded"
 	| "PermissionViolation";
-export type WorkflowStatus = "Succeeded" | "Failed" | "AwaitingReview";
+export type WorkflowStatus = "Succeeded" | "Failed" | "AwaitingReview" | "Running";
 export type WorkflowEnvelopeStatus = "Success" | "Fail";
 
 export interface WorkflowEnvelope {
@@ -66,6 +67,7 @@ export interface ValidationResult {
 
 export interface WorkflowSession {
 	readonly id: string;
+	readonly runIdentifier: string;
 	readonly sameAgentContext: true;
 }
 
@@ -170,6 +172,11 @@ export interface WorkflowExecutionOptions {
 	readonly sourceRepository?: string;
 	readonly expectedSourceRevision?: string;
 	readonly workspaceRoot?: string;
+	readonly runIdentifier?: string;
+}
+
+export interface WorkflowExecutorOptions {
+	readonly sessionStorePath?: string;
 }
 
 export interface AgentRoleConfiguration {
@@ -217,13 +224,31 @@ export interface PrimitiveAdapters {
 
 const deterministicAdapter: PrimitiveAdapter = () => undefined;
 
+interface PersistedWorkflowSession {
+	readonly runIdentifier: string;
+	readonly workflowId: string;
+	readonly session: WorkflowSession;
+	readonly context: {
+		readonly artifacts: readonly [string, Artifact][];
+		readonly envelopes: readonly [string, WorkflowEnvelope][];
+		readonly validationResults: readonly ValidationResult[];
+	};
+	readonly invocations: readonly InvocationResult[];
+	readonly status: WorkflowStatus;
+	readonly sourceRepository?: string;
+	readonly sourceRevision?: string;
+	readonly workspacePath?: string;
+}
+
 export class WorkflowExecutor {
 	private readonly workflows: ReadonlyMap<string, WorkflowDefinition>;
 	private readonly adapters: ResolvedPrimitiveAdapters;
+	private readonly sessionStorePath: string;
 
 	public constructor(
 		workflows: readonly WorkflowDefinition[],
 		adapters: PrimitiveAdapters = {},
+		options: WorkflowExecutorOptions = {},
 	) {
 		this.workflows = new Map(
 			workflows.map((workflow) => [workflow.id, workflow]),
@@ -234,6 +259,21 @@ export class WorkflowExecutor {
 			gate: adapters.gate ?? deterministicAdapter,
 			roles: new Map((adapters.roles ?? []).map((role) => [role.name, role])),
 		};
+		this.sessionStorePath = options.sessionStorePath ?? join(tmpdir(), "local-agent-factory-sessions");
+	}
+
+	public async resumeWorkflow(
+		runIdentifier: string,
+		correction: string,
+	): Promise<WorkflowRun> {
+		const persisted = this.readSession(runIdentifier);
+		if (!persisted) throw new Error(`Workflow session not found: ${runIdentifier}`);
+		return this.executeWorkflow(persisted.workflowId, {
+			objective: correction,
+			runIdentifier,
+			sourceRepository: persisted.sourceRepository,
+			expectedSourceRevision: persisted.sourceRevision,
+		});
 	}
 
 	public async executeWorkflow(
@@ -243,20 +283,24 @@ export class WorkflowExecutor {
 		const workflow = this.workflows.get(workflowId);
 		if (!workflow) throw new Error(`Workflow not found: ${workflowId}`);
 
-		const session: WorkflowSession = {
+		const runIdentifier = options.runIdentifier ?? `local-run-${randomUUID()}`;
+		const persisted = this.readSession(runIdentifier);
+		const session: WorkflowSession = persisted?.session ?? {
 			id: `session-${randomUUID()}`,
+			runIdentifier,
 			sameAgentContext: true,
 		};
-		const context: RunContext = {
-			artifacts: new Map(),
-			envelopes: new Map(),
-			validationResults: [],
-			session,
-		};
+		const context: RunContext = persisted
+			? restoreContext(persisted.context, session)
+			: {
+					artifacts: new Map(),
+					envelopes: new Map(),
+					validationResults: [],
+					session,
+				};
 		const source = options.sourceRepository
 			? inspectSource(options.sourceRepository)
 			: undefined;
-		const runIdentifier = source ? `local-run-${randomUUID()}` : undefined;
 		if (source && source.workingTree !== "Clean") {
 			return {
 				workflowId,
@@ -289,14 +333,12 @@ export class WorkflowExecutor {
 				session,
 			};
 		}
-		const workspacePath = source
-			? createWorkspace(
-					source.path,
-					runIdentifier ?? throwMissingRunIdentifier(),
-					options.workspaceRoot,
-				)
-			: undefined;
-		const invocations: InvocationResult[] = [];
+		const workspacePath = persisted?.workspacePath ?? (source
+			? createWorkspace(source.path, runIdentifier, options.workspaceRoot)
+			: undefined);
+		const invocations: InvocationResult[] = persisted
+			? [...persisted.invocations]
+			: [];
 		const roleBaselines = new Map<string, readonly string[]>();
 		let failure: WorkflowFailure | undefined;
 		let failureEvidence: WorkflowFailureEvidence | undefined;
@@ -495,10 +537,12 @@ export class WorkflowExecutor {
 				invoke("Gate", this.adapters.gate, id, name, input, options),
 		});
 
-		let status: WorkflowRun["status"] = "Succeeded";
-		if (failure || invocations.some((invocation) => invocation.status === "Failed")) {
+		const newInvocations = invocations.slice(persisted?.invocations.length ?? 0);
+		let status: WorkflowRun["status"] = persisted ? "Running" : "Succeeded";
+		if (failure || newInvocations.some((invocation) => invocation.status === "Failed")) {
 			status = "Failed";
 		} else if (
+			!persisted &&
 			workflow.completesWithReview &&
 			invocations.some((invocation) => invocation.primitiveType === "Gate")
 		) {
@@ -515,9 +559,10 @@ export class WorkflowExecutor {
 				value: { workspacePath, changedPaths: inspectWorkspaceChanges(workspacePath) },
 			});
 		}
-		return {
+		const run: WorkflowRun = {
 			workflowId,
 			status,
+			runIdentifier,
 			invocations,
 			context,
 			...(failure
@@ -525,12 +570,12 @@ export class WorkflowExecutor {
 				: {}),
 			validationResults: context.validationResults,
 			session,
-			...(source
+			...(source || persisted?.sourceRevision
 				? {
 						sourceRepositoryUnchanged: true,
 						integration: "Manual" as const,
 						runIdentifier,
-						sourceRevision: source.revision,
+						sourceRevision: source?.revision ?? persisted?.sourceRevision,
 						workspacePath,
 						workspaceIsolation: "IndependentClone" as const,
 						sourceIntegrity: "Verified" as const,
@@ -538,7 +583,58 @@ export class WorkflowExecutor {
 					}
 				: {}),
 		};
+		this.writeSession({
+			runIdentifier,
+			workflowId,
+			session,
+			context: {
+				artifacts: [...context.artifacts.entries()],
+				envelopes: [...context.envelopes.entries()],
+				validationResults: context.validationResults,
+			},
+			invocations,
+			status,
+			sourceRepository: options.sourceRepository ?? persisted?.sourceRepository,
+			sourceRevision: source?.revision ?? persisted?.sourceRevision,
+			workspacePath,
+		});
+		return run;
 	}
+
+	private readSession(runIdentifier: string): PersistedWorkflowSession | undefined {
+		try {
+			return JSON.parse(
+				readFileSync(join(this.sessionStorePath, `${runIdentifier}.json`), "utf8"),
+			) as PersistedWorkflowSession;
+		} catch (error) {
+			if (isMissingFile(error)) return undefined;
+			throw error;
+		}
+	}
+
+	private writeSession(session: PersistedWorkflowSession): void {
+		mkdirSync(this.sessionStorePath, { recursive: true });
+		writeFileSync(
+			join(this.sessionStorePath, `${session.runIdentifier}.json`),
+			`${JSON.stringify(session, null, 2)}\n`,
+		);
+	}
+}
+
+function restoreContext(
+	persisted: PersistedWorkflowSession["context"],
+	session: WorkflowSession,
+): RunContext {
+	return {
+		artifacts: new Map(persisted.artifacts),
+		envelopes: new Map(persisted.envelopes),
+		validationResults: [...persisted.validationResults],
+		session,
+	};
+}
+
+function isMissingFile(error: unknown): error is NodeJS.ErrnoException {
+	return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 function parseWorkflowEnvelope(
@@ -566,10 +662,6 @@ function isStringArray(value: unknown): value is readonly string[] {
 	return (
 		Array.isArray(value) && value.every((item) => typeof item === "string")
 	);
-}
-
-function throwMissingRunIdentifier(): never {
-	throw new Error("Source execution requires a run identifier");
 }
 
 function inspectSource(path: string): {

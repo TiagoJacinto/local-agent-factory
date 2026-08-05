@@ -53,6 +53,17 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			},
 		},
 		{
+			id: "document",
+			name: "Document",
+			controller: async ({ harness, objective }) => {
+				await harness(
+					"documenter",
+					"Document change",
+					objective ?? "Document the completed change",
+				);
+			},
+		},
+		{
 			id: "simple-sdlc",
 			name: "Simple software development lifecycle",
 			completesWithReview: true,
