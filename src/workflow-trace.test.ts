@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
 	InMemoryWorkflowTraceStore,
+	renderWorkflowTrace,
 	SQLiteWorkflowTraceStore,
+	type WorkflowTrace,
 } from "./workflow-trace.ts";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
@@ -53,6 +55,39 @@ describe("workflow trace", () => {
 		expect(trace?.validationResults[0].status).toBe("Succeeded");
 		expect(trace?.envelopes).toHaveLength(1);
 		expect(trace?.artifacts.map((artifact) => artifact.id)).toContain("plan");
+
+		const viewer = renderWorkflowTrace(trace!);
+		// result verification
+		expect(viewer).toContain(trace!.runIdentifier);
+		expect(viewer).toContain("AwaitingReview");
+		expect(viewer).toContain("Validation evidence");
+		expect(viewer).toContain("planned");
+	});
+
+	test("renders retained failure workspace evidence", () => {
+		const trace: WorkflowTrace = {
+			runIdentifier: "run-failed",
+			workflowId: "build",
+			status: "Failed",
+			events: [],
+			validationResults: [],
+			envelopes: [],
+			artifacts: [],
+			workspacePath: "/tmp/workflow-run-failed",
+			workspaceDisposition: "Retained",
+			failure: "ValidationFailed",
+			failureEvidence: {
+				message: "Validation failed: typecheck",
+				output: "error TS2322",
+			},
+		};
+
+		const viewer = renderWorkflowTrace(trace);
+		// result verification
+		expect(viewer).toContain("ValidationFailed");
+		expect(viewer).toContain("/tmp/workflow-run-failed");
+		expect(viewer).toContain("Retained");
+		expect(viewer).toContain("error TS2322");
 	});
 
 	test("can inspect primitive activity while the run is active", async () => {

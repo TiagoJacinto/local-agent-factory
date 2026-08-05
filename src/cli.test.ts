@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { createCli } from "./cli";
+import {
+	SQLiteWorkflowTraceStore,
+	type WorkflowTrace,
+} from "./workflow-trace.ts";
 import { WorkflowExecutor, type WorkflowDefinition } from "./workflow.ts";
 
 describe("CLI", () => {
@@ -55,6 +59,39 @@ describe("CLI", () => {
 			workflowId: "configured",
 			status: "Succeeded",
 		});
+	});
+
+	test("renders a stored workflow trace as a read-only HTML view", async () => {
+		const messages: string[] = [];
+		const database = join(
+			mkdtempSync(join(tmpdir(), "cli-trace-")),
+			"trace.sqlite",
+		);
+		const trace: WorkflowTrace = {
+			runIdentifier: "run-001",
+			workflowId: "reviewable",
+			status: "AwaitingReview",
+			events: [],
+			validationResults: [],
+			envelopes: [],
+			artifacts: [],
+		};
+		new SQLiteWorkflowTraceStore(database).start(trace);
+
+		const cli = createCli((message) => messages.push(message));
+		await cli.parseAsync([
+			"node",
+			"local-agent-factory",
+			"trace",
+			"run-001",
+			"--database",
+			database,
+		]);
+
+		// result verification
+		expect(messages[0]).toContain("<!doctype html>");
+		expect(messages[0]).toContain("run-001");
+		expect(messages[0]).toContain("AwaitingReview");
 	});
 
 	test("uses the default name when none is provided", async () => {
