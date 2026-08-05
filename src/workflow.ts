@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-	SQLiteWorkflowTraceStore,
+	InMemoryWorkflowTraceStore,
 	type WorkflowTrace,
 	type WorkflowTraceEvent,
 	type WorkflowTraceStore,
@@ -278,7 +278,7 @@ export class WorkflowExecutor {
 		this.sessionStorePath =
 			options.sessionStorePath ??
 			join(tmpdir(), "local-agent-factory-sessions");
-		this.traceStore = adapters.traceStore ?? new SQLiteWorkflowTraceStore();
+		this.traceStore = adapters.traceStore ?? new InMemoryWorkflowTraceStore();
 	}
 
 	public async resumeWorkflow(
@@ -569,6 +569,21 @@ export class WorkflowExecutor {
 				},
 				...(workspacePath ? { workspacePath } : {}),
 			};
+			if (operations.length === 0) {
+				context.validationResults.push(lastResult);
+				traceEvents.push({
+					sequence: traceEvents.length + 1,
+					kind: "validation",
+					name: lastResult.operation,
+					status: lastResult.status,
+					data: lastResult.evidence,
+				});
+				await this.traceStore.save({
+					...trace,
+					events: traceEvents,
+					validationResults: [...context.validationResults],
+				});
+			}
 			for (const operation of operations) {
 				try {
 					const output = execFileSync("sh", ["-c", operation.command], {

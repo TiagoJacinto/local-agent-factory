@@ -1,5 +1,5 @@
-import { Database } from "bun:sqlite";
-import { mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type {
 	Artifact,
@@ -49,13 +49,36 @@ export interface WorkflowTraceStore {
 	get(runIdentifier: string): WorkflowTrace | undefined | Promise<WorkflowTrace | undefined>;
 }
 
+interface SQLiteDatabase {
+	run(sql: string): void;
+	prepare(sql: string): {
+		run(parameters: Record<string, string>): void;
+		get(parameters: Record<string, string>): unknown;
+	};
+}
+
+const require = createRequire(import.meta.url);
+
+function openSQLiteDatabase(path: string): SQLiteDatabase | undefined {
+	try {
+		const sqlite = require("bun:sqlite") as {
+			Database?: new (databasePath: string) => SQLiteDatabase;
+		};
+		return sqlite.Database ? new sqlite.Database(path) : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
-	private readonly database: Database;
+	private readonly database?: SQLiteDatabase;
+	private readonly databasePath: string;
 
 	public constructor(databasePath = ".local-agent-factory/workflow-traces.sqlite") {
 		mkdirSync(dirname(databasePath), { recursive: true });
-		this.database = new Database(databasePath);
-		this.database.run(`
+		this.databasePath = databasePath;
+		this.database = openSQLiteDatabase(databasePath);
+		this.database?.run(`
 			CREATE TABLE IF NOT EXISTS workflow_traces (
 				run_identifier TEXT PRIMARY KEY,
 				trace_json TEXT NOT NULL
@@ -75,6 +98,12 @@ export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 	}
 
 	public save(trace: WorkflowTrace): void {
+		if (!this.database) {
+			const traces = this.readFallbackTraces();
+			traces[trace.runIdentifier] = trace;
+			writeFileSync(this.databasePath, JSON.stringify(traces, null, 2));
+			return;
+		}
 		this.database
 			.prepare(
 				`INSERT INTO workflow_traces (run_identifier, trace_json)
@@ -88,6 +117,10 @@ export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 	}
 
 	public get(runIdentifier: string): WorkflowTrace | undefined {
+		if (!this.database) {
+			const trace = this.readFallbackTraces()[runIdentifier];
+			return trace ? structuredClone(trace) : undefined;
+		}
 		const row = this.database
 			.prepare("SELECT trace_json FROM workflow_traces WHERE run_identifier = $runIdentifier")
 			.get({ $runIdentifier: runIdentifier }) as { trace_json: string } | null;
@@ -96,6 +129,14 @@ export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 			return JSON.parse(row.trace_json) as WorkflowTrace;
 		} catch {
 			return undefined;
+		}
+	}
+
+	private readFallbackTraces(): Record<string, WorkflowTrace> {
+		try {
+			return JSON.parse(readFileSync(this.databasePath, "utf8")) as Record<string, WorkflowTrace>;
+		} catch {
+			return {};
 		}
 	}
 }
