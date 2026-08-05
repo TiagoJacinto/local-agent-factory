@@ -38,14 +38,30 @@ export interface WorkflowRegistry {
 export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[] {
 	return [
 		{
+			id: "plan-build",
+			name: "Plan and build",
+			controller: async ({ ai, harness, objective }) => {
+				const plan = await ai("planner", "Plan request", objective ?? "Plan the requested change", {
+					outputArtifact: "plan",
+					outputEnvelope: { producer: "planner", consumer: "builder" },
+				});
+				if (plan.status === "Failed") return;
+				await harness("builder", "Build request", objective ?? "Build the requested change", {
+					inputArtifact: "plan",
+				});
+			},
+		},
+		{
 			id: "plan-build-test-review",
 			name: "Plan, build, test, and review",
 			completesWithReview: true,
 			controller: async ({ ai, harness, gate, objective }) => {
-				await ai("plan", "Plan request", objective ?? "Plan the requested change", {
+				const plan = await ai("planner", "Plan request", objective ?? "Plan the requested change", {
 					outputArtifact: "plan",
+					outputEnvelope: { producer: "planner", consumer: "builder" },
 				});
-				await harness("build", "Build request", objective ?? "Build the requested change", {
+				if (plan.status === "Failed") return;
+				await harness("builder", "Build request", objective ?? "Build the requested change", {
 					inputArtifact: "plan",
 				});
 				await ai("review", "Review change", "Review the change against the plan");

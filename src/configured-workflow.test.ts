@@ -28,7 +28,21 @@ describe("configured agent workflow", () => {
 		const executor = new WorkflowExecutor(createStarterWorkflowDefinitions(), {
 			ai: ({ name, input }) => {
 				calls.push(`AI:${name}:${input}`);
-				return { value: `${name} output` };
+				return {
+					value:
+						name === "Plan request"
+							? {
+									producer: "planner",
+									consumer: "builder",
+									status: "Success",
+									objective: input,
+									risks: ["No known risks"],
+									expectedFiles: ["README.md"],
+									acceptanceCriteria: ["The requested change is implemented"],
+									validationCommands: ["bun test"],
+								}
+							: `${name} output`,
+				};
 			},
 			harness: ({ name, inputArtifact, workspacePath }) => {
 				calls.push(`Harness:${name}:${inputArtifact?.value}`);
@@ -61,10 +75,51 @@ describe("configured agent workflow", () => {
 		]);
 		expect(calls[0]).toContain("add a health endpoint");
 		expect(run.context.artifacts.get("plan")).toMatchObject({
-			producerInvocationId: "plan",
-			consumerInvocationId: "build",
+			producerInvocationId: "planner",
+			consumerInvocationId: "builder",
+		});
+		expect(run.context.envelopes.get("plan")).toEqual({
+			producer: "planner",
+			consumer: "builder",
+			status: "Success",
+			objective: "add a health endpoint",
+			risks: ["No known risks"],
+			expectedFiles: ["README.md"],
+			acceptanceCriteria: ["The requested change is implemented"],
+			validationCommands: ["bun test"],
 		});
 		expect(readFileSync(join(source.path, "README.md"), "utf8")).toBe("before\n");
+	});
+
+	test("does not pass malformed planner output to the builder", async () => {
+		const calls: string[] = [];
+		const executor = new WorkflowExecutor(createStarterWorkflowDefinitions(), {
+			ai: ({ name }) => {
+				calls.push(name);
+				return { value: { producer: "planner" } };
+			},
+			harness: ({ name }) => {
+				calls.push(name);
+				return undefined;
+			},
+		});
+
+		const run = await executor.executeWorkflow("plan-build-test-review", {
+			objective: "add a health endpoint",
+		});
+
+		expect(run).toMatchObject({
+			status: "Failed",
+			failure: "EnvelopeParseFailed",
+			failureEvidence: {
+				invocationId: "planner",
+				primitiveType: "AI",
+			},
+		});
+		expect(run.invocations.map(({ name, status }) => ({ name, status }))).toEqual([
+			{ name: "Plan request", status: "Failed" },
+		]);
+		expect(calls).toEqual(["Plan request"]);
 	});
 
 	test("returns structured failure evidence when an adapter fails", async () => {

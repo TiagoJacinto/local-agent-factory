@@ -9,8 +9,26 @@ export type PrimitiveResultType<T extends PrimitiveType> = `${T}InvocationResult
 export type WorkflowFailure =
 	| "DirtySource"
 	| "UnexpectedSourceRevision"
-	| "AdapterFailed";
+	| "AdapterFailed"
+	| "EnvelopeParseFailed";
 export type WorkflowStatus = "Succeeded" | "Failed" | "AwaitingReview";
+export type WorkflowEnvelopeStatus = "Success" | "Fail";
+
+export interface WorkflowEnvelope {
+	readonly producer: string;
+	readonly consumer: string;
+	readonly status: WorkflowEnvelopeStatus;
+	readonly objective: string;
+	readonly risks: readonly string[];
+	readonly expectedFiles: readonly string[];
+	readonly acceptanceCriteria: readonly string[];
+	readonly validationCommands: readonly string[];
+}
+
+export interface EnvelopeTarget {
+	readonly producer: string;
+	readonly consumer: string;
+}
 export type WorkspaceIsolation = "IndependentClone";
 export type SourceIntegrity = "Verified";
 export type WorkspaceDisposition = "Retained";
@@ -24,11 +42,13 @@ export interface Artifact {
 
 export interface RunContext {
 	readonly artifacts: Map<string, Artifact>;
+	readonly envelopes: Map<string, WorkflowEnvelope>;
 }
 
 export interface PrimitiveCallOptions {
 	readonly inputArtifact?: string;
 	readonly outputArtifact?: string;
+	readonly outputEnvelope?: EnvelopeTarget;
 }
 
 export interface InvocationResult<T extends PrimitiveType = PrimitiveType> {
@@ -85,6 +105,7 @@ export interface WorkflowFailureEvidence {
 	readonly invocationId: string;
 	readonly primitiveType: PrimitiveType;
 	readonly message: string;
+	readonly output?: unknown;
 }
 
 export interface WorkflowRun {
@@ -158,7 +179,10 @@ export class WorkflowExecutor {
 		const workflow = this.workflows.get(workflowId);
 		if (!workflow) throw new Error(`Workflow not found: ${workflowId}`);
 
-		const context: RunContext = { artifacts: new Map() };
+		const context: RunContext = {
+			artifacts: new Map(),
+			envelopes: new Map(),
+		};
 		const source = options.sourceRepository
 			? inspectSource(options.sourceRepository)
 			: undefined;
@@ -199,6 +223,7 @@ export class WorkflowExecutor {
 				)
 			: undefined;
 		const invocations: InvocationResult[] = [];
+		let failure: WorkflowFailure | undefined;
 		let failureEvidence: WorkflowFailureEvidence | undefined;
 		const invoke = async <T extends PrimitiveType>(
 			primitiveType: T,
@@ -216,6 +241,7 @@ export class WorkflowExecutor {
 			}
 
 			let adapterOutput: PrimitiveAdapterOutput | undefined;
+			let invocationStatus: InvocationStatus = "Succeeded";
 			try {
 				adapterOutput = await adapter({
 					invocationId,
@@ -226,22 +252,42 @@ export class WorkflowExecutor {
 					outputArtifact: options.outputArtifact,
 					workspacePath,
 				});
+				invocationStatus = adapterOutput?.status ?? "Succeeded";
 			} catch (error) {
+				failure = "AdapterFailed";
 				failureEvidence = {
 					invocationId,
 					primitiveType,
 					message: error instanceof Error ? error.message : String(error),
 				};
-				adapterOutput = { status: "Failed" };
+				invocationStatus = "Failed";
+			}
+
+			let envelope: WorkflowEnvelope | undefined;
+			if (invocationStatus === "Succeeded" && options.outputEnvelope) {
+				envelope = parseWorkflowEnvelope(adapterOutput?.value, options.outputEnvelope);
+				if (!envelope) {
+					failure = "EnvelopeParseFailed";
+					invocationStatus = "Failed";
+					failureEvidence = {
+						invocationId,
+						primitiveType,
+						message: "Primitive output is not a valid workflow envelope",
+						output: adapterOutput?.value,
+					};
+				}
 			}
 
 			if (inputArtifact) inputArtifact.consumerInvocationId = invocationId;
-			if (options.outputArtifact) {
+			if (options.outputArtifact && invocationStatus === "Succeeded") {
 				context.artifacts.set(options.outputArtifact, {
 					id: options.outputArtifact,
 					producerInvocationId: invocationId,
-					value: adapterOutput?.value ?? input,
+					value: envelope ?? adapterOutput?.value ?? input,
 				});
+			}
+			if (envelope && options.outputArtifact) {
+				context.envelopes.set(options.outputArtifact, envelope);
 			}
 
 			const result: InvocationResult<T> = {
@@ -250,10 +296,12 @@ export class WorkflowExecutor {
 				name,
 				primitiveType,
 				resultType: `${primitiveType}InvocationResult`,
-				status: adapterOutput?.status ?? "Succeeded",
+				status: invocationStatus,
 				input,
 				...(options.inputArtifact ? { consumedArtifact: options.inputArtifact } : {}),
-				...(options.outputArtifact ? { producedArtifact: options.outputArtifact } : {}),
+				...(options.outputArtifact && invocationStatus === "Succeeded"
+					? { producedArtifact: options.outputArtifact }
+					: {}),
 				...(workspacePath ? { workspacePath } : {}),
 			};
 			invocations.push(result);
@@ -284,7 +332,7 @@ export class WorkflowExecutor {
 			status,
 			invocations,
 			context,
-			...(failureEvidence ? { failure: "AdapterFailed" as const, failureEvidence } : {}),
+			...(failure ? { failure, ...(failureEvidence ? { failureEvidence } : {}) } : {}),
 			...(source
 				? {
 						runIdentifier,
@@ -297,6 +345,31 @@ export class WorkflowExecutor {
 				: {}),
 		};
 	}
+}
+
+function parseWorkflowEnvelope(
+	value: unknown,
+	target: EnvelopeTarget,
+): WorkflowEnvelope | undefined {
+	if (!value || typeof value !== "object") return undefined;
+	const candidate = value as Record<string, unknown>;
+	if (
+		candidate.producer !== target.producer ||
+		candidate.consumer !== target.consumer ||
+		(candidate.status !== "Success" && candidate.status !== "Fail") ||
+		typeof candidate.objective !== "string" ||
+		!isStringArray(candidate.risks) ||
+		!isStringArray(candidate.expectedFiles) ||
+		!isStringArray(candidate.acceptanceCriteria) ||
+		!isStringArray(candidate.validationCommands)
+	) {
+		return undefined;
+	}
+	return candidate as unknown as WorkflowEnvelope;
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+	return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function throwMissingRunIdentifier(): never {
