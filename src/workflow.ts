@@ -6,7 +6,11 @@ import { join } from "node:path";
 export type PrimitiveType = "AI" | "Harness" | "Gate";
 export type InvocationStatus = "Succeeded" | "Failed";
 export type PrimitiveResultType<T extends PrimitiveType> = `${T}InvocationResult`;
-export type WorkflowFailure = "DirtySource" | "UnexpectedSourceRevision";
+export type WorkflowFailure =
+	| "DirtySource"
+	| "UnexpectedSourceRevision"
+	| "AdapterFailed";
+export type WorkflowStatus = "Succeeded" | "Failed" | "AwaitingReview";
 export type WorkspaceIsolation = "IndependentClone";
 export type SourceIntegrity = "Verified";
 export type WorkspaceDisposition = "Retained";
@@ -62,6 +66,7 @@ export type PrimitiveFunction<T extends PrimitiveType> = (
 
 export interface WorkflowPrimitives {
 	readonly context: RunContext;
+	readonly objective?: string;
 	readonly ai: PrimitiveFunction<"AI">;
 	readonly harness: PrimitiveFunction<"Harness">;
 	readonly gate: PrimitiveFunction<"Gate">;
@@ -73,11 +78,18 @@ export interface WorkflowDefinition {
 	readonly id: string;
 	readonly name: string;
 	readonly controller: WorkflowController;
+	readonly completesWithReview?: boolean;
+}
+
+export interface WorkflowFailureEvidence {
+	readonly invocationId: string;
+	readonly primitiveType: PrimitiveType;
+	readonly message: string;
 }
 
 export interface WorkflowRun {
 	readonly workflowId: string;
-	readonly status: "Succeeded" | "Failed";
+	readonly status: WorkflowStatus;
 	readonly invocations: readonly InvocationResult[];
 	readonly context: RunContext;
 	readonly runIdentifier?: string;
@@ -86,10 +98,12 @@ export interface WorkflowRun {
 	readonly workspaceIsolation?: WorkspaceIsolation;
 	readonly sourceIntegrity?: SourceIntegrity;
 	readonly failure?: WorkflowFailure;
+	readonly failureEvidence?: WorkflowFailureEvidence;
 	readonly workspaceDisposition?: WorkspaceDisposition;
 }
 
 export interface WorkflowExecutionOptions {
+	readonly objective?: string;
 	readonly sourceRepository?: string;
 	readonly expectedSourceRevision?: string;
 	readonly workspaceRoot?: string;
@@ -185,6 +199,7 @@ export class WorkflowExecutor {
 				)
 			: undefined;
 		const invocations: InvocationResult[] = [];
+		let failureEvidence: WorkflowFailureEvidence | undefined;
 		const invoke = async <T extends PrimitiveType>(
 			primitiveType: T,
 			adapter: PrimitiveAdapter,
@@ -200,15 +215,25 @@ export class WorkflowExecutor {
 				throw new Error(`Artifact not found: ${options.inputArtifact}`);
 			}
 
-			const adapterOutput = await adapter({
-				invocationId,
-				name,
-				input,
-				context,
-				inputArtifact,
-				outputArtifact: options.outputArtifact,
-				workspacePath,
-			});
+			let adapterOutput: PrimitiveAdapterOutput | undefined;
+			try {
+				adapterOutput = await adapter({
+					invocationId,
+					name,
+					input,
+					context,
+					inputArtifact,
+					outputArtifact: options.outputArtifact,
+					workspacePath,
+				});
+			} catch (error) {
+				failureEvidence = {
+					invocationId,
+					primitiveType,
+					message: error instanceof Error ? error.message : String(error),
+				};
+				adapterOutput = { status: "Failed" };
+			}
 
 			if (inputArtifact) inputArtifact.consumerInvocationId = invocationId;
 			if (options.outputArtifact) {
@@ -237,6 +262,7 @@ export class WorkflowExecutor {
 
 		await workflow.controller({
 			context,
+			objective: options.objective,
 			ai: (id, name, input, options) => invoke("AI", this.adapters.ai, id, name, input, options),
 			harness: (id, name, input, options) => invoke("Harness", this.adapters.harness, id, name, input, options),
 			gate: (id, name, input, options) => invoke("Gate", this.adapters.gate, id, name, input, options),
@@ -245,6 +271,11 @@ export class WorkflowExecutor {
 		let status: WorkflowRun["status"] = "Succeeded";
 		if (invocations.some((invocation) => invocation.status === "Failed")) {
 			status = "Failed";
+		} else if (
+			workflow.completesWithReview &&
+			invocations.some((invocation) => invocation.primitiveType === "Gate")
+		) {
+			status = "AwaitingReview";
 		}
 		const workspaceDisposition =
 			status === "Failed" ? ("Retained" as const) : undefined;
@@ -253,6 +284,7 @@ export class WorkflowExecutor {
 			status,
 			invocations,
 			context,
+			...(failureEvidence ? { failure: "AdapterFailed" as const, failureEvidence } : {}),
 			...(source
 				? {
 						runIdentifier,

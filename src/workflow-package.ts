@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { WorkflowDefinition } from "./workflow.ts";
 
 const packageDirectory = ".local-agent-factory";
 const packageFile = "package.json";
@@ -32,6 +33,26 @@ export interface WorkflowPackage {
 
 export interface WorkflowRegistry {
 	readonly registeredWorkflows: readonly string[];
+}
+
+export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[] {
+	return [
+		{
+			id: "plan-build-test-review",
+			name: "Plan, build, test, and review",
+			completesWithReview: true,
+			controller: async ({ ai, harness, gate, objective }) => {
+				await ai("plan", "Plan request", objective ?? "Plan the requested change", {
+					outputArtifact: "plan",
+				});
+				await harness("build", "Build request", objective ?? "Build the requested change", {
+					inputArtifact: "plan",
+				});
+				await ai("review", "Review change", "Review the change against the plan");
+				await gate("review-gate", "Await human review", "Review the proposed change");
+			},
+		},
+	];
 }
 
 export interface AgentRole {
