@@ -8,6 +8,43 @@ One person may perform multiple roles, but each role belongs to exactly one hori
 
 ## Role catalog
 
+### Factory Maintainer
+
+A **Factory Maintainer** is a person who installs the Factory Package and configures the Agent Roster and Workflow Catalog for a repository.
+
+#### Horizontal: Local Agent Factory CLI
+
+The Factory Maintainer prepares the Local Agent Factory through its local command boundary.
+
+| Vertical | Interface available to the role | Permitted interaction |
+| --- | --- | --- |
+| Factory installation | Local Agent Factory CLI | Install or refresh the Factory Package in a repository. |
+| Factory configuration | Local Agent Factory CLI | Configure Agent Roles, model choices, instructions, tools, and Write Boundaries. |
+| Workflow registration | Local Agent Factory CLI | Register, inspect, and select named workflows in the Workflow Catalog. |
+
+#### Access boundary
+
+- **CLI:** Access is limited to preparing and configuring the factory in the selected repository.
+- **Direct run access:** The role does not directly control model or harness providers; it configures the factory that Workflow Operators later execute.
+
+### Workflow Observer
+
+A **Workflow Observer** is a person who watches a Workflow Run and inspects its Trace and Review Handoff.
+
+#### Horizontal: Local Agent Factory Visualizer
+
+The Workflow Observer uses the read-only visualizer boundary.
+
+| Vertical | Interface available to the role | Permitted interaction |
+| --- | --- | --- |
+| Live run observation | Local Agent Factory Visualizer | Observe active Workflow Phases and Trace events. |
+| Evidence inspection | Local Agent Factory Visualizer | Inspect Agent Sessions, Envelopes, Validation Gates, tool activity, and failure evidence. |
+
+#### Access boundary
+
+- **Visualizer:** Access is read-only. The role can inspect a Workflow Run but cannot change repository content or workflow configuration.
+- **Direct execution access:** The role does not start or alter a run through the visualizer.
+
 ### Workflow Operator
 
 A **Workflow Operator** is a person who executes a registered workflow and inspects its workflow run, primitive invocation results, and artifacts.
