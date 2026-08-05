@@ -5,7 +5,8 @@ import { join } from "node:path";
 
 export type PrimitiveType = "AI" | "Harness" | "Gate";
 export type InvocationStatus = "Succeeded" | "Failed";
-export type PrimitiveResultType<T extends PrimitiveType> = `${T}InvocationResult`;
+export type PrimitiveResultType<T extends PrimitiveType> =
+	`${T}InvocationResult`;
 export type WorkflowFailure =
 	| "DirtySource"
 	| "UnexpectedSourceRevision"
@@ -92,7 +93,9 @@ export interface WorkflowPrimitives {
 	readonly gate: PrimitiveFunction<"Gate">;
 }
 
-export type WorkflowController = (primitives: WorkflowPrimitives) => Promise<void> | void;
+export type WorkflowController = (
+	primitives: WorkflowPrimitives,
+) => Promise<void> | void;
 
 export interface WorkflowDefinition {
 	readonly id: string;
@@ -130,6 +133,14 @@ export interface WorkflowExecutionOptions {
 	readonly workspaceRoot?: string;
 }
 
+export interface AgentRoleConfiguration {
+	readonly name: string;
+	readonly model: string;
+	readonly instructions: string;
+	readonly tools: readonly string[];
+	readonly allowedWrites: readonly string[];
+}
+
 export interface PrimitiveAdapterOutput {
 	readonly value?: unknown;
 	readonly status?: InvocationStatus;
@@ -140,21 +151,27 @@ export type PrimitiveAdapter = (input: {
 	name: string;
 	input: string;
 	context: RunContext;
+	role?: AgentRoleConfiguration;
 	inputArtifact?: Artifact;
 	outputArtifact?: string;
 	workspacePath?: string;
-}) => Promise<PrimitiveAdapterOutput | undefined> | PrimitiveAdapterOutput | undefined;
+}) =>
+	| Promise<PrimitiveAdapterOutput | undefined>
+	| PrimitiveAdapterOutput
+	| undefined;
 
 interface ResolvedPrimitiveAdapters {
 	readonly ai: PrimitiveAdapter;
 	readonly harness: PrimitiveAdapter;
 	readonly gate: PrimitiveAdapter;
+	readonly roles: ReadonlyMap<string, AgentRoleConfiguration>;
 }
 
 export interface PrimitiveAdapters {
 	readonly ai?: PrimitiveAdapter;
 	readonly harness?: PrimitiveAdapter;
 	readonly gate?: PrimitiveAdapter;
+	readonly roles?: readonly AgentRoleConfiguration[];
 }
 
 const deterministicAdapter: PrimitiveAdapter = () => undefined;
@@ -163,12 +180,18 @@ export class WorkflowExecutor {
 	private readonly workflows: ReadonlyMap<string, WorkflowDefinition>;
 	private readonly adapters: ResolvedPrimitiveAdapters;
 
-	public constructor(workflows: readonly WorkflowDefinition[], adapters: PrimitiveAdapters = {}) {
-		this.workflows = new Map(workflows.map((workflow) => [workflow.id, workflow]));
+	public constructor(
+		workflows: readonly WorkflowDefinition[],
+		adapters: PrimitiveAdapters = {},
+	) {
+		this.workflows = new Map(
+			workflows.map((workflow) => [workflow.id, workflow]),
+		);
 		this.adapters = {
 			ai: adapters.ai ?? deterministicAdapter,
 			harness: adapters.harness ?? deterministicAdapter,
 			gate: adapters.gate ?? deterministicAdapter,
+			roles: new Map((adapters.roles ?? []).map((role) => [role.name, role])),
 		};
 	}
 
@@ -248,6 +271,7 @@ export class WorkflowExecutor {
 					name,
 					input,
 					context,
+					role: this.adapters.roles.get(invocationId),
 					inputArtifact,
 					outputArtifact: options.outputArtifact,
 					workspacePath,
@@ -265,7 +289,10 @@ export class WorkflowExecutor {
 
 			let envelope: WorkflowEnvelope | undefined;
 			if (invocationStatus === "Succeeded" && options.outputEnvelope) {
-				envelope = parseWorkflowEnvelope(adapterOutput?.value, options.outputEnvelope);
+				envelope = parseWorkflowEnvelope(
+					adapterOutput?.value,
+					options.outputEnvelope,
+				);
 				if (!envelope) {
 					failure = "EnvelopeParseFailed";
 					invocationStatus = "Failed";
@@ -298,7 +325,9 @@ export class WorkflowExecutor {
 				resultType: `${primitiveType}InvocationResult`,
 				status: invocationStatus,
 				input,
-				...(options.inputArtifact ? { consumedArtifact: options.inputArtifact } : {}),
+				...(options.inputArtifact
+					? { consumedArtifact: options.inputArtifact }
+					: {}),
 				...(options.outputArtifact && invocationStatus === "Succeeded"
 					? { producedArtifact: options.outputArtifact }
 					: {}),
@@ -311,9 +340,12 @@ export class WorkflowExecutor {
 		await workflow.controller({
 			context,
 			objective: options.objective,
-			ai: (id, name, input, options) => invoke("AI", this.adapters.ai, id, name, input, options),
-			harness: (id, name, input, options) => invoke("Harness", this.adapters.harness, id, name, input, options),
-			gate: (id, name, input, options) => invoke("Gate", this.adapters.gate, id, name, input, options),
+			ai: (id, name, input, options) =>
+				invoke("AI", this.adapters.ai, id, name, input, options),
+			harness: (id, name, input, options) =>
+				invoke("Harness", this.adapters.harness, id, name, input, options),
+			gate: (id, name, input, options) =>
+				invoke("Gate", this.adapters.gate, id, name, input, options),
 		});
 
 		let status: WorkflowRun["status"] = "Succeeded";
@@ -332,7 +364,9 @@ export class WorkflowExecutor {
 			status,
 			invocations,
 			context,
-			...(failure ? { failure, ...(failureEvidence ? { failureEvidence } : {}) } : {}),
+			...(failure
+				? { failure, ...(failureEvidence ? { failureEvidence } : {}) }
+				: {}),
 			...(source
 				? {
 						runIdentifier,
@@ -369,7 +403,9 @@ function parseWorkflowEnvelope(
 }
 
 function isStringArray(value: unknown): value is readonly string[] {
-	return Array.isArray(value) && value.every((item) => typeof item === "string");
+	return (
+		Array.isArray(value) && value.every((item) => typeof item === "string")
+	);
 }
 
 function throwMissingRunIdentifier(): never {
@@ -384,9 +420,13 @@ function inspectSource(path: string): {
 	const revision = execFileSync("git", ["-C", path, "rev-parse", "HEAD"], {
 		encoding: "utf8",
 	}).trim();
-	const workingTree = execFileSync("git", ["-C", path, "status", "--porcelain"], {
-		encoding: "utf8",
-	}).trim()
+	const workingTree = execFileSync(
+		"git",
+		["-C", path, "status", "--porcelain"],
+		{
+			encoding: "utf8",
+		},
+	).trim()
 		? "Dirty"
 		: "Clean";
 	return { path, revision, workingTree };

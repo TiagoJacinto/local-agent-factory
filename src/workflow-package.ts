@@ -1,6 +1,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { WorkflowDefinition } from "./workflow.ts";
+import {
+	WorkflowExecutor,
+	type AgentRoleConfiguration,
+	type PrimitiveAdapters,
+	type WorkflowDefinition,
+} from "./workflow.ts";
 
 const packageDirectory = ".local-agent-factory";
 const packageFile = "package.json";
@@ -41,14 +46,24 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			id: "plan-build",
 			name: "Plan and build",
 			controller: async ({ ai, harness, objective }) => {
-				const plan = await ai("planner", "Plan request", objective ?? "Plan the requested change", {
-					outputArtifact: "plan",
-					outputEnvelope: { producer: "planner", consumer: "builder" },
-				});
+				const plan = await ai(
+					"planner",
+					"Plan request",
+					objective ?? "Plan the requested change",
+					{
+						outputArtifact: "plan",
+						outputEnvelope: { producer: "planner", consumer: "builder" },
+					},
+				);
 				if (plan.status === "Failed") return;
-				await harness("builder", "Build request", objective ?? "Build the requested change", {
-					inputArtifact: "plan",
-				});
+				await harness(
+					"builder",
+					"Build request",
+					objective ?? "Build the requested change",
+					{
+						inputArtifact: "plan",
+					},
+				);
 			},
 		},
 		{
@@ -56,28 +71,40 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			name: "Plan, build, test, and review",
 			completesWithReview: true,
 			controller: async ({ ai, harness, gate, objective }) => {
-				const plan = await ai("planner", "Plan request", objective ?? "Plan the requested change", {
-					outputArtifact: "plan",
-					outputEnvelope: { producer: "planner", consumer: "builder" },
-				});
+				const plan = await ai(
+					"planner",
+					"Plan request",
+					objective ?? "Plan the requested change",
+					{
+						outputArtifact: "plan",
+						outputEnvelope: { producer: "planner", consumer: "builder" },
+					},
+				);
 				if (plan.status === "Failed") return;
-				await harness("builder", "Build request", objective ?? "Build the requested change", {
-					inputArtifact: "plan",
-				});
-				await ai("review", "Review change", "Review the change against the plan");
-				await gate("review-gate", "Await human review", "Review the proposed change");
+				await harness(
+					"builder",
+					"Build request",
+					objective ?? "Build the requested change",
+					{
+						inputArtifact: "plan",
+					},
+				);
+				await ai(
+					"review",
+					"Review change",
+					"Review the change against the plan",
+				);
+				await gate(
+					"review-gate",
+					"Await human review",
+					"Review the proposed change",
+				);
 			},
 		},
 	];
 }
 
-export interface AgentRole {
-	readonly name: string;
-	readonly model: string;
-	readonly instructions: string;
-	readonly tools: readonly string[];
-	readonly allowedWrites: readonly string[];
-}
+export interface AgentRole extends AgentRoleConfiguration {}
 
 export interface FactorySetup {
 	readonly workflowPackage: WorkflowPackage;
@@ -97,12 +124,15 @@ export class WorkflowPackageInstaller {
 		const setup: StoredSetup = {
 			workflowPackage: { installed: true, repository },
 			workflowRegistry: {
-				registeredWorkflows: existing?.workflowRegistry.registeredWorkflows.length
+				registeredWorkflows: existing?.workflowRegistry.registeredWorkflows
+					.length
 					? existing.workflowRegistry.registeredWorkflows
 					: [...starterWorkflowIds],
 			},
-			agentRoles: starterRoleNames.map((name) =>
-				existing?.agentRoles.find((role) => role.name === name) ?? starterRole(name),
+			agentRoles: starterRoleNames.map(
+				(name) =>
+					existing?.agentRoles.find((role) => role.name === name) ??
+					starterRole(name),
 			),
 		};
 
@@ -116,6 +146,22 @@ export class WorkflowPackageInstaller {
 			throw new Error(`Workflow package is not installed in ${repository}`);
 		}
 		return this.validate(setup);
+	}
+
+	/** Create an executor from the workflows registered in the installed package. */
+	createExecutor(
+		repository: string,
+		adapters: PrimitiveAdapters = {},
+	): WorkflowExecutor {
+		const setup = this.configureWorkflowPackage(repository);
+		const registered = new Set(setup.workflowRegistry.registeredWorkflows);
+		const workflows = createStarterWorkflowDefinitions().filter((workflow) =>
+			registered.has(workflow.id),
+		);
+		return new WorkflowExecutor(workflows, {
+			...adapters,
+			roles: setup.agentRoles,
+		});
 	}
 
 	private readSetup(repository: string): StoredSetup | undefined {
@@ -132,13 +178,19 @@ export class WorkflowPackageInstaller {
 	private writeSetup(repository: string, setup: StoredSetup): void {
 		const directory = join(repository, packageDirectory);
 		mkdirSync(directory, { recursive: true });
-		writeFileSync(join(directory, packageFile), `${JSON.stringify(setup, null, 2)}\n`);
+		writeFileSync(
+			join(directory, packageFile),
+			`${JSON.stringify(setup, null, 2)}\n`,
+		);
 	}
 
 	private validate(setup: StoredSetup): FactorySetup {
 		if (
-			setup.workflowRegistry.registeredWorkflows.length !== starterWorkflowIds.length ||
-			!starterRoleNames.every((name) => setup.agentRoles.some((role) => role.name === name)) ||
+			setup.workflowRegistry.registeredWorkflows.length !==
+				starterWorkflowIds.length ||
+			!starterRoleNames.every((name) =>
+				setup.agentRoles.some((role) => role.name === name),
+			) ||
 			setup.agentRoles.some(
 				(role) =>
 					!role.model ||

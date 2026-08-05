@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { z } from "zod";
-import { createStarterWorkflowDefinitions } from "./workflow-package.ts";
+import { WorkflowPackageInstaller } from "./workflow-package.ts";
 import { WorkflowExecutor } from "./workflow.ts";
 
 const greetingOptionsSchema = z.object({
@@ -14,20 +14,26 @@ const workflowOptionsSchema = z.object({
 	workspaceRoot: z.string().trim().min(1).optional(),
 });
 
-export function createDefaultExecutor(): WorkflowExecutor {
-	return new WorkflowExecutor(createStarterWorkflowDefinitions());
+export function createDefaultExecutor(repository: string): WorkflowExecutor {
+	return new WorkflowPackageInstaller().createExecutor(repository);
 }
 
-function renderWorkflowRun(run: Awaited<ReturnType<WorkflowExecutor["executeWorkflow"]>>): string {
-	return JSON.stringify({
-		...run,
-		context: { artifacts: Object.fromEntries(run.context.artifacts) },
-	}, null, 2);
+function renderWorkflowRun(
+	run: Awaited<ReturnType<WorkflowExecutor["executeWorkflow"]>>,
+): string {
+	return JSON.stringify(
+		{
+			...run,
+			context: { artifacts: Object.fromEntries(run.context.artifacts) },
+		},
+		null,
+		2,
+	);
 }
 
 export function createCli(
 	output: (message: string) => void = console.log,
-	executor: WorkflowExecutor = createDefaultExecutor(),
+	executor?: WorkflowExecutor,
 ): Command {
 	const program = new Command();
 
@@ -46,7 +52,9 @@ export function createCli(
 		.option("--workspace-root <path>", "directory for disposable workspaces")
 		.action(async (workflowId: string, rawOptions: unknown) => {
 			const options = workflowOptionsSchema.parse(rawOptions);
-			const run = await executor.executeWorkflow(workflowId, {
+			const activeExecutor =
+				executor ?? createDefaultExecutor(options.repository);
+			const run = await activeExecutor.executeWorkflow(workflowId, {
 				objective: options.objective,
 				sourceRepository: options.repository,
 				expectedSourceRevision: options.revision,

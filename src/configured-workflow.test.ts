@@ -3,7 +3,10 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { createStarterWorkflowDefinitions } from "./workflow-package.ts";
+import {
+	WorkflowPackageInstaller,
+	createStarterWorkflowDefinitions,
+} from "./workflow-package.ts";
 import { WorkflowExecutor, type WorkflowDefinition } from "./workflow.ts";
 
 function createRepository(): { path: string; revision: string } {
@@ -23,7 +26,9 @@ function createRepository(): { path: string; revision: string } {
 describe("configured agent workflow", () => {
 	test("executes plan-build-test-review in an independent workspace", async () => {
 		const source = createRepository();
-		const workspaceRoot = mkdtempSync(join(tmpdir(), "configured-workflow-workspace-"));
+		const workspaceRoot = mkdtempSync(
+			join(tmpdir(), "configured-workflow-workspace-"),
+		);
 		const calls: string[] = [];
 		const executor = new WorkflowExecutor(createStarterWorkflowDefinitions(), {
 			ai: ({ name, input }) => {
@@ -67,11 +72,21 @@ describe("configured agent workflow", () => {
 			sourceRevision: source.revision,
 			workspaceIsolation: "IndependentClone",
 		});
-		expect(run.invocations.map(({ name, primitiveType, status }) => ({ name, primitiveType, status }))).toEqual([
+		expect(
+			run.invocations.map(({ name, primitiveType, status }) => ({
+				name,
+				primitiveType,
+				status,
+			})),
+		).toEqual([
 			{ name: "Plan request", primitiveType: "AI", status: "Succeeded" },
 			{ name: "Build request", primitiveType: "Harness", status: "Succeeded" },
 			{ name: "Review change", primitiveType: "AI", status: "Succeeded" },
-			{ name: "Await human review", primitiveType: "Gate", status: "Succeeded" },
+			{
+				name: "Await human review",
+				primitiveType: "Gate",
+				status: "Succeeded",
+			},
 		]);
 		expect(calls[0]).toContain("add a health endpoint");
 		expect(run.context.artifacts.get("plan")).toMatchObject({
@@ -88,7 +103,43 @@ describe("configured agent workflow", () => {
 			acceptanceCriteria: ["The requested change is implemented"],
 			validationCommands: ["bun test"],
 		});
-		expect(readFileSync(join(source.path, "README.md"), "utf8")).toBe("before\n");
+		expect(readFileSync(join(source.path, "README.md"), "utf8")).toBe(
+			"before\n",
+		);
+	});
+
+	test("executes workflows from the installed registry", async () => {
+		const repository = mkdtempSync(
+			join(tmpdir(), "installed-workflow-package-"),
+		);
+		new WorkflowPackageInstaller().installWorkflowPackage(repository);
+		let plannerModel: string | undefined;
+		const executor = new WorkflowPackageInstaller().createExecutor(repository, {
+			ai: ({ input, role }) => {
+				plannerModel = role?.model;
+				return {
+					value: {
+						producer: "planner",
+						consumer: "builder",
+						status: "Success",
+						objective: input,
+						risks: [],
+						expectedFiles: [],
+						acceptanceCriteria: [],
+						validationCommands: [],
+					},
+				};
+			},
+			harness: ({ inputArtifact }) => ({ value: inputArtifact?.value }),
+		});
+
+		const run = await executor.executeWorkflow("plan-build", {
+			objective: "use installed workflow",
+		});
+
+		expect(run.status).toBe("Succeeded");
+		expect(plannerModel).toBe("default");
+		expect(run.context.envelopes.get("plan")?.consumer).toBe("builder");
 	});
 
 	test("does not pass malformed planner output to the builder", async () => {
@@ -116,9 +167,9 @@ describe("configured agent workflow", () => {
 				primitiveType: "AI",
 			},
 		});
-		expect(run.invocations.map(({ name, status }) => ({ name, status }))).toEqual([
-			{ name: "Plan request", status: "Failed" },
-		]);
+		expect(
+			run.invocations.map(({ name, status }) => ({ name, status })),
+		).toEqual([{ name: "Plan request", status: "Failed" }]);
 		expect(calls).toEqual(["Plan request"]);
 	});
 
