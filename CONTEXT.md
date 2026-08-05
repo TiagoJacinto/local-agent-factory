@@ -68,3 +68,57 @@ The evolving state shared by primitive invocations during one workflow run.
 
 **Artifact**:
 A named output produced by one primitive invocation, retained in the run context, and available to later primitive invocations.
+
+**Agent Role**:
+A named responsibility in a workflow run, with purpose, instructions, model selection, tools, and an allowed write boundary.
+
+**Agent Roster**:
+The configured collection of agent roles available to registered workflows.
+
+**Agent Session**:
+The resumable context of one agent role across related invocations in a workflow run.
+
+**Workflow Catalog**:
+The collection of named workflow definitions that an operator can execute.
+
+**Workflow Registry**:
+The configured collection of named workflows available to an operator. It is the runtime form of the Workflow Catalog.
+
+**Workflow Phase**:
+A named bounded part of a workflow run owned by an engineer, agent, or ordinary code.
+
+**Envelope**:
+A typed result emitted by an agent phase and passed as explicit context to a later phase.
+
+**Workflow Envelope**:
+A typed report from one workflow phase that carries its status, summary, declared artifacts, and information needed by the next phase.
+
+**Validation Gate**:
+A deterministic check of an envelope, artifact, repository change, or command result that reports what it checked and whether the check passed.
+
+**Review Handoff**:
+The inspectable result offered to a human for integration, including the run evidence, validation evidence, and a commit or equivalent change artifact.
+
+**Trace**:
+The ordered record of workflow-run events, phase status, agent activity, validation checks, and produced evidence.
+
+**Workflow Trace**:
+The observable history of a workflow run, including phases, primitive invocations, validation results, workflow envelopes, and process activity.
+
+**Workflow Visualizer**:
+A read-only view through which an operator observes a workflow run's trace while the run is active or after it ends.
+
+**Workflow Session**:
+The resumable execution context associated with a workflow run and its agent conversations.
+
+**Factory Package**:
+The reusable files and instructions that install the Local Agent Factory into a repository and provide its starter configuration and workflows.
+
+**Workflow Package**:
+A reusable set of workflow definitions, agent roles, instructions, configuration, and supporting runtime files that can be installed in a repository.
+
+**Target Repository**:
+A repository that receives a Workflow Package and its configuration.
+
+**Write Boundary**:
+The set of repository paths an agent role is allowed to change during its phase.
