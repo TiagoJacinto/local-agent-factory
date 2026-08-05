@@ -1,6 +1,12 @@
 import { Command } from "commander";
 import { z } from "zod";
+import { join } from "node:path";
 import { WorkflowPackageInstaller } from "./workflow-package.ts";
+import {
+	DEFAULT_WORKFLOW_TRACE_DATABASE_PATH,
+	renderWorkflowTrace,
+	SQLiteWorkflowTraceStore,
+} from "./workflow-trace.ts";
 import { WorkflowExecutor } from "./workflow.ts";
 
 const greetingOptionsSchema = z.object({
@@ -14,8 +20,18 @@ const workflowOptionsSchema = z.object({
 	workspaceRoot: z.string().trim().min(1).optional(),
 });
 
+const traceOptionsSchema = z.object({
+	database: z.string().trim().min(1).default(
+		DEFAULT_WORKFLOW_TRACE_DATABASE_PATH,
+	),
+});
+
 export function createDefaultExecutor(repository: string): WorkflowExecutor {
-	return new WorkflowPackageInstaller().createExecutor(repository);
+	return new WorkflowPackageInstaller().createExecutor(repository, {
+		traceStore: new SQLiteWorkflowTraceStore(
+			join(repository, ".local-agent-factory", "workflow-traces.sqlite"),
+		),
+	});
 }
 
 function renderWorkflowRun(
@@ -61,6 +77,24 @@ export function createCli(
 				workspaceRoot: options.workspaceRoot,
 			});
 			output(renderWorkflowRun(run));
+		});
+
+	program
+		.command("trace")
+		.description("Inspect a workflow trace in a read-only HTML view")
+		.argument("<runIdentifier>", "workflow run identifier")
+		.option(
+			"--database <path>",
+			"SQLite workflow trace database",
+			DEFAULT_WORKFLOW_TRACE_DATABASE_PATH,
+		)
+		.action((runIdentifier: string, rawOptions: unknown) => {
+			const options = traceOptionsSchema.parse(rawOptions);
+			const trace = new SQLiteWorkflowTraceStore(options.database).get(
+				runIdentifier,
+			);
+			if (!trace) throw new Error(`Workflow trace not found: ${runIdentifier}`);
+			output(renderWorkflowTrace(trace));
 		});
 
 	program
