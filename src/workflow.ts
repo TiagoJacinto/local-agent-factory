@@ -5,13 +5,16 @@ import { join } from "node:path";
 
 export type PrimitiveType = "AI" | "Harness" | "Gate";
 export type InvocationStatus = "Succeeded" | "Failed";
+export type ValidationStatus = "Succeeded" | "Failed";
 export type PrimitiveResultType<T extends PrimitiveType> =
 	`${T}InvocationResult`;
 export type WorkflowFailure =
 	| "DirtySource"
 	| "UnexpectedSourceRevision"
 	| "AdapterFailed"
-	| "EnvelopeParseFailed";
+	| "EnvelopeParseFailed"
+	| "ValidationFailed"
+	| "CorrectionBudgetExceeded";
 export type WorkflowStatus = "Succeeded" | "Failed" | "AwaitingReview";
 export type WorkflowEnvelopeStatus = "Success" | "Fail";
 
@@ -41,9 +44,32 @@ export interface Artifact {
 	readonly value: unknown;
 }
 
+export interface ValidationOperation {
+	readonly name: string;
+	readonly command: string;
+}
+
+export interface ValidationResult {
+	readonly operation: string;
+	readonly command: string;
+	readonly status: ValidationStatus;
+	readonly evidence: {
+		readonly exitCode: number;
+		readonly output: string;
+	};
+	readonly workspacePath?: string;
+}
+
+export interface WorkflowSession {
+	readonly id: string;
+	readonly sameAgentContext: true;
+}
+
 export interface RunContext {
 	readonly artifacts: Map<string, Artifact>;
 	readonly envelopes: Map<string, WorkflowEnvelope>;
+	readonly validationResults: ValidationResult[];
+	readonly session: WorkflowSession;
 }
 
 export interface PrimitiveCallOptions {
@@ -91,6 +117,9 @@ export interface WorkflowPrimitives {
 	readonly ai: PrimitiveFunction<"AI">;
 	readonly harness: PrimitiveFunction<"Harness">;
 	readonly gate: PrimitiveFunction<"Gate">;
+	readonly validate: () => Promise<ValidationResult>;
+	readonly correctionBudget: number;
+	readonly fail: (failure: WorkflowFailure, message: string, output?: unknown) => void;
 }
 
 export type WorkflowController = (
@@ -101,12 +130,14 @@ export interface WorkflowDefinition {
 	readonly id: string;
 	readonly name: string;
 	readonly controller: WorkflowController;
+	readonly validationOperations?: readonly ValidationOperation[];
+	readonly maxCorrectionAttempts?: number;
 	readonly completesWithReview?: boolean;
 }
 
 export interface WorkflowFailureEvidence {
-	readonly invocationId: string;
-	readonly primitiveType: PrimitiveType;
+	readonly invocationId?: string;
+	readonly primitiveType?: PrimitiveType;
 	readonly message: string;
 	readonly output?: unknown;
 }
@@ -124,6 +155,8 @@ export interface WorkflowRun {
 	readonly failure?: WorkflowFailure;
 	readonly failureEvidence?: WorkflowFailureEvidence;
 	readonly workspaceDisposition?: WorkspaceDisposition;
+	readonly validationResults: readonly ValidationResult[];
+	readonly session: WorkflowSession;
 }
 
 export interface WorkflowExecutionOptions {
@@ -155,6 +188,7 @@ export type PrimitiveAdapter = (input: {
 	inputArtifact?: Artifact;
 	outputArtifact?: string;
 	workspacePath?: string;
+	session?: WorkflowSession;
 }) =>
 	| Promise<PrimitiveAdapterOutput | undefined>
 	| PrimitiveAdapterOutput
@@ -202,9 +236,15 @@ export class WorkflowExecutor {
 		const workflow = this.workflows.get(workflowId);
 		if (!workflow) throw new Error(`Workflow not found: ${workflowId}`);
 
+		const session: WorkflowSession = {
+			id: `session-${randomUUID()}`,
+			sameAgentContext: true,
+		};
 		const context: RunContext = {
 			artifacts: new Map(),
 			envelopes: new Map(),
+			validationResults: [],
+			session,
 		};
 		const source = options.sourceRepository
 			? inspectSource(options.sourceRepository)
@@ -220,6 +260,8 @@ export class WorkflowExecutor {
 				sourceRevision: source.revision,
 				sourceIntegrity: "Verified",
 				failure: "DirtySource",
+				validationResults: context.validationResults,
+				session,
 			};
 		}
 		if (
@@ -236,6 +278,8 @@ export class WorkflowExecutor {
 				sourceRevision: source.revision,
 				sourceIntegrity: "Verified",
 				failure: "UnexpectedSourceRevision",
+				validationResults: context.validationResults,
+				session,
 			};
 		}
 		const workspacePath = source
@@ -275,6 +319,7 @@ export class WorkflowExecutor {
 					inputArtifact,
 					outputArtifact: options.outputArtifact,
 					workspacePath,
+					session,
 				});
 				invocationStatus = adapterOutput?.status ?? "Succeeded";
 			} catch (error) {
@@ -337,9 +382,70 @@ export class WorkflowExecutor {
 			return result;
 		};
 
+		const fail = (reason: WorkflowFailure, message: string, output?: unknown): void => {
+			failure = reason;
+			failureEvidence = { message, ...(output !== undefined ? { output } : {}) };
+		};
+
+		const validate = async (): Promise<ValidationResult> => {
+			const operations = workflow.validationOperations ?? [];
+			let lastResult: ValidationResult = {
+				operation: "none",
+				command: "none",
+				status: "Succeeded",
+				evidence: { exitCode: 0, output: "No validation operations configured" },
+				...(workspacePath ? { workspacePath } : {}),
+			};
+			for (const operation of operations) {
+				try {
+					const output = execFileSync("sh", ["-c", operation.command], {
+						cwd: workspacePath,
+						encoding: "utf8",
+						stdio: ["ignore", "pipe", "pipe"],
+					});
+					lastResult = {
+						operation: operation.name,
+						command: operation.command,
+						status: "Succeeded",
+						evidence: { exitCode: 0, output },
+						...(workspacePath ? { workspacePath } : {}),
+					};
+				} catch (error) {
+					const commandError = error as NodeJS.ErrnoException & {
+						status?: number;
+						stdout?: Buffer;
+						stderr?: Buffer;
+					};
+					lastResult = {
+						operation: operation.name,
+						command: operation.command,
+						status: "Failed",
+						evidence: {
+							exitCode: commandError.status ?? 1,
+							output: `${commandError.stdout?.toString() ?? ""}${commandError.stderr?.toString() ?? commandError.message}`,
+						},
+						...(workspacePath ? { workspacePath } : {}),
+					};
+				}
+				context.validationResults.push(lastResult);
+				if (lastResult.status === "Failed") {
+					failure = "ValidationFailed";
+					failureEvidence = {
+						message: `Validation failed: ${lastResult.operation}`,
+						output: lastResult.evidence,
+					};
+					break;
+				}
+			}
+			return lastResult;
+		};
+
 		await workflow.controller({
 			context,
 			objective: options.objective,
+			correctionBudget: workflow.maxCorrectionAttempts ?? 0,
+			fail,
+			validate,
 			ai: (id, name, input, options) =>
 				invoke("AI", this.adapters.ai, id, name, input, options),
 			harness: (id, name, input, options) =>
@@ -349,7 +455,7 @@ export class WorkflowExecutor {
 		});
 
 		let status: WorkflowRun["status"] = "Succeeded";
-		if (invocations.some((invocation) => invocation.status === "Failed")) {
+		if (failure || invocations.some((invocation) => invocation.status === "Failed")) {
 			status = "Failed";
 		} else if (
 			workflow.completesWithReview &&
@@ -367,6 +473,8 @@ export class WorkflowExecutor {
 			...(failure
 				? { failure, ...(failureEvidence ? { failureEvidence } : {}) }
 				: {}),
+			validationResults: context.validationResults,
+			session,
 			...(source
 				? {
 						runIdentifier,

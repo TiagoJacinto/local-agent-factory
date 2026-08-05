@@ -67,6 +67,73 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			},
 		},
 		{
+			id: "build-test-review",
+			name: "Build, test, and review",
+			completesWithReview: true,
+			validationOperations: [{ name: "test", command: "test -f validation.pass" }],
+			controller: async ({ harness, ai, gate, objective, validate }) => {
+				await harness(
+					"builder",
+					"Build request",
+					objective ?? "Build the requested change",
+				);
+				const validation = await validate();
+				if (validation.status === "Failed") return;
+				await ai("review", "Review change", "Review the validated change");
+				await gate("review-gate", "Await human review", "Review the proposed change");
+			},
+		},
+		{
+			id: "build-review",
+			name: "Build and review with correction",
+			completesWithReview: true,
+			validationOperations: [{ name: "test", command: "true" }],
+			maxCorrectionAttempts: 1,
+			controller: async ({ harness, ai, gate, objective, validate, context, correctionBudget, fail }) => {
+				await harness(
+					"builder",
+					"Build request",
+					objective ?? "Build the requested change",
+					{ outputArtifact: "build" },
+				);
+				let review = await ai(
+					"review",
+					"Review change",
+					"Review the change",
+					{ outputArtifact: "review" },
+				);
+				let findings = review.status === "Succeeded"
+					? reviewFindings(context.artifacts.get("review")?.value)
+					: [];
+				let correctionAttempts = 0;
+				while (findings.length > 0) {
+					if (correctionAttempts >= correctionBudget) {
+						fail("CorrectionBudgetExceeded", "Correction budget exhausted", findings);
+						return;
+					}
+					await harness(
+						"builder",
+						"Correct build",
+						findings.join("\\n"),
+						{ inputArtifact: "review" },
+					);
+					correctionAttempts += 1;
+					const validation = await validate();
+					if (validation.status === "Failed") return;
+					review = await ai(
+						"review",
+						"Review corrected work",
+						"Review the corrected change",
+						{ outputArtifact: "review" },
+					);
+					findings = review.status === "Succeeded"
+						? reviewFindings(context.artifacts.get("review")?.value)
+						: [];
+				}
+				await gate("review-gate", "Await human review", "Review the proposed change");
+			},
+		},
+		{
 			id: "plan-build-test-review",
 			name: "Plan, build, test, and review",
 			completesWithReview: true,
@@ -203,6 +270,14 @@ export class WorkflowPackageInstaller {
 		}
 		return setup;
 	}
+}
+
+function reviewFindings(value: unknown): readonly string[] {
+	if (!value || typeof value !== "object") return [];
+	const findings = (value as { findings?: unknown }).findings;
+	return Array.isArray(findings)
+		? findings.filter((finding): finding is string => typeof finding === "string")
+		: [];
 }
 
 function starterRole(name: string): AgentRole {
