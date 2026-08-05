@@ -45,6 +45,27 @@ const feature = loadFeatureFromText(`Feature: Execute a configured agent workflo
       When I executeWorkflow(workflowId: "plan-build", sourceRepository: "/work/project", expectedSourceRevision: "abc123")
       Then I view WorkflowEnvelope{producer: "planner", consumer: "builder", status: Success, fields: [objective, risks, expectedFiles, acceptanceCriteria, validationCommands]} in Workflow Execution: Planner output is handed to the builder
       And I view Artifact{id: "plan", producerInvocationId: "planner", consumerInvocationId: "builder"} in Run Context: Plan artifact is consumed by the builder
+
+  Rule: Enforce role boundaries
+
+    Scenario: Reject an unauthorized repository change
+      Given WorkflowRegistry{registeredWorkflows: ["review"]}
+      And AgentRole{name: "reviewer", allowedWrites: [], protectedPaths: ["workflow-engine"]}
+      And SourceRepository{path: "/work/project", sourceRevision: "abc123", workingTree: Clean}
+      When I executeWorkflow(workflowId: "review", sourceRepository: "/work/project", expectedSourceRevision: "abc123")
+      Then I view WorkflowRun{status: Failed, failure: PermissionViolation} in Workflow Execution: Unauthorized changes fail the role phase
+      And I view WorkflowEnvelope{status: Fail, summary: "repository change outside role boundary"} in Workflow Execution: Permission failure is reported
+
+  Rule: Return a reviewable result without automatic integration
+
+    Scenario: Finish with a commit or diff and manual integration guidance
+      Given WorkflowRegistry{registeredWorkflows: ["simple-sdlc"]}
+      And SourceRepository{path: "/work/project", sourceRevision: "abc123", workingTree: Clean}
+      When I executeWorkflow(workflowId: "simple-sdlc", sourceRepository: "/work/project", expectedSourceRevision: "abc123")
+      Then I view WorkflowRun{status: AwaitingReview, sourceRepositoryUnchanged: true, integration: Manual} in Workflow Execution: Human review is required
+      And I view AgentRole{name: "documenter", output: Present} in Workflow Execution: The completed change has a documentation phase
+      And I view Artifact{kind: ReviewableChange, reference: Present} in Workflow Execution: The change can be reviewed
+      And I !view Artifact{kind: AutomaticIntegration} in Workflow Run: The factory does not integrate automatically
 `);
 const workflowStep = "WorkflowRegistry{registeredWorkflows: {any}}";
 const sourceStep =
@@ -236,6 +257,59 @@ describeFeature(feature, ({ Rule }) => {
 					});
 				},
 			);
+		});
+	});
+
+	Rule("Enforce role boundaries", ({ RuleScenario }) => {
+		RuleScenario("Reject an unauthorized repository change", ({ Given, And, When, Then }) => {
+			let executor: WorkflowExecutor;
+			let source: { path: string; revision: string };
+			let run: Awaited<ReturnType<WorkflowExecutor["executeWorkflow"]>>;
+			Given(workflowStep, () => {
+				source = createRepository();
+				executor = new WorkflowExecutor(createStarterWorkflowDefinitions(), {
+					roles: [{ name: "reviewer", model: "test", instructions: "review", tools: ["read"], allowedWrites: [], protectedPaths: ["workflow-engine"] }],
+					ai: ({ workspacePath }) => {
+						writeFileSync(join(workspacePath ?? "", "workflow-engine"), "changed\\n");
+						return { value: { producer: "reviewer", consumer: "operator", status: "Fail", objective: "", risks: [], expectedFiles: [], acceptanceCriteria: [], validationCommands: [] } };
+					},
+				});
+			});
+			And("AgentRole{name: {string}, allowedWrites: {any}, protectedPaths: {any}}", () => undefined);
+			And(sourceStep, () => undefined);
+			When('I executeWorkflow(workflowId: "review", sourceRepository: "/work/project", expectedSourceRevision: "abc123")', async () => {
+				run = await executor.executeWorkflow("review", { sourceRepository: source.path, expectedSourceRevision: source.revision });
+			});
+			Then("I view WorkflowRun{status: {word}, failure: {word}} in Workflow Execution: Unauthorized changes fail the role phase", (_ctx: unknown, status: string, failure: string) => expect(run).toMatchObject({ status, failure }));
+			And("I view WorkflowEnvelope{status: {word}, summary: {string}} in Workflow Execution: Permission failure is reported", (_ctx: unknown, _status: string, summary: string) => {
+				expect(run.failureEvidence).toMatchObject({ message: summary });
+			});
+		});
+	});
+
+	Rule("Return a reviewable result without automatic integration", ({ RuleScenario }) => {
+		RuleScenario("Finish with a commit or diff and manual integration guidance", ({ Given, And, When, Then }) => {
+			let executor: WorkflowExecutor;
+			let source: { path: string; revision: string };
+			let run: Awaited<ReturnType<WorkflowExecutor["executeWorkflow"]>>;
+			Given(workflowStep, () => {
+				source = createRepository();
+				executor = new WorkflowExecutor(createStarterWorkflowDefinitions(), {
+					roles: ["builder", "reviewer", "documenter"].map((name) => ({ name, model: "test", instructions: name, tools: ["read"], allowedWrites: ["*"] })),
+					harness: ({ name, workspacePath }) => {
+						if (name === "Document change") writeFileSync(join(workspacePath ?? "", "docs.md"), "change\\n");
+						return undefined;
+					},
+				});
+			});
+			And(sourceStep, () => undefined);
+			When('I executeWorkflow(workflowId: "simple-sdlc", sourceRepository: "/work/project", expectedSourceRevision: "abc123")', async () => {
+				run = await executor.executeWorkflow("simple-sdlc", { sourceRepository: source.path, expectedSourceRevision: source.revision });
+			});
+			Then("I view WorkflowRun{status: {word}, sourceRepositoryUnchanged: true, integration: Manual} in Workflow Execution: Human review is required", (_ctx: unknown, status: string) => expect(run).toMatchObject({ status, sourceRepositoryUnchanged: true, integration: "Manual" }));
+			And("I view AgentRole{name: {string}, output: Present} in Workflow Execution: The completed change has a documentation phase", (_ctx: unknown, name: string) => expect(run.invocations.some((invocation) => invocation.name === "Document change" && invocation.status === "Succeeded" && name === "documenter")).toBe(true));
+			And("I view Artifact{kind: ReviewableChange, reference: Present} in Workflow Execution: The change can be reviewed", () => expect(run.context.artifacts.get("reviewable-change")).toMatchObject({ kind: "ReviewableChange" }));
+			And("I !view Artifact{kind: AutomaticIntegration} in Workflow Run: The factory does not integrate automatically", () => expect([...run.context.artifacts.values()].some((artifact) => artifact.kind === undefined && artifact.id === "automatic-integration")).toBe(false));
 		});
 	});
 });
