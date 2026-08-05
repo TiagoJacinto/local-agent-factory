@@ -47,9 +47,17 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			name: "Review",
 			completesWithReview: true,
 			controller: async ({ ai, gate }) => {
-				const review = await ai("reviewer", "Review change", "Review the change");
+				const review = await ai(
+					"reviewer",
+					"Review change",
+					"Review the change",
+				);
 				if (review.status === "Failed") return;
-				await gate("review-gate", "Await human review", "Review the proposed change");
+				await gate(
+					"review-gate",
+					"Await human review",
+					"Review the proposed change",
+				);
 			},
 		},
 		{
@@ -69,13 +77,26 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			completesWithReview: true,
 			validationOperations: [{ name: "test", command: "true" }],
 			controller: async ({ harness, ai, gate, validate, objective }) => {
-				await harness("builder", "Build request", objective ?? "Build the requested change");
+				await harness(
+					"builder",
+					"Build request",
+					objective ?? "Build the requested change",
+				);
 				if ((await validate()).status === "Failed") return;
 				await ai("reviewer", "Review change", "Review the completed change");
-				await harness("documenter", "Document change", "Document the completed change", {
-					outputArtifact: "documentation",
-				});
-				await gate("review-gate", "Await human review", "Review the proposed change");
+				await harness(
+					"documenter",
+					"Document change",
+					"Document the completed change",
+					{
+						outputArtifact: "documentation",
+					},
+				);
+				await gate(
+					"review-gate",
+					"Await human review",
+					"Review the proposed change",
+				);
 			},
 		},
 		{
@@ -106,7 +127,9 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			id: "build-test-review",
 			name: "Build, test, and review",
 			completesWithReview: true,
-			validationOperations: [{ name: "test", command: "test -f validation.pass" }],
+			validationOperations: [
+				{ name: "test", command: "test -f validation.pass" },
+			],
 			controller: async ({ harness, ai, gate, objective, validate }) => {
 				await harness(
 					"builder",
@@ -116,7 +139,11 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 				const validation = await validate();
 				if (validation.status === "Failed") return;
 				await ai("review", "Review change", "Review the validated change");
-				await gate("review-gate", "Await human review", "Review the proposed change");
+				await gate(
+					"review-gate",
+					"Await human review",
+					"Review the proposed change",
+				);
 			},
 		},
 		{
@@ -125,34 +152,42 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			completesWithReview: true,
 			validationOperations: [{ name: "test", command: "true" }],
 			maxCorrectionAttempts: 1,
-			controller: async ({ harness, ai, gate, objective, validate, context, correctionBudget, fail }) => {
+			controller: async ({
+				harness,
+				ai,
+				gate,
+				objective,
+				validate,
+				context,
+				correctionBudget,
+				fail,
+			}) => {
 				await harness(
 					"builder",
 					"Build request",
 					objective ?? "Build the requested change",
 					{ outputArtifact: "build" },
 				);
-				let review = await ai(
-					"review",
-					"Review change",
-					"Review the change",
-					{ outputArtifact: "review" },
-				);
-				let findings = review.status === "Succeeded"
-					? reviewFindings(context.artifacts.get("review")?.value)
-					: [];
+				let review = await ai("review", "Review change", "Review the change", {
+					outputArtifact: "review",
+				});
+				let findings =
+					review.status === "Succeeded"
+						? reviewFindings(context.artifacts.get("review")?.value)
+						: [];
 				let correctionAttempts = 0;
 				while (findings.length > 0) {
 					if (correctionAttempts >= correctionBudget) {
-						fail("CorrectionBudgetExceeded", "Correction budget exhausted", findings);
+						fail(
+							"CorrectionBudgetExceeded",
+							"Correction budget exhausted",
+							findings,
+						);
 						return;
 					}
-					await harness(
-						"builder",
-						"Correct build",
-						findings.join("\\n"),
-						{ inputArtifact: "review" },
-					);
+					await harness("builder", "Correct build", findings.join("\\n"), {
+						inputArtifact: "review",
+					});
 					correctionAttempts += 1;
 					const validation = await validate();
 					if (validation.status === "Failed") return;
@@ -162,11 +197,16 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 						"Review the corrected change",
 						{ outputArtifact: "review" },
 					);
-					findings = review.status === "Succeeded"
-						? reviewFindings(context.artifacts.get("review")?.value)
-						: [];
+					findings =
+						review.status === "Succeeded"
+							? reviewFindings(context.artifacts.get("review")?.value)
+							: [];
 				}
-				await gate("review-gate", "Await human review", "Review the proposed change");
+				await gate(
+					"review-gate",
+					"Await human review",
+					"Review the proposed change",
+				);
 			},
 		},
 		{
@@ -312,7 +352,9 @@ function reviewFindings(value: unknown): readonly string[] {
 	if (!value || typeof value !== "object") return [];
 	const findings = (value as { findings?: unknown }).findings;
 	return Array.isArray(findings)
-		? findings.filter((finding): finding is string => typeof finding === "string")
+		? findings.filter(
+				(finding): finding is string => typeof finding === "string",
+			)
 		: [];
 }
 

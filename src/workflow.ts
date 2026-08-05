@@ -17,7 +17,11 @@ export type WorkflowFailure =
 	| "ValidationFailed"
 	| "CorrectionBudgetExceeded"
 	| "PermissionViolation";
-export type WorkflowStatus = "Succeeded" | "Failed" | "AwaitingReview" | "Running";
+export type WorkflowStatus =
+	| "Succeeded"
+	| "Failed"
+	| "AwaitingReview"
+	| "Running";
 export type WorkflowEnvelopeStatus = "Success" | "Fail";
 
 export interface WorkflowEnvelope {
@@ -125,7 +129,11 @@ export interface WorkflowPrimitives {
 	readonly gate: PrimitiveFunction<"Gate">;
 	readonly validate: () => Promise<ValidationResult>;
 	readonly correctionBudget: number;
-	readonly fail: (failure: WorkflowFailure, message: string, output?: unknown) => void;
+	readonly fail: (
+		failure: WorkflowFailure,
+		message: string,
+		output?: unknown,
+	) => void;
 }
 
 export type WorkflowController = (
@@ -259,7 +267,9 @@ export class WorkflowExecutor {
 			gate: adapters.gate ?? deterministicAdapter,
 			roles: new Map((adapters.roles ?? []).map((role) => [role.name, role])),
 		};
-		this.sessionStorePath = options.sessionStorePath ?? join(tmpdir(), "local-agent-factory-sessions");
+		this.sessionStorePath =
+			options.sessionStorePath ??
+			join(tmpdir(), "local-agent-factory-sessions");
 	}
 
 	public async resumeWorkflow(
@@ -267,7 +277,8 @@ export class WorkflowExecutor {
 		correction: string,
 	): Promise<WorkflowRun> {
 		const persisted = this.readSession(runIdentifier);
-		if (!persisted) throw new Error(`Workflow session not found: ${runIdentifier}`);
+		if (!persisted)
+			throw new Error(`Workflow session not found: ${runIdentifier}`);
 		return this.executeWorkflow(persisted.workflowId, {
 			objective: correction,
 			runIdentifier,
@@ -333,9 +344,11 @@ export class WorkflowExecutor {
 				session,
 			};
 		}
-		const workspacePath = persisted?.workspacePath ?? (source
-			? createWorkspace(source.path, runIdentifier, options.workspaceRoot)
-			: undefined);
+		const workspacePath =
+			persisted?.workspacePath ??
+			(source
+				? createWorkspace(source.path, runIdentifier, options.workspaceRoot)
+				: undefined);
 		const invocations: InvocationResult[] = persisted
 			? [...persisted.invocations]
 			: [];
@@ -359,7 +372,9 @@ export class WorkflowExecutor {
 
 			let adapterOutput: PrimitiveAdapterOutput | undefined;
 			let invocationStatus: InvocationStatus = "Succeeded";
-			const role = workspacePath ? this.adapters.roles.get(invocationId) : undefined;
+			const role = workspacePath
+				? this.adapters.roles.get(invocationId)
+				: undefined;
 			if (role && workspacePath && !roleBaselines.has(role.name)) {
 				roleBaselines.set(role.name, inspectWorkspaceChanges(workspacePath));
 			}
@@ -385,26 +400,26 @@ export class WorkflowExecutor {
 						(path) => !isAllowedWrite(path, role),
 					);
 					if (unauthorizedPath) {
-							failure = "PermissionViolation";
-							failureEvidence = {
-								invocationId,
-								message: "repository change outside role boundary",
-								output: { path: unauthorizedPath, role: role.name },
-							};
-							context.envelopes.set("permission-failure", {
-								producer: role.name,
-								consumer: "operator",
-								status: "Fail",
-								summary: "repository change outside role boundary",
-								objective: "",
-								risks: [],
-								expectedFiles: [],
-								acceptanceCriteria: [],
-								validationCommands: [],
-							});
-							invocationStatus = "Failed";
-						}
+						failure = "PermissionViolation";
+						failureEvidence = {
+							invocationId,
+							message: "repository change outside role boundary",
+							output: { path: unauthorizedPath, role: role.name },
+						};
+						context.envelopes.set("permission-failure", {
+							producer: role.name,
+							consumer: "operator",
+							status: "Fail",
+							summary: "repository change outside role boundary",
+							objective: "",
+							risks: [],
+							expectedFiles: [],
+							acceptanceCriteria: [],
+							validationCommands: [],
+						});
+						invocationStatus = "Failed";
 					}
+				}
 			} catch (error) {
 				failure = "AdapterFailed";
 				failureEvidence = {
@@ -465,9 +480,16 @@ export class WorkflowExecutor {
 			return result;
 		};
 
-		const fail = (reason: WorkflowFailure, message: string, output?: unknown): void => {
+		const fail = (
+			reason: WorkflowFailure,
+			message: string,
+			output?: unknown,
+		): void => {
 			failure = reason;
-			failureEvidence = { message, ...(output !== undefined ? { output } : {}) };
+			failureEvidence = {
+				message,
+				...(output !== undefined ? { output } : {}),
+			};
 		};
 
 		const validate = async (): Promise<ValidationResult> => {
@@ -476,7 +498,10 @@ export class WorkflowExecutor {
 				operation: "none",
 				command: "none",
 				status: "Succeeded",
-				evidence: { exitCode: 0, output: "No validation operations configured" },
+				evidence: {
+					exitCode: 0,
+					output: "No validation operations configured",
+				},
 				...(workspacePath ? { workspacePath } : {}),
 			};
 			for (const operation of operations) {
@@ -537,9 +562,14 @@ export class WorkflowExecutor {
 				invoke("Gate", this.adapters.gate, id, name, input, options),
 		});
 
-		const newInvocations = invocations.slice(persisted?.invocations.length ?? 0);
+		const newInvocations = invocations.slice(
+			persisted?.invocations.length ?? 0,
+		);
 		let status: WorkflowRun["status"] = persisted ? "Running" : "Succeeded";
-		if (failure || newInvocations.some((invocation) => invocation.status === "Failed")) {
+		if (
+			failure ||
+			newInvocations.some((invocation) => invocation.status === "Failed")
+		) {
 			status = "Failed";
 		} else if (
 			!persisted &&
@@ -556,7 +586,10 @@ export class WorkflowExecutor {
 				producerInvocationId: invocations.at(-1)?.invocationId ?? "workflow",
 				kind: "ReviewableChange",
 				reference: workspacePath,
-				value: { workspacePath, changedPaths: inspectWorkspaceChanges(workspacePath) },
+				value: {
+					workspacePath,
+					changedPaths: inspectWorkspaceChanges(workspacePath),
+				},
 			});
 		}
 		const run: WorkflowRun = {
@@ -601,10 +634,15 @@ export class WorkflowExecutor {
 		return run;
 	}
 
-	private readSession(runIdentifier: string): PersistedWorkflowSession | undefined {
+	private readSession(
+		runIdentifier: string,
+	): PersistedWorkflowSession | undefined {
 		try {
 			return JSON.parse(
-				readFileSync(join(this.sessionStorePath, `${runIdentifier}.json`), "utf8"),
+				readFileSync(
+					join(this.sessionStorePath, `${runIdentifier}.json`),
+					"utf8",
+				),
 			) as PersistedWorkflowSession;
 		} catch (error) {
 			if (isMissingFile(error)) return undefined;
