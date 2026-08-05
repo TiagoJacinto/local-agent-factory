@@ -14,7 +14,8 @@ export type WorkflowFailure =
 	| "AdapterFailed"
 	| "EnvelopeParseFailed"
 	| "ValidationFailed"
-	| "CorrectionBudgetExceeded";
+	| "CorrectionBudgetExceeded"
+	| "PermissionViolation";
 export type WorkflowStatus = "Succeeded" | "Failed" | "AwaitingReview";
 export type WorkflowEnvelopeStatus = "Success" | "Fail";
 
@@ -22,6 +23,7 @@ export interface WorkflowEnvelope {
 	readonly producer: string;
 	readonly consumer: string;
 	readonly status: WorkflowEnvelopeStatus;
+	readonly summary?: string;
 	readonly objective: string;
 	readonly risks: readonly string[];
 	readonly expectedFiles: readonly string[];
@@ -42,6 +44,8 @@ export interface Artifact {
 	readonly producerInvocationId: string;
 	consumerInvocationId?: string;
 	readonly value: unknown;
+	readonly kind?: "ReviewableChange";
+	readonly reference?: string;
 }
 
 export interface ValidationOperation {
@@ -145,6 +149,8 @@ export interface WorkflowFailureEvidence {
 export interface WorkflowRun {
 	readonly workflowId: string;
 	readonly status: WorkflowStatus;
+	readonly sourceRepositoryUnchanged?: true;
+	readonly integration?: "Manual";
 	readonly invocations: readonly InvocationResult[];
 	readonly context: RunContext;
 	readonly runIdentifier?: string;
@@ -172,6 +178,7 @@ export interface AgentRoleConfiguration {
 	readonly instructions: string;
 	readonly tools: readonly string[];
 	readonly allowedWrites: readonly string[];
+	readonly protectedPaths?: readonly string[];
 }
 
 export interface PrimitiveAdapterOutput {
@@ -290,6 +297,7 @@ export class WorkflowExecutor {
 				)
 			: undefined;
 		const invocations: InvocationResult[] = [];
+		const roleBaselines = new Map<string, readonly string[]>();
 		let failure: WorkflowFailure | undefined;
 		let failureEvidence: WorkflowFailureEvidence | undefined;
 		const invoke = async <T extends PrimitiveType>(
@@ -309,6 +317,10 @@ export class WorkflowExecutor {
 
 			let adapterOutput: PrimitiveAdapterOutput | undefined;
 			let invocationStatus: InvocationStatus = "Succeeded";
+			const role = workspacePath ? this.adapters.roles.get(invocationId) : undefined;
+			if (role && workspacePath && !roleBaselines.has(role.name)) {
+				roleBaselines.set(role.name, inspectWorkspaceChanges(workspacePath));
+			}
 			try {
 				adapterOutput = await adapter({
 					invocationId,
@@ -322,6 +334,35 @@ export class WorkflowExecutor {
 					session,
 				});
 				invocationStatus = adapterOutput?.status ?? "Succeeded";
+				if (workspacePath && role) {
+					const baseline = roleBaselines.get(role.name) ?? [];
+					const changedPaths = inspectWorkspaceChanges(workspacePath).filter(
+						(path) => !baseline.includes(path),
+					);
+					const unauthorizedPath = changedPaths.find(
+						(path) => !isAllowedWrite(path, role),
+					);
+					if (unauthorizedPath) {
+							failure = "PermissionViolation";
+							failureEvidence = {
+								invocationId,
+								message: "repository change outside role boundary",
+								output: { path: unauthorizedPath, role: role.name },
+							};
+							context.envelopes.set("permission-failure", {
+								producer: role.name,
+								consumer: "operator",
+								status: "Fail",
+								summary: "repository change outside role boundary",
+								objective: "",
+								risks: [],
+								expectedFiles: [],
+								acceptanceCriteria: [],
+								validationCommands: [],
+							});
+							invocationStatus = "Failed";
+						}
+					}
 			} catch (error) {
 				failure = "AdapterFailed";
 				failureEvidence = {
@@ -465,6 +506,15 @@ export class WorkflowExecutor {
 		}
 		const workspaceDisposition =
 			status === "Failed" ? ("Retained" as const) : undefined;
+		if (source && workspacePath) {
+			context.artifacts.set("reviewable-change", {
+				id: "reviewable-change",
+				producerInvocationId: invocations.at(-1)?.invocationId ?? "workflow",
+				kind: "ReviewableChange",
+				reference: workspacePath,
+				value: { workspacePath, changedPaths: inspectWorkspaceChanges(workspacePath) },
+			});
+		}
 		return {
 			workflowId,
 			status,
@@ -477,6 +527,8 @@ export class WorkflowExecutor {
 			session,
 			...(source
 				? {
+						sourceRepositoryUnchanged: true,
+						integration: "Manual" as const,
 						runIdentifier,
 						sourceRevision: source.revision,
 						workspacePath,
@@ -549,4 +601,33 @@ function createWorkspace(
 	mkdirSync(workspaceRoot, { recursive: true });
 	execFileSync("git", ["clone", "--quiet", sourcePath, workspacePath]);
 	return workspacePath;
+}
+
+function inspectWorkspaceChanges(workspacePath: string): readonly string[] {
+	const output = execFileSync(
+		"git",
+		["-C", workspacePath, "status", "--porcelain", "--untracked-files=all"],
+		{ encoding: "utf8" },
+	);
+	return output
+		.split("\\n")
+		.filter(Boolean)
+		.map((line) => line.slice(3).trim());
+}
+
+function isAllowedWrite(path: string, role: AgentRoleConfiguration): boolean {
+	if (
+		role.protectedPaths?.some(
+			(protectedPath) =>
+				path === protectedPath || path.startsWith(`${protectedPath}/`),
+		)
+	) {
+		return false;
+	}
+	return role.allowedWrites.some(
+		(allowedPath) =>
+			allowedPath === "*" ||
+			allowedPath === path ||
+			path.startsWith(`${allowedPath}/`),
+	);
 }

@@ -43,6 +43,31 @@ export interface WorkflowRegistry {
 export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[] {
 	return [
 		{
+			id: "review",
+			name: "Review",
+			completesWithReview: true,
+			controller: async ({ ai, gate }) => {
+				const review = await ai("reviewer", "Review change", "Review the change");
+				if (review.status === "Failed") return;
+				await gate("review-gate", "Await human review", "Review the proposed change");
+			},
+		},
+		{
+			id: "simple-sdlc",
+			name: "Simple software development lifecycle",
+			completesWithReview: true,
+			validationOperations: [{ name: "test", command: "true" }],
+			controller: async ({ harness, ai, gate, validate, objective }) => {
+				await harness("builder", "Build request", objective ?? "Build the requested change");
+				if ((await validate()).status === "Failed") return;
+				await ai("reviewer", "Review change", "Review the completed change");
+				await harness("documenter", "Document change", "Document the completed change", {
+					outputArtifact: "documentation",
+				});
+				await gate("review-gate", "Await human review", "Review the proposed change");
+			},
+		},
+		{
 			id: "plan-build",
 			name: "Plan and build",
 			controller: async ({ ai, harness, objective }) => {
