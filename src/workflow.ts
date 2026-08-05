@@ -2,6 +2,12 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import {
+	SQLiteWorkflowTraceStore,
+	type WorkflowTrace,
+	type WorkflowTraceEvent,
+	type WorkflowTraceStore,
+} from "./workflow-trace.ts";
 
 export type PrimitiveType = "AI" | "Harness" | "Gate";
 export type InvocationStatus = "Succeeded" | "Failed";
@@ -16,7 +22,7 @@ export type WorkflowFailure =
 	| "ValidationFailed"
 	| "CorrectionBudgetExceeded"
 	| "PermissionViolation";
-export type WorkflowStatus = "Succeeded" | "Failed" | "AwaitingReview";
+export type WorkflowStatus = "Running" | "Succeeded" | "Failed" | "AwaitingReview";
 export type WorkflowEnvelopeStatus = "Success" | "Fail";
 
 export interface WorkflowEnvelope {
@@ -166,6 +172,7 @@ export interface WorkflowRun {
 }
 
 export interface WorkflowExecutionOptions {
+	readonly runIdentifier?: string;
 	readonly objective?: string;
 	readonly sourceRepository?: string;
 	readonly expectedSourceRevision?: string;
@@ -213,6 +220,7 @@ export interface PrimitiveAdapters {
 	readonly harness?: PrimitiveAdapter;
 	readonly gate?: PrimitiveAdapter;
 	readonly roles?: readonly AgentRoleConfiguration[];
+	readonly traceStore?: WorkflowTraceStore;
 }
 
 const deterministicAdapter: PrimitiveAdapter = () => undefined;
@@ -220,6 +228,7 @@ const deterministicAdapter: PrimitiveAdapter = () => undefined;
 export class WorkflowExecutor {
 	private readonly workflows: ReadonlyMap<string, WorkflowDefinition>;
 	private readonly adapters: ResolvedPrimitiveAdapters;
+	private readonly traceStore: WorkflowTraceStore;
 
 	public constructor(
 		workflows: readonly WorkflowDefinition[],
@@ -234,6 +243,15 @@ export class WorkflowExecutor {
 			gate: adapters.gate ?? deterministicAdapter,
 			roles: new Map((adapters.roles ?? []).map((role) => [role.name, role])),
 		};
+		this.traceStore = adapters.traceStore ?? new SQLiteWorkflowTraceStore();
+	}
+
+	public inspectWorkflowRun(runIdentifier: string): WorkflowTrace | undefined {
+		const trace = this.traceStore.get(runIdentifier);
+		if (trace instanceof Promise) {
+			throw new Error("The configured workflow trace store must provide synchronous inspection");
+		}
+		return trace;
 	}
 
 	public async executeWorkflow(
@@ -256,8 +274,25 @@ export class WorkflowExecutor {
 		const source = options.sourceRepository
 			? inspectSource(options.sourceRepository)
 			: undefined;
-		const runIdentifier = source ? `local-run-${randomUUID()}` : undefined;
+		const runIdentifier = options.runIdentifier ?? `local-run-${randomUUID()}`;
+		const traceEvents: WorkflowTraceEvent[] = [
+			{ sequence: 1, kind: "process", name: workflow.id, status: "Running" },
+			{ sequence: 2, kind: "phase", name: workflow.name, status: "Running" },
+		];
+		const trace: WorkflowTrace = {
+			runIdentifier,
+			workflowId,
+			status: "Running",
+			events: traceEvents,
+			validationResults: [],
+			envelopes: [],
+			artifacts: [],
+		};
+		await this.traceStore.start(trace);
 		if (source && source.workingTree !== "Clean") {
+			trace.status = "Failed";
+			trace.failure = "DirtySource";
+			await this.traceStore.save(trace);
 			return {
 				workflowId,
 				status: "Failed",
@@ -276,6 +311,9 @@ export class WorkflowExecutor {
 			options.expectedSourceRevision &&
 			source.revision !== options.expectedSourceRevision
 		) {
+			trace.status = "Failed";
+			trace.failure = "UnexpectedSourceRevision";
+			await this.traceStore.save(trace);
 			return {
 				workflowId,
 				status: "Failed",
@@ -317,6 +355,24 @@ export class WorkflowExecutor {
 
 			let adapterOutput: PrimitiveAdapterOutput | undefined;
 			let invocationStatus: InvocationStatus = "Succeeded";
+			traceEvents.push({
+				sequence: traceEvents.length + 1,
+				kind: "primitive",
+				name,
+				status: "Running",
+				data: { invocationId, primitiveType },
+			});
+			await this.traceStore.save({ ...trace, events: traceEvents });
+			if (primitiveType === "Harness") {
+				traceEvents.push({
+					sequence: traceEvents.length + 1,
+					kind: "tool_call",
+					name,
+					status: "Running",
+					data: { invocationId },
+				});
+				await this.traceStore.save({ ...trace, events: traceEvents });
+			}
 			const role = workspacePath ? this.adapters.roles.get(invocationId) : undefined;
 			if (role && workspacePath && !roleBaselines.has(role.name)) {
 				roleBaselines.set(role.name, inspectWorkspaceChanges(workspacePath));
@@ -420,6 +476,14 @@ export class WorkflowExecutor {
 				...(workspacePath ? { workspacePath } : {}),
 			};
 			invocations.push(result);
+			traceEvents.push({
+				sequence: traceEvents.length + 1,
+				kind: "primitive",
+				name,
+				status: invocationStatus,
+				data: { invocationId, primitiveType },
+			});
+			await this.traceStore.save({ ...trace, events: traceEvents });
 			return result;
 		};
 
@@ -469,6 +533,18 @@ export class WorkflowExecutor {
 					};
 				}
 				context.validationResults.push(lastResult);
+				traceEvents.push({
+					sequence: traceEvents.length + 1,
+					kind: "validation",
+					name: lastResult.operation,
+					status: lastResult.status,
+					data: lastResult.evidence,
+				});
+				await this.traceStore.save({
+					...trace,
+					events: traceEvents,
+					validationResults: [...context.validationResults],
+				});
 				if (lastResult.status === "Failed") {
 					failure = "ValidationFailed";
 					failureEvidence = {
@@ -515,11 +591,26 @@ export class WorkflowExecutor {
 				value: { workspacePath, changedPaths: inspectWorkspaceChanges(workspacePath) },
 			});
 		}
+		trace.status = status;
+		trace.events = [
+			...traceEvents,
+			{ sequence: traceEvents.length + 1, kind: "phase", name: workflow.name, status },
+			{ sequence: traceEvents.length + 2, kind: "process", name: workflow.id, status },
+		];
+		trace.validationResults = [...context.validationResults];
+		trace.envelopes = [...context.envelopes.values()];
+		trace.artifacts = [...context.artifacts.values()];
+		if (workspacePath) trace.workspacePath = workspacePath;
+		if (workspaceDisposition) trace.workspaceDisposition = workspaceDisposition;
+		if (failure) trace.failure = failure;
+		if (failureEvidence) trace.failureEvidence = failureEvidence;
+		await this.traceStore.save(trace);
 		return {
 			workflowId,
 			status,
 			invocations,
 			context,
+			runIdentifier,
 			...(failure
 				? { failure, ...(failureEvidence ? { failureEvidence } : {}) }
 				: {}),
