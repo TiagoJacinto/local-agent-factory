@@ -517,7 +517,9 @@ export class WorkflowPackageInstaller {
 		const setup = this.requireSetup(repository);
 		const definition = this.buildDefinition(workflowId, phases, acceptance);
 		const definitions = setup.workflowRegistry.workflowDefinitions ?? [];
-		const index = definitions.findIndex((candidate) => candidate.id === workflowId);
+		const index = definitions.findIndex(
+			(candidate) => candidate.id === workflowId,
+		);
 		if (index < 0) throw new Error(`Workflow not registered: ${workflowId}`);
 		definitions[index] = definition;
 		setup.workflowRegistry.workflowDefinitions = definitions;
@@ -563,18 +565,19 @@ export class WorkflowPackageInstaller {
 			starterWorkflowIds.every((id) => workflows.includes(id));
 		const customWorkflowIds =
 			Array.isArray(workflows) &&
-				workflows.filter(
-					(id) => !(starterWorkflowIds as readonly string[]).includes(id),
-				);
+			workflows.filter(
+				(id) => !(starterWorkflowIds as readonly string[]).includes(id),
+			);
 		const hasValidDefinitions =
 			Array.isArray(definitions) &&
 			Array.isArray(customWorkflowIds) &&
 			customWorkflowIds.every((id) =>
 				definitions.some((definition) => definition.id === id),
 			) &&
-			definitions.every((definition) =>
-				workflows?.includes(definition.id) &&
-				this.isValidWorkflowDefinition(definition),
+			definitions.every(
+				(definition) =>
+					workflows?.includes(definition.id) &&
+					this.isValidWorkflowDefinition(definition),
 			);
 		const hasExpectedRoles =
 			Array.isArray(roles) &&
@@ -664,9 +667,9 @@ export class WorkflowPackageInstaller {
 		return {
 			id: definition.id,
 			name: definition.name,
-			validationOperations: (definition.acceptance.validationCommands ?? []).map(
-				(command, index) => ({ name: `validation-${index + 1}`, command }),
-			),
+			validationOperations: (
+				definition.acceptance.validationCommands ?? []
+			).map((command, index) => ({ name: `validation-${index + 1}`, command })),
 			controller: async ({ ai, harness, objective }) => {
 				for (const phase of definition.phases) {
 					const input = objective ?? definition.acceptance.criteria.join("; ");
