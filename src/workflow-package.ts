@@ -7,8 +7,8 @@ import {
 	type RunContext,
 	type WorkflowDefinition,
 } from "./workflow.js";
-
 import { createPiAdapters, type PiAdapterOptions } from "./pi-adapter.js";
+
 
 const packageDirectory = ".local-agent-factory";
 const packageFile = "package.json";
@@ -782,9 +782,10 @@ export class WorkflowPackageInstaller {
 }
 
 function commitProduct(phase: string): "plan" | "build" | "documentation" {
-	if (phase.includes("plan")) return "plan";
-	if (phase.includes("doc")) return "documentation";
-	return "build";
+	if (phase === "commit-plan") return "plan";
+	if (phase === "commit-build") return "build";
+	if (phase === "commit-docs") return "documentation";
+	throw new Error(`Unknown code-owned commit phase: ${phase}`);
 }
 
 function reviewFindings(value: unknown): readonly string[] {
