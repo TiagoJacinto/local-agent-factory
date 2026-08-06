@@ -4,11 +4,11 @@ import {
 	renderWorkflowTrace,
 	SQLiteWorkflowTraceStore,
 	type WorkflowTrace,
-} from "./workflow-trace.ts";
+} from "./workflow-trace.js";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { WorkflowExecutor, type WorkflowDefinition } from "./workflow.ts";
+import { WorkflowExecutor, type WorkflowDefinition } from "./workflow.js";
 
 describe("workflow trace", () => {
 	test("persists completed validation and review evidence", async () => {
@@ -26,7 +26,9 @@ describe("workflow trace", () => {
 					},
 				});
 				await validate();
-				await gate("review", "Review change", "plan", { inputArtifact: "plan" });
+				await gate("review", "Review change", "plan", {
+					inputArtifact: "plan",
+				});
 			},
 		};
 		const executor = new WorkflowExecutor([workflow], {
@@ -51,7 +53,10 @@ describe("workflow trace", () => {
 
 		// state verification
 		expect(run.status).toBe("AwaitingReview");
-		expect(trace).toMatchObject({ runIdentifier: run.runIdentifier, status: "AwaitingReview" });
+		expect(trace).toMatchObject({
+			runIdentifier: run.runIdentifier,
+			status: "AwaitingReview",
+		});
 		expect(trace?.validationResults[0].status).toBe("Succeeded");
 		expect(trace?.envelopes).toHaveLength(1);
 		expect(trace?.artifacts.map((artifact) => artifact.id)).toContain("plan");
@@ -90,6 +95,66 @@ describe("workflow trace", () => {
 		expect(viewer).toContain("error TS2322");
 	});
 
+	test("can inspect tool calls and process activity while the run is active", async () => {
+		const traceStore = new InMemoryWorkflowTraceStore();
+		let releaseTool!: () => void;
+		const toolReleased = new Promise<void>((resolve) => {
+			releaseTool = resolve;
+		});
+		const workflow: WorkflowDefinition = {
+			id: "tool-running",
+			name: "Tool workflow",
+			controller: async ({ harness }) => {
+				await harness("builder", "Run tests", "bun test", {
+					outputArtifact: "test-result",
+				});
+			},
+		};
+		const executor = new WorkflowExecutor([workflow], {
+			traceStore,
+			harness: async ({ emit }) => {
+				emit?.({ name: "bun", status: "Running", data: { pid: 123 } });
+				await toolReleased;
+				return { value: { exitCode: 0, output: "passed" } };
+			},
+		});
+
+		const pendingRun = executor.executeWorkflow("tool-running", {
+			runIdentifier: "run-123",
+		});
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+		const running = executor.inspectWorkflowRun("run-123");
+		expect(running?.events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "tool_call",
+					status: "Running",
+					data: expect.objectContaining({ arguments: "bun test" }),
+				}),
+				expect.objectContaining({
+					kind: "process",
+					name: "bun",
+					status: "Running",
+				}),
+			]),
+		);
+		releaseTool();
+		await pendingRun;
+		const completed = executor.inspectWorkflowRun("run-123");
+		expect(completed?.events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "tool_call",
+					status: "Succeeded",
+					data: expect.objectContaining({
+						arguments: "bun test",
+						result: { exitCode: 0, output: "passed" },
+					}),
+				}),
+			]),
+		);
+	});
+
 	test("can inspect primitive activity while the run is active", async () => {
 		const traceStore = new InMemoryWorkflowTraceStore();
 		let releaseGate!: () => void;
@@ -122,13 +187,20 @@ describe("workflow trace", () => {
 		// state verification
 		expect(running?.events).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ kind: "primitive", name: "Review change", status: "Running" }),
+				expect.objectContaining({
+					kind: "primitive",
+					name: "Review change",
+					status: "Running",
+				}),
 			]),
 		);
 	});
 
 	test("stores traces in SQLite", () => {
-		const path = join(mkdtempSync(join(tmpdir(), "workflow-trace-")), "trace.sqlite");
+		const path = join(
+			mkdtempSync(join(tmpdir(), "workflow-trace-")),
+			"trace.sqlite",
+		);
 		const store = new SQLiteWorkflowTraceStore(path);
 		store.start({
 			runIdentifier: "run-001",

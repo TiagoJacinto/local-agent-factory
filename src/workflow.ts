@@ -422,6 +422,10 @@ export class WorkflowExecutor {
 		const roleBaselines = new Map<string, readonly string[]>();
 		let failure: WorkflowFailure | undefined;
 		let failureEvidence: WorkflowFailureEvidence | undefined;
+		const recordTraceEvent = (event: Omit<WorkflowTraceEvent, "sequence">) => {
+			traceEvents.push({ ...event, sequence: traceEvents.length + 1 });
+			return this.traceStore.save({ ...trace, events: traceEvents });
+		};
 		const invoke = async <T extends PrimitiveType>(
 			primitiveType: T,
 			adapter: PrimitiveAdapter,
@@ -439,23 +443,22 @@ export class WorkflowExecutor {
 
 			let adapterOutput: PrimitiveAdapterOutput | undefined;
 			let invocationStatus: InvocationStatus = "Succeeded";
-			traceEvents.push({
-				sequence: traceEvents.length + 1,
+			await recordTraceEvent({
 				kind: "primitive",
 				name,
 				status: "Running",
 				data: { invocationId, primitiveType },
 			});
-			await this.traceStore.save({ ...trace, events: traceEvents });
 			if (primitiveType === "Harness") {
-				traceEvents.push({
-					sequence: traceEvents.length + 1,
+				await recordTraceEvent({
 					kind: "tool_call",
 					name,
 					status: "Running",
-					data: { invocationId },
+					data: {
+						invocationId,
+						arguments: input,
+					},
 				});
-				await this.traceStore.save({ ...trace, events: traceEvents });
 			}
 			const role = workspacePath
 				? resolveRole(this.adapters.roles, invocationId)
@@ -475,11 +478,7 @@ export class WorkflowExecutor {
 					workspacePath,
 					session,
 					emit: (event) => {
-						traceEvents.push({
-							sequence: traceEvents.length + 1,
-							kind: "process",
-							...event,
-						});
+						recordTraceEvent({ kind: "process", ...event });
 					},
 				});
 				invocationStatus = adapterOutput?.status ?? "Succeeded";
@@ -569,13 +568,28 @@ export class WorkflowExecutor {
 				...(workspacePath ? { workspacePath } : {}),
 			};
 			invocations.push(result);
-			traceEvents.push({
-				sequence: traceEvents.length + 1,
+			recordTraceEvent({
 				kind: "primitive",
 				name,
 				status: invocationStatus,
-				data: { invocationId, primitiveType },
+				data: {
+					invocationId,
+					primitiveType,
+					result: adapterOutput?.value,
+				},
 			});
+			if (primitiveType === "Harness") {
+				recordTraceEvent({
+					kind: "tool_call",
+					name,
+					status: invocationStatus,
+					data: {
+						invocationId,
+						arguments: input,
+						result: adapterOutput?.value,
+					},
+				});
+			}
 			await this.traceStore.save({ ...trace, events: traceEvents });
 			return result;
 		};
