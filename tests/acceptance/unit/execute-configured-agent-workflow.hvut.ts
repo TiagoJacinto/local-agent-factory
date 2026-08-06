@@ -36,6 +36,7 @@ const feature = loadFeatureFromText(`Feature: Execute a configured agent workflo
         | 4               | Review corrected work | AI            | Succeeded |
         | 5               | Await human review   | Gate          | Succeeded |
       And I view WorkflowSession{sameAgentContext: true} in Workflow Execution: Correction keeps the active agent context
+      And I view WorkflowEnvelope{producer: "reviewer", consumer: "builder", status: Fail} in Workflow Execution: Findings reach the builder
 
   Rule: Carry typed workflow envelopes and artifacts between roles
 
