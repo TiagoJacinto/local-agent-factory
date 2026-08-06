@@ -3,6 +3,7 @@ import {
 	InMemoryWorkflowTraceStore,
 	renderWorkflowTrace,
 	SQLiteWorkflowTraceStore,
+	WorkflowTraceViewer,
 	type WorkflowTrace,
 } from "./workflow-trace.js";
 import { mkdtempSync } from "node:fs";
@@ -10,7 +11,45 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { WorkflowExecutor, type WorkflowDefinition } from "./workflow.js";
 
+
 describe("workflow trace", () => {
+	test("lists available workflow runs without exposing mutable trace state", async () => {
+		const store = new InMemoryWorkflowTraceStore();
+		store.start({
+			runIdentifier: "run-123",
+			workflowId: "build",
+			status: "Running",
+			events: [],
+			validationResults: [],
+			envelopes: [],
+			artifacts: [],
+		});
+		store.start({
+			runIdentifier: "run-456",
+			workflowId: "review",
+			status: "AwaitingReview",
+			events: [],
+			validationResults: [],
+			envelopes: [],
+			artifacts: [],
+		});
+
+		const viewer = new WorkflowTraceViewer(store);
+		const runs = await viewer.listWorkflowRuns();
+		runs[0]!.status = "Failed";
+
+		// result verification
+		expect(await viewer.listWorkflowRuns()).toEqual([
+			{ runIdentifier: "run-123", workflowId: "build", status: "Running" },
+			{
+				runIdentifier: "run-456",
+				workflowId: "review",
+				status: "AwaitingReview",
+			},
+		]);
+		// state verification
+		expect((await viewer.inspectWorkflowRun("run-123"))?.status).toBe("Running");
+	});
 	test("persists completed validation and review evidence", async () => {
 		const traceStore = new InMemoryWorkflowTraceStore();
 		const workflow: WorkflowDefinition = {

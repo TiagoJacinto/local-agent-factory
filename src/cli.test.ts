@@ -107,6 +107,40 @@ describe("CLI", () => {
 		expect(messages[0]).toContain("AwaitingReview");
 	});
 
+	test("lists stored workflow runs as a read-only HTML view", async () => {
+		const messages: string[] = [];
+		const database = join(
+			mkdtempSync(join(tmpdir(), "cli-trace-list-")),
+			"trace.sqlite",
+		);
+		const store = new SQLiteWorkflowTraceStore(database);
+		for (const trace of [
+			{ runIdentifier: "run-123", workflowId: "build", status: "Running" as const },
+			{ runIdentifier: "run-456", workflowId: "review", status: "AwaitingReview" as const },
+		]) {
+			store.start({
+				...trace,
+				events: [],
+				validationResults: [],
+				envelopes: [],
+				artifacts: [],
+			});
+		}
+
+		await createCli((message) => messages.push(message)).parseAsync([
+			"node",
+			"local-agent-factory",
+			"trace",
+			"--database",
+			database,
+		]);
+
+		// result verification
+		expect(messages[0]).toContain("Workflow runs");
+		expect(messages[0]).toContain("run-123");
+		expect(messages[0]).toContain("run-456");
+	});
+
 	test("uses the default name when none is provided", async () => {
 		const messages: string[] = [];
 		const cli = createCli((message) => messages.push(message));

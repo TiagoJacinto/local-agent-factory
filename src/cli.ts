@@ -4,8 +4,10 @@ import { join } from "node:path";
 import { WorkflowPackageInstaller } from "./workflow-package.js";
 import {
 	DEFAULT_WORKFLOW_TRACE_DATABASE_PATH,
+	renderWorkflowRunList,
 	renderWorkflowTrace,
 	SQLiteWorkflowTraceStore,
+	WorkflowTraceViewer,
 } from "./workflow-trace.js";
 import { WorkflowExecutor } from "./workflow.js";
 
@@ -160,21 +162,25 @@ export function createCli(
 			});
 			output(renderWorkflowRun(run));
 		});
-
 	program
 		.command("trace")
-		.description("Inspect a workflow trace in a read-only HTML view")
-		.argument("<runIdentifier>", "workflow run identifier")
+		.description("List or inspect workflow traces in a read-only HTML view")
+		.argument("[runIdentifier]", "workflow run identifier")
 		.option(
 			"--database <path>",
 			"SQLite workflow trace database",
 			DEFAULT_WORKFLOW_TRACE_DATABASE_PATH,
 		)
-		.action((runIdentifier: string, rawOptions: unknown) => {
+		.action(async (runIdentifier: string | undefined, rawOptions: unknown) => {
 			const options = traceOptionsSchema.parse(rawOptions);
-			const trace = new SQLiteWorkflowTraceStore(options.database).get(
-				runIdentifier,
+			const viewer = new WorkflowTraceViewer(
+				new SQLiteWorkflowTraceStore(options.database),
 			);
+			if (!runIdentifier) {
+				output(renderWorkflowRunList(await viewer.listWorkflowRuns()));
+				return;
+			}
+			const trace = await viewer.inspectWorkflowRun(runIdentifier);
 			if (!trace) throw new Error(`Workflow trace not found: ${runIdentifier}`);
 			output(renderWorkflowTrace(trace));
 		});

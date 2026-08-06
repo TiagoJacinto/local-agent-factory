@@ -29,6 +29,14 @@ export interface WorkflowTrace {
 	failureEvidence?: WorkflowFailureEvidence;
 }
 
+export interface WorkflowTraceSummary {
+	runIdentifier: string;
+	workflowId: string;
+	status: WorkflowStatus;
+	workspaceDisposition?: "Retained";
+}
+
+
 export type WorkflowTraceEventKind =
 	| "phase"
 	| "primitive"
@@ -60,6 +68,22 @@ export interface WorkflowTraceStore {
 	get(
 		runIdentifier: string,
 	): WorkflowTrace | undefined | Promise<WorkflowTrace | undefined>;
+	list(): readonly WorkflowTraceSummary[] | Promise<readonly WorkflowTraceSummary[]>;
+}
+
+/** Read-only application boundary for listing and inspecting workflow traces. */
+export class WorkflowTraceViewer {
+	public constructor(private readonly store: WorkflowTraceStore) {}
+
+	public async listWorkflowRuns(): Promise<readonly WorkflowTraceSummary[]> {
+		return await this.store.list();
+	}
+
+	public async inspectWorkflowRun(
+		runIdentifier: string,
+	): Promise<WorkflowTrace | undefined> {
+		return await this.store.get(runIdentifier);
+	}
 }
 
 function escapeHtml(value: string): string {
@@ -174,13 +198,36 @@ ${failure}
 </body></html>`;
 }
 
+/** Render a read-only, standalone HTML view of available workflow runs. */
+export function renderWorkflowRunList(
+	runs: readonly WorkflowTraceSummary[],
+): string {
+	const rows = runs.length
+		? runs
+				.map(
+					(run) =>
+						`<li><strong>${escapeHtml(run.runIdentifier)}</strong> ` +
+						`${escapeHtml(run.workflowId)} ` +
+						`<span class="status">${escapeHtml(run.status)}</span>` +
+						(run.workspaceDisposition
+							? ` (${escapeHtml(run.workspaceDisposition)})`
+							: ""),
+				)
+				.join("")
+		: "<li>No workflow runs recorded.</li>";
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+		`<title>Workflow runs</title></head><body><h1>Workflow runs</h1><ul>${rows}</ul></body></html>`;
+}
+
 interface SQLiteDatabase {
 	run(sql: string): void;
 	prepare(sql: string): {
 		run(parameters: Record<string, string>): void;
 		get(parameters: Record<string, string>): unknown;
+		all(parameters: Record<string, string>): unknown[];
 	};
 }
+
 
 const require = createRequire(import.meta.url);
 
@@ -261,6 +308,35 @@ export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 			return undefined;
 		}
 	}
+	public list(): readonly WorkflowTraceSummary[] {
+		if (!this.database) {
+			return Object.values(this.readFallbackTraces()).map((trace) => ({
+				runIdentifier: trace.runIdentifier,
+				workflowId: trace.workflowId,
+				status: trace.status,
+				...(trace.workspaceDisposition ? { workspaceDisposition: trace.workspaceDisposition } : {}),
+			}));
+		}
+		return this.database
+			.prepare("SELECT trace_json FROM workflow_traces ORDER BY rowid")
+			.all({})
+			.flatMap((row) => {
+				if (!row || typeof row !== "object" || !("trace_json" in row)) return [];
+				const traceJson = row.trace_json;
+				if (typeof traceJson !== "string") return [];
+				try {
+					const trace = JSON.parse(traceJson) as WorkflowTrace;
+					return [{
+						runIdentifier: trace.runIdentifier,
+						workflowId: trace.workflowId,
+						status: trace.status,
+						...(trace.workspaceDisposition ? { workspaceDisposition: trace.workspaceDisposition } : {}),
+					}];
+				} catch {
+					return [];
+				}
+			});
+	}
 
 	private readFallbackTraces(): Record<string, WorkflowTrace> {
 		try {
@@ -294,6 +370,14 @@ export class InMemoryWorkflowTraceStore implements WorkflowTraceStore {
 	public get(runIdentifier: string): WorkflowTrace | undefined {
 		const trace = this.traces.get(runIdentifier);
 		return trace ? structuredClone(trace) : undefined;
+	}
+	public list(): readonly WorkflowTraceSummary[] {
+		return [...this.traces.values()].map((trace) => ({
+			runIdentifier: trace.runIdentifier,
+			workflowId: trace.workflowId,
+			status: trace.status,
+			...(trace.workspaceDisposition ? { workspaceDisposition: trace.workspaceDisposition } : {}),
+		}));
 	}
 
 	public latestRunIdentifier(): string | undefined {
