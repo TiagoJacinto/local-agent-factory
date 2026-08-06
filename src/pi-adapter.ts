@@ -1,9 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import type {
-	PrimitiveAdapter,
-	PrimitiveAdapterOutput,
-} from "./workflow.js";
+import type { PrimitiveAdapter, PrimitiveAdapterOutput } from "./workflow.js";
 
 export interface PiAdapterOptions {
 	readonly executable?: string;
@@ -18,27 +15,27 @@ interface PiEvent {
 }
 
 /** Create a primitive adapter which runs Pi in a disposable workspace. */
-export function createPiAdapter(options: PiAdapterOptions = {}): PrimitiveAdapter {
+export function createPiAdapter(
+	options: PiAdapterOptions = {},
+): PrimitiveAdapter {
 	const executable = options.executable ?? "pi";
 	const sessions = new Map<string, string>();
 
-	return ({
-		input,
-		role,
-		workspacePath,
-		session,
-		emit,
-	}) => {
+	return ({ input, role, workspacePath, session, emit }) => {
 		const roleName = role?.name ?? "default";
 		const sessionKey = `${session?.id ?? "ephemeral"}:${roleName}`;
 		const sessionId =
-			session?.agentSessions[roleName] ?? sessions.get(sessionKey) ?? randomUUID();
+			session?.agentSessions[roleName] ??
+			sessions.get(sessionKey) ??
+			randomUUID();
 		if (session) session.agentSessions[roleName] = sessionId;
 		sessions.set(sessionKey, sessionId);
 
 		const args = ["--mode", "json", "--print", "--session-id", sessionId];
-		if (role?.model && role.model !== "default") args.push("--model", role.model);
-		if (role?.instructions) args.push("--append-system-prompt", role.instructions);
+		if (role?.model && role.model !== "default")
+			args.push("--model", role.model);
+		if (role?.instructions)
+			args.push("--append-system-prompt", role.instructions);
 		if (role?.tools.length) args.push("--tools", role.tools.join(","));
 		if (options.sessionDirectory)
 			args.push("--session-dir", options.sessionDirectory);
@@ -98,7 +95,11 @@ function runPi(options: RunPiOptions): Promise<PrimitiveAdapterOutput> {
 				lines.push(line);
 				try {
 					const event = JSON.parse(line) as PiEvent;
-					options.emit?.({ name: event.type ?? "pi", status: "Running", data: event });
+					options.emit?.({
+						name: event.type ?? "pi",
+						status: "Running",
+						data: event,
+					});
 				} catch {
 					// Ignore non-JSON diagnostics. The final result still uses valid events.
 				}
@@ -137,10 +138,16 @@ function extractPiOutput(lines: readonly string[]): unknown {
 	});
 	const text = events
 		.flatMap((event) => {
-			const message = event.message as { role?: string; content?: unknown } | undefined;
-			if (message?.role !== "assistant" || !Array.isArray(message.content)) return [];
+			const message = event.message as
+				| { role?: string; content?: unknown }
+				| undefined;
+			if (message?.role !== "assistant" || !Array.isArray(message.content))
+				return [];
 			return message.content.flatMap((part) =>
-				part && typeof part === "object" && "text" in part && typeof part.text === "string"
+				part &&
+				typeof part === "object" &&
+				"text" in part &&
+				typeof part.text === "string"
 					? [part.text]
 					: [],
 			);
@@ -164,4 +171,3 @@ export function createPiAdapters(options: PiAdapterOptions = {}): {
 	const adapter = createPiAdapter(options);
 	return { ai: adapter, harness: adapter, gate: adapter };
 }
-

@@ -60,10 +60,20 @@ describe("Pi primitive adapter", () => {
 
 		expect(result?.value).toEqual({ ok: true });
 		const args = JSON.parse(readFileSync(harness.argsFile, "utf8")) as string[];
-		expect(args).toEqual(expect.arrayContaining([
-			"--mode", "json", "--print", "--session-id", session.agentSessions.builder,
-			"--model", "provider/model", "--tools", "read,write", "--approve",
-		]));
+		expect(args).toEqual(
+			expect.arrayContaining([
+				"--mode",
+				"json",
+				"--print",
+				"--session-id",
+				session.agentSessions.builder,
+				"--model",
+				"provider/model",
+				"--tools",
+				"read,write",
+				"--approve",
+			]),
+		);
 	});
 
 	test("emits Pi activity and reuses the role session", async () => {
@@ -79,7 +89,14 @@ describe("Pi primitive adapter", () => {
 			agentSessions: {},
 		};
 		const events: string[] = [];
-		const input = { invocationId: "builder", name: "Build", input: "build", context, session, emit: (event: { name: string }) => events.push(event.name) };
+		const input = {
+			invocationId: "builder",
+			name: "Build",
+			input: "build",
+			context,
+			session,
+			emit: (event: { name: string }) => events.push(event.name),
+		};
 		await adapter(input);
 		const first = session.agentSessions.builder;
 		await adapter(input);
