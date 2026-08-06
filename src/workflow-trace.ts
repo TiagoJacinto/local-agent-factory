@@ -47,9 +47,14 @@ export const DEFAULT_WORKFLOW_TRACE_DATABASE_PATH =
 
 export interface WorkflowTraceStore {
 	start(trace: WorkflowTrace): void | Promise<void>;
-	append(runIdentifier: string, event: WorkflowTraceEvent): void | Promise<void>;
+	append(
+		runIdentifier: string,
+		event: WorkflowTraceEvent,
+	): void | Promise<void>;
 	save(trace: WorkflowTrace): void | Promise<void>;
-	get(runIdentifier: string): WorkflowTrace | undefined | Promise<WorkflowTrace | undefined>;
+	get(
+		runIdentifier: string,
+	): WorkflowTrace | undefined | Promise<WorkflowTrace | undefined>;
 }
 
 function escapeHtml(value: string): string {
@@ -84,10 +89,12 @@ export function renderWorkflowTrace(trace: WorkflowTrace): string {
 						`<li><strong>${event.sequence}. ${escapeHtml(event.name)}</strong> ` +
 						`<span class="status">${escapeHtml(event.status)}</span> ` +
 						`<span>${escapeHtml(event.kind)}</span>` +
-						(event.data === undefined ? "" : `<pre>${renderValue(event.data)}</pre>`),
+						(event.data === undefined
+							? ""
+							: `<pre>${renderValue(event.data)}</pre>`),
 				)
-					.join("")
-			: "<li>No activity recorded.</li>";
+				.join("")
+		: "<li>No activity recorded.</li>";
 	const validations = trace.validationResults.length
 		? trace.validationResults
 				.map(
@@ -97,8 +104,8 @@ export function renderWorkflowTrace(trace: WorkflowTrace): string {
 						`${escapeHtml(result.command)} (exit ${result.evidence.exitCode})</p>` +
 						`<pre>${escapeHtml(result.evidence.output)}</pre></article>`,
 				)
-					.join("")
-			: "<p>No validation results.</p>";
+				.join("")
+		: "<p>No validation results.</p>";
 	const envelopes = trace.envelopes.length
 		? trace.envelopes
 				.map(
@@ -108,8 +115,8 @@ export function renderWorkflowTrace(trace: WorkflowTrace): string {
 						`${escapeHtml(envelope.summary ?? envelope.objective)}</p>` +
 						`<h4>Acceptance criteria</h4>${renderList(envelope.acceptanceCriteria)}</article>`,
 				)
-					.join("")
-			: "<p>No envelopes.</p>";
+				.join("")
+		: "<p>No envelopes.</p>";
 	const artifacts = trace.artifacts.length
 		? trace.artifacts
 				.map(
@@ -117,20 +124,22 @@ export function renderWorkflowTrace(trace: WorkflowTrace): string {
 						`<article><h3>${escapeHtml(artifact.id)}</h3>` +
 						`<p>${escapeHtml(artifact.producerInvocationId)} → ` +
 						`${escapeHtml(artifact.consumerInvocationId ?? "unconsumed")}</p>` +
-						(artifact.reference ? `<p>Reference: ${escapeHtml(artifact.reference)}</p>` : "") +
+						(artifact.reference
+							? `<p>Reference: ${escapeHtml(artifact.reference)}</p>`
+							: "") +
 						`<pre>${renderValue(artifact.value)}</pre></article>`,
 				)
-					.join("")
-			: "<p>No artifacts.</p>";
+				.join("")
+		: "<p>No artifacts.</p>";
 	const failure = trace.failure
 		? `<section><h2>Failure evidence</h2><p>${escapeHtml(trace.failure)}</p>` +
-				(trace.failureEvidence
-					? `<p>${escapeHtml(trace.failureEvidence.message)}</p>` +
-						(trace.failureEvidence.output === undefined
-							? ""
-							: `<pre>${renderValue(trace.failureEvidence.output)}</pre>`)
-					: "") +
-				"</section>"
+			(trace.failureEvidence
+				? `<p>${escapeHtml(trace.failureEvidence.message)}</p>` +
+					(trace.failureEvidence.output === undefined
+						? ""
+						: `<pre>${renderValue(trace.failureEvidence.output)}</pre>`)
+				: "") +
+			"</section>"
 		: "";
 
 	return `<!doctype html>
@@ -176,7 +185,9 @@ export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 	private readonly database?: SQLiteDatabase;
 	private readonly databasePath: string;
 
-	public constructor(databasePath = ".local-agent-factory/workflow-traces.sqlite") {
+	public constructor(
+		databasePath = ".local-agent-factory/workflow-traces.sqlite",
+	) {
 		mkdirSync(dirname(databasePath), { recursive: true });
 		this.databasePath = databasePath;
 		this.database = openSQLiteDatabase(databasePath);
@@ -194,7 +205,8 @@ export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 
 	public append(runIdentifier: string, event: WorkflowTraceEvent): void {
 		const existing = this.get(runIdentifier);
-		if (!existing) throw new Error(`Workflow trace not found: ${runIdentifier}`);
+		if (!existing)
+			throw new Error(`Workflow trace not found: ${runIdentifier}`);
 		existing.events.push(event);
 		this.save(existing);
 	}
@@ -224,7 +236,9 @@ export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 			return trace ? structuredClone(trace) : undefined;
 		}
 		const row = this.database
-			.prepare("SELECT trace_json FROM workflow_traces WHERE run_identifier = $runIdentifier")
+			.prepare(
+				"SELECT trace_json FROM workflow_traces WHERE run_identifier = $runIdentifier",
+			)
 			.get({ $runIdentifier: runIdentifier }) as { trace_json: string } | null;
 		if (!row) return undefined;
 		try {
@@ -236,7 +250,10 @@ export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 
 	private readFallbackTraces(): Record<string, WorkflowTrace> {
 		try {
-			return JSON.parse(readFileSync(this.databasePath, "utf8")) as Record<string, WorkflowTrace>;
+			return JSON.parse(readFileSync(this.databasePath, "utf8")) as Record<
+				string,
+				WorkflowTrace
+			>;
 		} catch {
 			return {};
 		}

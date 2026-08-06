@@ -189,19 +189,26 @@ describe("configured agent workflow", () => {
 		});
 
 		// state verification
-		expect(configured.agentRoles.find((role) => role.name === "builder")).toMatchObject({
+		expect(
+			configured.agentRoles.find((role) => role.name === "builder"),
+		).toMatchObject({
 			model: "builder-model",
 			instructions: "Build only the requested change",
 			tools: ["read", "write"],
 			allowedWrites: ["src/"],
 		});
-		expect(planner.agentRoles.find((role) => role.name === "planner")).toMatchObject({
+		expect(
+			planner.agentRoles.find((role) => role.name === "planner"),
+		).toMatchObject({
 			harnessSupport: true,
 		});
 		expect(installer.selectWorkflow("simple-sdlc", repository)).toMatchObject({
 			id: "simple-sdlc",
 		});
-		expect(installer.configureWorkflowPackage(repository).workflowRegistry.registeredWorkflows).toEqual([
+		expect(
+			installer.configureWorkflowPackage(repository).workflowRegistry
+				.registeredWorkflows,
+		).toEqual([
 			"prompt",
 			"scout",
 			"plan",

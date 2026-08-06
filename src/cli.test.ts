@@ -25,11 +25,24 @@ describe("CLI", () => {
 		const calls: string[] = [];
 		const repository = mkdtempSync(join(tmpdir(), "cli-workflow-source-"));
 		execFileSync("git", ["init", "--quiet", repository]);
-		execFileSync("git", ["-C", repository, "config", "user.email", "test@example.com"]);
+		execFileSync("git", [
+			"-C",
+			repository,
+			"config",
+			"user.email",
+			"test@example.com",
+		]);
 		execFileSync("git", ["-C", repository, "config", "user.name", "Test"]);
 		writeFileSync(join(repository, "README.md"), "source\n");
 		execFileSync("git", ["-C", repository, "add", "README.md"]);
-		execFileSync("git", ["-C", repository, "commit", "--quiet", "-m", "initial"]);
+		execFileSync("git", [
+			"-C",
+			repository,
+			"commit",
+			"--quiet",
+			"-m",
+			"initial",
+		]);
 		const workflow: WorkflowDefinition = {
 			id: "configured",
 			name: "Configured workflow",
