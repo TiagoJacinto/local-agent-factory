@@ -79,6 +79,8 @@ export interface WorkflowSession {
 	readonly id: string;
 	readonly runIdentifier: string;
 	readonly sameAgentContext: true;
+	/** Pi session IDs, keyed by workflow role, for resumable invocations. */
+	readonly agentSessions: Record<string, string>;
 }
 
 export interface RunContext {
@@ -218,6 +220,7 @@ export type PrimitiveAdapter = (input: {
 	outputArtifact?: string;
 	workspacePath?: string;
 	session?: WorkflowSession;
+	emit?: (event: { name: string; status: "Running"; data?: unknown }) => void;
 }) =>
 	| Promise<PrimitiveAdapterOutput | undefined>
 	| PrimitiveAdapterOutput
@@ -334,11 +337,17 @@ export class WorkflowExecutor {
 
 		const runIdentifier = options.runIdentifier ?? `local-run-${randomUUID()}`;
 		const persisted = this.readSession(runIdentifier);
-		const session: WorkflowSession = persisted?.session ?? {
-			id: `session-${randomUUID()}`,
-			runIdentifier,
-			sameAgentContext: true,
-		};
+		const session: WorkflowSession = persisted
+			? {
+					...persisted.session,
+					agentSessions: persisted.session.agentSessions ?? {},
+				}
+			: {
+					id: `session-${randomUUID()}`,
+					runIdentifier,
+					sameAgentContext: true,
+					agentSessions: {},
+				};
 		const context: RunContext = persisted
 			? restoreContext(persisted.context, session)
 			: {
@@ -465,6 +474,13 @@ export class WorkflowExecutor {
 					outputArtifact: options.outputArtifact,
 					workspacePath,
 					session,
+					emit: (event) => {
+						traceEvents.push({
+							sequence: traceEvents.length + 1,
+							kind: "process",
+							...event,
+						});
+					},
 				});
 				invocationStatus = adapterOutput?.status ?? "Succeeded";
 				if (workspacePath && role) {

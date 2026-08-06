@@ -6,6 +6,7 @@ import {
 	type PrimitiveAdapters,
 	type WorkflowDefinition,
 } from "./workflow.js";
+import { createPiAdapters } from "./pi-adapter.js";
 
 const packageDirectory = ".local-agent-factory";
 const packageFile = "package.json";
@@ -409,8 +410,12 @@ export class WorkflowPackageInstaller {
 		const workflows = createStarterWorkflowDefinitions().filter((workflow) =>
 			registered.has(workflow.id),
 		);
+		const piAdapters = createPiAdapters();
 		return new WorkflowExecutor(workflows, {
-			...adapters,
+			ai: adapters.ai ?? piAdapters.ai,
+			harness: adapters.harness ?? piAdapters.harness,
+			gate: adapters.gate ?? piAdapters.gate,
+			traceStore: adapters.traceStore,
 			roles: setup.agentRoles,
 		});
 	}
