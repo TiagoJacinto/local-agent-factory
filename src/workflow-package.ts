@@ -4,6 +4,7 @@ import {
 	WorkflowExecutor,
 	type AgentRoleConfiguration,
 	type PrimitiveAdapters,
+	type RunContext,
 	type WorkflowDefinition,
 } from "./workflow.js";
 import { createPiAdapters } from "./pi-adapter.js";
@@ -115,12 +116,12 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			completesWithReview: true,
 			validationOperations: [{ name: "test", command: "true" }],
 			controller: async ({ harness, ai, gate, validate, objective }) => {
-				await harness(
+				const build = await harness(
 					"builder",
 					"Build request",
 					objective ?? "Build the requested change",
 				);
-				if ((await validate()).status === "Failed") return;
+				if (build.status === "Failed" || (await validate()).status === "Failed") return;
 				await ai("reviewer", "Review change", "Review the completed change");
 				await harness(
 					"documenter",
@@ -169,11 +170,12 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 				{ name: "test", command: "test -f validation.pass" },
 			],
 			controller: async ({ harness, ai, gate, objective, validate }) => {
-				await harness(
+				const build = await harness(
 					"builder",
 					"Build request",
 					objective ?? "Build the requested change",
 				);
+				if (build.status === "Failed") return;
 				const validation = await validate();
 				if (validation.status === "Failed") return;
 				await ai("review", "Review change", "Review the validated change");
@@ -223,12 +225,13 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 				correctionBudget,
 				fail,
 			}) => {
-				await harness(
+				const build = await harness(
 					"builder",
 					"Build request",
 					objective ?? "Build the requested change",
 					{ outputArtifact: "build" },
 				);
+				if (build.status === "Failed") return;
 				let review = await ai("review", "Review change", "Review the change", {
 					outputArtifact: "review",
 				});
@@ -237,6 +240,8 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 						? reviewFindings(context.artifacts.get("review")?.value)
 						: [];
 				let correctionAttempts = 0;
+				recordReviewFindings(context, objective, findings);
+
 				while (findings.length > 0) {
 					if (correctionAttempts >= correctionBudget) {
 						fail(
@@ -262,6 +267,7 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 						review.status === "Succeeded"
 							? reviewFindings(context.artifacts.get("review")?.value)
 							: [];
+					recordReviewFindings(context, objective, findings);
 				}
 				await gate(
 					"review-gate",
@@ -480,6 +486,25 @@ function reviewFindings(value: unknown): readonly string[] {
 				(finding): finding is string => typeof finding === "string",
 			)
 		: [];
+}
+
+function recordReviewFindings(
+	context: RunContext,
+	objective: string | undefined,
+	findings: readonly string[],
+): void {
+	if (findings.length === 0) return;
+	context.envelopes.set("review", {
+		producer: "reviewer",
+		consumer: "builder",
+		status: "Fail",
+		summary: findings.join("\\n"),
+		objective: objective ?? "Review the change",
+		risks: findings,
+		expectedFiles: [],
+		acceptanceCriteria: [],
+		validationCommands: [],
+	});
 }
 
 function starterRole(name: string): AgentRole {

@@ -193,6 +193,11 @@ describeFeature(feature, ({ Rule }) => {
 				"I view WorkflowSession{sameAgentContext: {word}} in Workflow Execution: Correction keeps the active agent context",
 				(_ctx: unknown, sameAgentContext: string) => expect(run.session.sameAgentContext).toBe(sameAgentContext === "true"),
 			);
+			And(
+				"I view WorkflowEnvelope{producer: {string}, consumer: {string}, status: {word}} in Workflow Execution: Findings reach the builder",
+				(_ctx: unknown, producer: string, consumer: string, status: string) =>
+					expect(run.context.envelopes.get("review")).toMatchObject({ producer, consumer, status }),
+			);
 		});
 	});
 
@@ -309,7 +314,7 @@ describeFeature(feature, ({ Rule }) => {
 			Then("I view WorkflowRun{status: {word}, sourceRepositoryUnchanged: true, integration: Manual} in Workflow Execution: Human review is required", (_ctx: unknown, status: string) => expect(run).toMatchObject({ status, sourceRepositoryUnchanged: true, integration: "Manual" }));
 			And("I view AgentRole{name: {string}, output: Present} in Workflow Execution: The completed change has a documentation phase", (_ctx: unknown, name: string) => expect(run.invocations.some((invocation) => invocation.name === "Document change" && invocation.status === "Succeeded" && name === "documenter")).toBe(true));
 			And("I view Artifact{kind: ReviewableChange, reference: Present} in Workflow Execution: The change can be reviewed", () => expect(run.context.artifacts.get("reviewable-change")).toMatchObject({ kind: "ReviewableChange" }));
-			And("I !view Artifact{kind: AutomaticIntegration} in Workflow Run: The factory does not integrate automatically", () => expect([...run.context.artifacts.values()].some((artifact) => artifact.kind === undefined && artifact.id === "automatic-integration")).toBe(false));
+			And("I !view Artifact{kind: AutomaticIntegration} in Workflow Run: The factory does not integrate automatically", () => expect(Array.from(run.context.artifacts.values()).some((artifact) => artifact.kind === undefined && artifact.id === "automatic-integration")).toBe(false));
 		});
 	});
 });
