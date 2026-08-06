@@ -220,11 +220,7 @@ export type PrimitiveAdapter = (input: {
 	outputArtifact?: string;
 	workspacePath?: string;
 	session?: WorkflowSession;
-	emit?: (event: {
-		name: string;
-		status: "Running";
-		data?: unknown;
-	}) => void;
+	emit?: (event: { name: string; status: "Running"; data?: unknown }) => void;
 }) =>
 	| Promise<PrimitiveAdapterOutput | undefined>
 	| PrimitiveAdapterOutput
@@ -426,9 +422,7 @@ export class WorkflowExecutor {
 		const roleBaselines = new Map<string, readonly string[]>();
 		let failure: WorkflowFailure | undefined;
 		let failureEvidence: WorkflowFailureEvidence | undefined;
-		const recordTraceEvent = (
-			event: Omit<WorkflowTraceEvent, "sequence">,
-		) => {
+		const recordTraceEvent = (event: Omit<WorkflowTraceEvent, "sequence">) => {
 			traceEvents.push({ ...event, sequence: traceEvents.length + 1 });
 			return this.traceStore.save({ ...trace, events: traceEvents });
 		};
@@ -575,27 +569,27 @@ export class WorkflowExecutor {
 			};
 			invocations.push(result);
 			recordTraceEvent({
-			kind: "primitive",
-			name,
-			status: invocationStatus,
-			data: {
-				invocationId,
-				primitiveType,
-				result: adapterOutput?.value,
-			},
-		});
-		if (primitiveType === "Harness") {
-			recordTraceEvent({
-				kind: "tool_call",
+				kind: "primitive",
 				name,
 				status: invocationStatus,
 				data: {
 					invocationId,
-					arguments: input,
+					primitiveType,
 					result: adapterOutput?.value,
 				},
 			});
-		}
+			if (primitiveType === "Harness") {
+				recordTraceEvent({
+					kind: "tool_call",
+					name,
+					status: invocationStatus,
+					data: {
+						invocationId,
+						arguments: input,
+						result: adapterOutput?.value,
+					},
+				});
+			}
 			await this.traceStore.save({ ...trace, events: traceEvents });
 			return result;
 		};

@@ -26,7 +26,9 @@ describe("workflow trace", () => {
 					},
 				});
 				await validate();
-				await gate("review", "Review change", "plan", { inputArtifact: "plan" });
+				await gate("review", "Review change", "plan", {
+					inputArtifact: "plan",
+				});
 			},
 		};
 		const executor = new WorkflowExecutor([workflow], {
@@ -51,7 +53,10 @@ describe("workflow trace", () => {
 
 		// state verification
 		expect(run.status).toBe("AwaitingReview");
-		expect(trace).toMatchObject({ runIdentifier: run.runIdentifier, status: "AwaitingReview" });
+		expect(trace).toMatchObject({
+			runIdentifier: run.runIdentifier,
+			status: "AwaitingReview",
+		});
 		expect(trace?.validationResults[0].status).toBe("Succeeded");
 		expect(trace?.envelopes).toHaveLength(1);
 		expect(trace?.artifacts.map((artifact) => artifact.id)).toContain("plan");
@@ -182,13 +187,20 @@ describe("workflow trace", () => {
 		// state verification
 		expect(running?.events).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ kind: "primitive", name: "Review change", status: "Running" }),
+				expect.objectContaining({
+					kind: "primitive",
+					name: "Review change",
+					status: "Running",
+				}),
 			]),
 		);
 	});
 
 	test("stores traces in SQLite", () => {
-		const path = join(mkdtempSync(join(tmpdir(), "workflow-trace-")), "trace.sqlite");
+		const path = join(
+			mkdtempSync(join(tmpdir(), "workflow-trace-")),
+			"trace.sqlite",
+		);
 		const store = new SQLiteWorkflowTraceStore(path);
 		store.start({
 			runIdentifier: "run-001",
