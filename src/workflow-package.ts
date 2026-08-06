@@ -7,6 +7,7 @@ import {
 	type RunContext,
 	type WorkflowDefinition,
 } from "./workflow.js";
+
 import { createPiAdapters, type PiAdapterOptions } from "./pi-adapter.js";
 
 const packageDirectory = ".local-agent-factory";
@@ -133,30 +134,28 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			name: "Simple software development lifecycle",
 			completesWithReview: true,
 			validationOperations: [{ name: "test", command: "true" }],
-			controller: async ({ harness, ai, gate, validate, objective }) => {
-				const build = await harness(
-					"builder",
-					"Build request",
-					objective ?? "Build the requested change",
-				);
-				if (build.status === "Failed" || (await validate()).status === "Failed")
-					return;
+			phases: [
+				{ name: "planner", owner: "planner" },
+				{ name: "commit-plan", owner: "git" },
+				{ name: "builder", owner: "builder" },
+				{ name: "test", owner: "quality" },
+				{ name: "commit-build", owner: "git" },
+				{ name: "documenter", owner: "documenter" },
+				{ name: "commit-docs", owner: "git" },
+			],
+			controller: async ({ harness, ai, gate, validate, commit, objective }) => {
+				await ai("planner", "Plan request", objective ?? "Plan the requested change");
+				await commit("commit-plan", "plan", "Commit accepted plan");
+				const build = await harness("builder", "Build request", objective ?? "Build the requested change");
+				if (build.status === "Failed" || (await validate()).status === "Failed") return;
+				await commit("commit-build", "build", "Commit verified build");
 				await ai("reviewer", "Review change", "Review the completed change");
-				await harness(
-					"documenter",
-					"Document change",
-					"Document the completed change",
-					{
-						outputArtifact: "documentation",
-					},
-				);
-				await gate(
-					"review-gate",
-					"Await human review",
-					"Review the proposed change",
-				);
+				await harness("documenter", "Document change", "Document the completed change", { outputArtifact: "documentation" });
+				await commit("commit-docs", "documentation", "Commit completed documentation");
+				await gate("review-gate", "Await human review", "Review the proposed change");
 			},
 		},
+
 		{
 			id: "plan-build",
 			name: "Plan and build",
@@ -762,13 +761,16 @@ export class WorkflowPackageInstaller {
 		return {
 			id: definition.id,
 			name: definition.name,
-			validationOperations: (
-				definition.acceptance.validationCommands ?? []
-			).map((command, index) => ({ name: `validation-${index + 1}`, command })),
-			controller: async ({ ai, harness, objective }) => {
+			phases: definition.phases.map((phase) => ({ name: phase.name, owner: phase.role })),
+			validationOperations: (definition.acceptance.validationCommands ?? []).map(
+				(command, index) => ({ name: `validation-${index + 1}`, command }),
+			),
+			controller: async ({ ai, harness, commit, objective }) => {
 				for (const phase of definition.phases) {
 					const input = objective ?? definition.acceptance.criteria.join("; ");
-					if (["planner", "reviewer", "security"].includes(phase.role)) {
+					if (phase.role === "git") {
+						await commit(phase.name, commitProduct(phase.name), `Commit ${phase.name}`);
+					} else if (["planner", "reviewer", "security"].includes(phase.role)) {
 						await ai(phase.role, phase.name, input);
 					} else {
 						await harness(phase.role, phase.name, input);
@@ -777,6 +779,12 @@ export class WorkflowPackageInstaller {
 			},
 		};
 	}
+}
+
+function commitProduct(phase: string): "plan" | "build" | "documentation" {
+	if (phase.includes("plan")) return "plan";
+	if (phase.includes("doc")) return "documentation";
+	return "build";
 }
 
 function reviewFindings(value: unknown): readonly string[] {

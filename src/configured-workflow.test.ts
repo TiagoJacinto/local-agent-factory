@@ -444,4 +444,54 @@ describe("configured agent workflow", () => {
 		});
 		expect(run.invocations[0]).toMatchObject({ status: "Failed" });
 	});
+	test("creates separate code-owned product commits for simple lifecycle", async () => {
+		const source = createRepository();
+		const executor = new WorkflowExecutor(createStarterWorkflowDefinitions(), {
+			roles: ["planner", "builder", "reviewer", "documenter"].map((name) => ({
+				name,
+				model: "test",
+				instructions: name,
+				tools: ["read", "write"],
+				allowedWrites: ["*"],
+			})),
+			ai: ({ name, workspacePath }) => {
+				if (name === "Plan request")
+					writeFileSync(join(workspacePath ?? "", "plan.md"), "plan\n");
+				return undefined;
+			},
+			harness: ({ name, workspacePath }) => {
+				if (name === "Build request")
+					writeFileSync(join(workspacePath ?? "", "build.txt"), "build\n");
+				if (name === "Document change")
+					writeFileSync(join(workspacePath ?? "", "docs.md"), "docs\n");
+				return undefined;
+			},
+		});
+
+		const run = await executor.executeWorkflow("simple-sdlc", {
+			objective: "add a health endpoint",
+			sourceRepository: source.path,
+			expectedSourceRevision: source.revision,
+		});
+
+		// state verification
+		expect(run.status).toBe("AwaitingReview");
+		expect(run.reviewHandoff?.commits.map(({ product }) => product)).toEqual([
+			"plan",
+			"build",
+			"documentation",
+		]);
+		expect(new Set(run.reviewHandoff?.commits.map(({ revision }) => revision)).size).toBe(3);
+		expect(run.phaseOwners.map(({ owner }) => owner)).toEqual([
+			"planner",
+			"git",
+			"builder",
+			"quality",
+			"git",
+			"documenter",
+			"git",
+		]);
+		expect(run.reviewHandoff?.manualIntegrationGuidance).toContain("manual integration");
+	});
+
 });

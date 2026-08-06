@@ -4,12 +4,30 @@ import { dirname } from "node:path";
 import type {
 	Artifact,
 	InvocationStatus,
+	ReviewHandoff,
 	ValidationResult,
 	WorkflowEnvelope,
 	WorkflowFailure,
 	WorkflowFailureEvidence,
+	WorkflowPhase,
 	WorkflowStatus,
 } from "./workflow.js";
+
+export interface WorkflowTrace {
+	runIdentifier: string;
+	workflowId: string;
+	status: WorkflowStatus;
+	events: WorkflowTraceEvent[];
+	validationResults: ValidationResult[];
+	envelopes: WorkflowEnvelope[];
+	artifacts: Artifact[];
+	phaseOwners?: readonly WorkflowPhase[];
+	reviewHandoff?: ReviewHandoff;
+	workspacePath?: string;
+	workspaceDisposition?: "Retained";
+	failure?: WorkflowFailure;
+	failureEvidence?: WorkflowFailureEvidence;
+}
 
 export type WorkflowTraceEventKind =
 	| "phase"
@@ -28,19 +46,6 @@ export interface WorkflowTraceEvent {
 	data?: unknown;
 }
 
-export interface WorkflowTrace {
-	runIdentifier: string;
-	workflowId: string;
-	status: WorkflowStatus;
-	events: WorkflowTraceEvent[];
-	validationResults: ValidationResult[];
-	envelopes: WorkflowEnvelope[];
-	artifacts: Artifact[];
-	workspacePath?: string;
-	workspaceDisposition?: "Retained";
-	failure?: WorkflowFailure;
-	failureEvidence?: WorkflowFailureEvidence;
-}
 
 export const DEFAULT_WORKFLOW_TRACE_DATABASE_PATH =
 	".local-agent-factory/workflow-traces.sqlite";
@@ -80,8 +85,15 @@ function renderList(items: readonly string[]): string {
 	return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
 }
 
+
 /** Render a read-only, standalone HTML view of one workflow trace. */
 export function renderWorkflowTrace(trace: WorkflowTrace): string {
+	const owners = trace.phaseOwners?.length
+		? `<ul>${trace.phaseOwners.map((phase) => `<li>${escapeHtml(phase.name)}: ${escapeHtml(phase.owner)}</li>`).join("")}</ul>`
+		: "<p>No phase ownership recorded.</p>";
+	const handoff = trace.reviewHandoff
+		? `<p>${escapeHtml(trace.reviewHandoff.manualIntegrationGuidance)}</p><ul>${trace.reviewHandoff.commits.map((commit) => `<li>${escapeHtml(commit.product)}: ${escapeHtml(commit.revision)} (${escapeHtml(commit.message)})</li>`).join("")}</ul>`
+		: "<p>No review handoff.</p>";
 	const events = trace.events.length
 		? trace.events
 				.map(
@@ -152,6 +164,8 @@ export function renderWorkflowTrace(trace: WorkflowTrace): string {
 </style></head>
 <body>
 <header><h1>Workflow trace</h1><div class="meta"><p><strong>Run</strong>${escapeHtml(trace.runIdentifier)}</p><p><strong>Workflow</strong>${escapeHtml(trace.workflowId)}</p><p><strong>Status</strong><span class="status">${escapeHtml(trace.status)}</span></p>${trace.workspacePath ? `<p><strong>Workspace</strong>${escapeHtml(trace.workspacePath)}${trace.workspaceDisposition ? ` (${escapeHtml(trace.workspaceDisposition)})` : ""}</p>` : ""}</div></header>
+<section><h2>Phase ownership</h2>${owners}</section>
+<section><h2>Review handoff</h2>${handoff}</section>
 <section><h2>Activity</h2><ol>${events}</ol></section>
 <section><h2>Validation evidence</h2>${validations}</section>
 <section><h2>Envelopes</h2>${envelopes}</section>
