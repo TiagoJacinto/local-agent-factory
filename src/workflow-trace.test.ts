@@ -151,7 +151,8 @@ describe("workflow trace", () => {
 		};
 		const executor = new WorkflowExecutor([workflow], {
 			traceStore,
-			harness: async ({ emit }) => {
+			harness: async ({ emit, session }) => {
+				session!.agentSessions.builder = "pi-session-123";
 				emit?.({ name: "bun", status: "Running", data: { pid: 123 } });
 				await toolReleased;
 				return { value: { exitCode: 0, output: "passed" } };
@@ -192,6 +193,9 @@ describe("workflow trace", () => {
 				}),
 			]),
 		);
+		expect(completed?.sessions).toEqual([
+			{ role: "builder", sessionId: "pi-session-123" },
+		]);
 	});
 
 	test("can inspect primitive activity while the run is active", async () => {

@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type {
 	Artifact,
@@ -21,12 +21,18 @@ export interface WorkflowTrace {
 	validationResults: ValidationResult[];
 	envelopes: WorkflowEnvelope[];
 	artifacts: Artifact[];
+	sessions?: readonly WorkflowTraceSession[];
 	phaseOwners?: readonly WorkflowPhase[];
 	reviewHandoff?: ReviewHandoff;
 	workspacePath?: string;
 	workspaceDisposition?: "Retained";
 	failure?: WorkflowFailure;
 	failureEvidence?: WorkflowFailureEvidence;
+}
+
+export interface WorkflowTraceSession {
+	role: string;
+	sessionId: string;
 }
 
 export interface WorkflowTraceSummary {
@@ -167,6 +173,9 @@ export function renderWorkflowTrace(trace: WorkflowTrace): string {
 				)
 				.join("")
 		: "<p>No artifacts.</p>";
+	const sessions = trace.sessions?.length
+		? `<ul>${trace.sessions.map((session) => `<li>${escapeHtml(session.role)}: ${escapeHtml(session.sessionId)}</li>`).join("")}</ul>`
+		: "<p>No agent sessions recorded.</p>";
 	const failure = trace.failure
 		? `<section><h2>Failure evidence</h2><p>${escapeHtml(trace.failure)}</p>` +
 			(trace.failureEvidence
@@ -194,6 +203,7 @@ export function renderWorkflowTrace(trace: WorkflowTrace): string {
 <section><h2>Validation evidence</h2>${validations}</section>
 <section><h2>Envelopes</h2>${envelopes}</section>
 <section><h2>Artifacts</h2>${artifacts}</section>
+<section><h2>Agent sessions</h2>${sessions}</section>
 ${failure}
 </body></html>`;
 }
@@ -242,6 +252,15 @@ function openSQLiteDatabase(path: string): SQLiteDatabase | undefined {
 	}
 }
 
+function summarizeTrace(trace: WorkflowTrace): WorkflowTraceSummary {
+	return {
+		runIdentifier: trace.runIdentifier,
+		workflowId: trace.workflowId,
+		status: trace.status,
+		...(trace.workspaceDisposition ? { workspaceDisposition: trace.workspaceDisposition } : {}),
+	};
+}
+
 export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 	private readonly database?: SQLiteDatabase;
 	private readonly databasePath: string;
@@ -276,7 +295,9 @@ export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 		if (!this.database) {
 			const traces = this.readFallbackTraces();
 			traces[trace.runIdentifier] = trace;
-			writeFileSync(this.databasePath, JSON.stringify(traces, null, 2));
+			const temporaryPath = `${this.databasePath}.tmp`;
+			writeFileSync(temporaryPath, JSON.stringify(traces, null, 2));
+			renameSync(temporaryPath, this.databasePath);
 			return;
 		}
 		this.database
@@ -309,14 +330,7 @@ export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 		}
 	}
 	public list(): readonly WorkflowTraceSummary[] {
-		if (!this.database) {
-			return Object.values(this.readFallbackTraces()).map((trace) => ({
-				runIdentifier: trace.runIdentifier,
-				workflowId: trace.workflowId,
-				status: trace.status,
-				...(trace.workspaceDisposition ? { workspaceDisposition: trace.workspaceDisposition } : {}),
-			}));
-		}
+		if (!this.database) return Object.values(this.readFallbackTraces()).map(summarizeTrace);
 		return this.database
 			.prepare("SELECT trace_json FROM workflow_traces ORDER BY rowid")
 			.all({})
@@ -325,13 +339,7 @@ export class SQLiteWorkflowTraceStore implements WorkflowTraceStore {
 				const traceJson = row.trace_json;
 				if (typeof traceJson !== "string") return [];
 				try {
-					const trace = JSON.parse(traceJson) as WorkflowTrace;
-					return [{
-						runIdentifier: trace.runIdentifier,
-						workflowId: trace.workflowId,
-						status: trace.status,
-						...(trace.workspaceDisposition ? { workspaceDisposition: trace.workspaceDisposition } : {}),
-					}];
+					return [summarizeTrace(JSON.parse(traceJson) as WorkflowTrace)];
 				} catch {
 					return [];
 				}
@@ -372,12 +380,7 @@ export class InMemoryWorkflowTraceStore implements WorkflowTraceStore {
 		return trace ? structuredClone(trace) : undefined;
 	}
 	public list(): readonly WorkflowTraceSummary[] {
-		return [...this.traces.values()].map((trace) => ({
-			runIdentifier: trace.runIdentifier,
-			workflowId: trace.workflowId,
-			status: trace.status,
-			...(trace.workspaceDisposition ? { workspaceDisposition: trace.workspaceDisposition } : {}),
-		}));
+		return [...this.traces.values()].map(summarizeTrace);
 	}
 
 	public latestRunIdentifier(): string | undefined {

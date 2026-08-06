@@ -400,6 +400,7 @@ export class WorkflowExecutor {
 			validationResults: [],
 			envelopes: [],
 			artifacts: [],
+			sessions: [],
 		};
 		await this.traceStore.start(trace);
 		if (source && source.workingTree !== "Clean") {
@@ -481,6 +482,10 @@ export class WorkflowExecutor {
 		let failureEvidence: WorkflowFailureEvidence | undefined;
 		const recordTraceEvent = (event: Omit<WorkflowTraceEvent, "sequence">) => {
 			traceEvents.push({ ...event, sequence: traceEvents.length + 1 });
+			trace.sessions = Object.entries(session.agentSessions).map(([role, sessionId]) => ({
+				role,
+				sessionId,
+			}));
 			return this.traceStore.save({ ...trace, events: traceEvents });
 		};
 		const invoke = async <T extends PrimitiveType>(
