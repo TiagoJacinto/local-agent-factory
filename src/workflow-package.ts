@@ -7,10 +7,7 @@ import {
 	type RunContext,
 	type WorkflowDefinition,
 } from "./workflow.js";
-import {
-	createPiAdapters,
-	type PiAdapterOptions,
-} from "./pi-adapter.js";
+import { createPiAdapters, type PiAdapterOptions } from "./pi-adapter.js";
 
 const packageDirectory = ".local-agent-factory";
 const packageFile = "package.json";

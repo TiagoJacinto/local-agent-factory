@@ -1,10 +1,5 @@
 import { execFileSync } from "node:child_process";
-import {
-	chmodSync,
-	mkdtempSync,
-	readFileSync,
-	writeFileSync,
-} from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -152,9 +147,11 @@ describe("configured agent workflow", () => {
 				executable: pi.executable,
 				environment: { PI_ARGS_FILE: pi.argsFile },
 			},
-		}).createExecutor(repository).executeWorkflow("build", {
-			objective: "add a health endpoint",
-		});
+		})
+			.createExecutor(repository)
+			.executeWorkflow("build", {
+				objective: "add a health endpoint",
+			});
 
 		expect(run.status).toBe("Succeeded");
 		expect(run.invocations[0]).toMatchObject({
