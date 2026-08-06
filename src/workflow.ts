@@ -275,11 +275,12 @@ export class WorkflowExecutor {
 		);
 		for (const [alias, id] of Object.entries({
 			"plan-build-test-review": "plan-build-test-quality",
-			"build-test-review": "build-test",
 			review: "quality",
 		})) {
 			const workflow = workflowsById.get(id);
-			if (workflow) workflowsById.set(alias, workflow);
+			if (workflow && !workflowsById.has(alias)) {
+				workflowsById.set(alias, workflow);
+			}
 		}
 		this.workflows = workflowsById;
 		this.adapters = {
@@ -328,7 +329,6 @@ export class WorkflowExecutor {
 			this.workflows.get(
 				{
 					"plan-build-test-review": "plan-build-test-quality",
-					"build-test-review": "build-test",
 					review: "quality",
 					document: "document",
 				}[workflowId] ?? workflowId,
@@ -536,6 +536,22 @@ export class WorkflowExecutor {
 						message: "Primitive output is not a valid workflow envelope",
 						output: adapterOutput?.value,
 					};
+					if (options.outputEnvelope) {
+						context.envelopes.set(options.outputArtifact ?? invocationId, {
+							producer: options.outputEnvelope.producer,
+							consumer: options.outputEnvelope.consumer,
+							status: "Fail",
+							summary: "Primitive output is not a valid workflow envelope",
+							objective: input,
+							risks: [],
+							expectedFiles: [],
+							acceptanceCriteria: [],
+							validationCommands: [],
+						});
+					}
+				} else if (failure === "EnvelopeParseFailed") {
+					failure = undefined;
+					failureEvidence = undefined;
 				}
 			}
 
@@ -686,6 +702,10 @@ export class WorkflowExecutor {
 					break;
 				}
 			}
+			if (lastResult.status === "Succeeded" && failure === "ValidationFailed") {
+				failure = undefined;
+				failureEvidence = undefined;
+			}
 			return lastResult;
 		};
 
@@ -703,13 +723,16 @@ export class WorkflowExecutor {
 				invoke("Gate", this.adapters.gate, id, name, input, options),
 		});
 
-		const newInvocations = invocations.slice(
-			persisted?.invocations.length ?? 0,
-		);
 		let status: WorkflowRun["status"] = persisted ? "Running" : "Succeeded";
+		const latestInvocationStatus = new Map<string, InvocationStatus>();
+		for (const invocation of invocations) {
+			latestInvocationStatus.set(invocation.invocationId, invocation.status);
+		}
 		if (
 			failure ||
-			newInvocations.some((invocation) => invocation.status === "Failed")
+			[...latestInvocationStatus.values()].some(
+				(invocationStatus) => invocationStatus === "Failed",
+			)
 		) {
 			status = "Failed";
 		} else if (
@@ -905,7 +928,7 @@ function inspectWorkspaceChanges(workspacePath: string): readonly string[] {
 		{ encoding: "utf8" },
 	);
 	return output
-		.split("\\n")
+		.split("\n")
 		.filter(Boolean)
 		.map((line) => line.slice(3).trim());
 }

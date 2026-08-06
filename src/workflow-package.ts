@@ -160,8 +160,15 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 		{
 			id: "plan-build",
 			name: "Plan and build",
-			controller: async ({ ai, harness, objective }) => {
-				const plan = await ai(
+			maxCorrectionAttempts: 1,
+			controller: async ({
+				ai,
+				harness,
+				objective,
+				correctionBudget,
+				fail,
+			}) => {
+				let plan = await ai(
 					"planner",
 					"Plan request",
 					objective ?? "Plan the requested change",
@@ -170,7 +177,30 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 						outputEnvelope: { producer: "planner", consumer: "builder" },
 					},
 				);
-				if (plan.status === "Failed") return;
+				let correctionAttempts = 0;
+				while (
+					plan.status === "Failed" &&
+					correctionAttempts < correctionBudget
+				) {
+					correctionAttempts += 1;
+					plan = await ai(
+						"planner",
+						"Correct plan",
+						"Correct the invalid plan envelope and return a complete plan",
+						{
+							outputArtifact: "plan",
+							outputEnvelope: { producer: "planner", consumer: "builder" },
+						},
+					);
+				}
+				if (plan.status === "Failed") {
+					if (correctionAttempts >= correctionBudget)
+						fail(
+							"CorrectionBudgetExceeded",
+							"Plan correction budget exhausted",
+						);
+					return;
+				}
 				await harness(
 					"builder",
 					"Build request",
@@ -183,6 +213,61 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 		},
 		{
 			id: "build-test",
+			name: "Build, test, and review",
+			completesWithReview: true,
+			maxCorrectionAttempts: 1,
+			validationOperations: [
+				{ name: "test", command: "test -f validation.pass" },
+			],
+			controller: async ({
+				harness,
+				ai,
+				gate,
+				objective,
+				validate,
+				correctionBudget,
+				fail,
+			}) => {
+				let build = await harness(
+					"builder",
+					"Build request",
+					objective ?? "Build the requested change",
+				);
+				if (build.status === "Failed") return;
+				let validation = await validate();
+				let correctionAttempts = 0;
+				while (
+					validation.status === "Failed" &&
+					correctionAttempts < correctionBudget
+				) {
+					correctionAttempts += 1;
+					build = await harness(
+						"builder",
+						"Correct build",
+						`Correct validation findings: ${validation.evidence.output}`,
+					);
+					if (build.status === "Failed") return;
+					validation = await validate();
+				}
+				if (validation.status === "Failed") {
+					if (correctionAttempts >= correctionBudget)
+						fail(
+							"CorrectionBudgetExceeded",
+							"Validation correction budget exhausted",
+							validation.evidence,
+						);
+					return;
+				}
+				await ai("review", "Review change", "Review the validated change");
+				await gate(
+					"review-gate",
+					"Await human review",
+					"Review the proposed change",
+				);
+			},
+		},
+		{
+			id: "build-test-review",
 			name: "Build, test, and review",
 			completesWithReview: true,
 			validationOperations: [
@@ -270,7 +355,7 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 						);
 						return;
 					}
-					await harness("builder", "Correct build", findings.join("\\n"), {
+					await harness("builder", "Correct build", findings.join("\n"), {
 						inputArtifact: "review",
 					});
 					correctionAttempts += 1;

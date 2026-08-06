@@ -238,6 +238,74 @@ describe("configured agent workflow", () => {
 		expect(calls).toEqual(["Plan request"]);
 	});
 
+	test("corrects malformed planner output in the same agent session", async () => {
+		let attempts = 0;
+		const executor = new WorkflowExecutor(createStarterWorkflowDefinitions(), {
+			ai: ({ name }) => {
+				if (!name.toLowerCase().includes("plan")) return { value: "reviewed" };
+				attempts += 1;
+				return {
+					value:
+						attempts === 1
+							? { producer: "planner" }
+							: {
+									producer: "planner",
+									consumer: "builder",
+									status: "Success",
+									objective: "add a health endpoint",
+									risks: [],
+									expectedFiles: ["src/health.ts"],
+									acceptanceCriteria: ["health endpoint works"],
+									validationCommands: ["bun test"],
+								},
+				};
+			},
+			harness: () => undefined,
+		});
+
+		const run = await executor.executeWorkflow("plan-build", {
+			objective: "add a health endpoint",
+		});
+
+		expect(run.status).toBe("Succeeded");
+		expect(attempts).toBe(2);
+		expect(run.session.sameAgentContext).toBe(true);
+		expect(run.context.envelopes.get("plan")).toMatchObject({
+			status: "Success",
+		});
+	});
+
+	test("returns validation findings to the builder for bounded correction", async () => {
+		const source = createRepository();
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "validation-correction-"));
+		let builds = 0;
+		const executor = new WorkflowExecutor(createStarterWorkflowDefinitions(), {
+			harness: ({ name, workspacePath }) => {
+				if (name === "Build request" || name === "Correct build") {
+					builds += 1;
+					if (builds === 2)
+						writeFileSync(join(workspacePath!, "validation.pass"), "ok\n");
+				}
+				return undefined;
+			},
+			ai: () => ({ value: "reviewed" }),
+			gate: () => undefined,
+		});
+
+		const run = await executor.executeWorkflow("build-test", {
+			objective: "add a health endpoint",
+			sourceRepository: source.path,
+			expectedSourceRevision: source.revision,
+			workspaceRoot,
+		});
+
+		expect(run.status).toBe("AwaitingReview");
+		expect(builds).toBe(2);
+		expect(run.validationResults).toHaveLength(2);
+		expect(run.validationResults[0]?.status).toBe("Failed");
+		expect(run.validationResults[1]?.status).toBe("Succeeded");
+	});
+
 	test("configures a role and selects a named starter workflow", () => {
 		const repository = mkdtempSync(join(tmpdir(), "factory-configuration-"));
 		const installer = new WorkflowPackageInstaller();
