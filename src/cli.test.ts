@@ -7,8 +7,8 @@ import { createCli } from "./cli";
 import {
 	SQLiteWorkflowTraceStore,
 	type WorkflowTrace,
-} from "./workflow-trace.ts";
-import { WorkflowExecutor, type WorkflowDefinition } from "./workflow.ts";
+} from "./workflow-trace.js";
+import { WorkflowExecutor, type WorkflowDefinition } from "./workflow.js";
 
 describe("CLI", () => {
 	test("uses Commander to run the greet command", async () => {
