@@ -121,7 +121,8 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 					"Build request",
 					objective ?? "Build the requested change",
 				);
-				if (build.status === "Failed" || (await validate()).status === "Failed") return;
+				if (build.status === "Failed" || (await validate()).status === "Failed")
+					return;
 				await ai("reviewer", "Review change", "Review the completed change");
 				await harness(
 					"documenter",
@@ -498,7 +499,7 @@ function recordReviewFindings(
 		producer: "reviewer",
 		consumer: "builder",
 		status: "Fail",
-		summary: findings.join("\\n"),
+		summary: findings.join("\n"),
 		objective: objective ?? "Review the change",
 		risks: findings,
 		expectedFiles: [],
