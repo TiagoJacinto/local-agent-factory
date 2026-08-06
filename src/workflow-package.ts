@@ -161,7 +161,13 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			id: "plan-build",
 			name: "Plan and build",
 			maxCorrectionAttempts: 1,
-			controller: async ({ ai, harness, objective, correctionBudget, fail }) => {
+			controller: async ({
+				ai,
+				harness,
+				objective,
+				correctionBudget,
+				fail,
+			}) => {
 				let plan = await ai(
 					"planner",
 					"Plan request",
@@ -172,7 +178,10 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 					},
 				);
 				let correctionAttempts = 0;
-				while (plan.status === "Failed" && correctionAttempts < correctionBudget) {
+				while (
+					plan.status === "Failed" &&
+					correctionAttempts < correctionBudget
+				) {
 					correctionAttempts += 1;
 					plan = await ai(
 						"planner",
@@ -186,7 +195,10 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 				}
 				if (plan.status === "Failed") {
 					if (correctionAttempts >= correctionBudget)
-						fail("CorrectionBudgetExceeded", "Plan correction budget exhausted");
+						fail(
+							"CorrectionBudgetExceeded",
+							"Plan correction budget exhausted",
+						);
 					return;
 				}
 				await harness(
@@ -207,7 +219,15 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			validationOperations: [
 				{ name: "test", command: "test -f validation.pass" },
 			],
-			controller: async ({ harness, ai, gate, objective, validate, correctionBudget, fail }) => {
+			controller: async ({
+				harness,
+				ai,
+				gate,
+				objective,
+				validate,
+				correctionBudget,
+				fail,
+			}) => {
 				let build = await harness(
 					"builder",
 					"Build request",
@@ -216,7 +236,10 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 				if (build.status === "Failed") return;
 				let validation = await validate();
 				let correctionAttempts = 0;
-				while (validation.status === "Failed" && correctionAttempts < correctionBudget) {
+				while (
+					validation.status === "Failed" &&
+					correctionAttempts < correctionBudget
+				) {
 					correctionAttempts += 1;
 					build = await harness(
 						"builder",

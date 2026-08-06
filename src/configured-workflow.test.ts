@@ -283,7 +283,8 @@ describe("configured agent workflow", () => {
 			harness: ({ name, workspacePath }) => {
 				if (name === "Build request" || name === "Correct build") {
 					builds += 1;
-					if (builds === 2) writeFileSync(join(workspacePath!, "validation.pass"), "ok\n");
+					if (builds === 2)
+						writeFileSync(join(workspacePath!, "validation.pass"), "ok\n");
 				}
 				return undefined;
 			},
