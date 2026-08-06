@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import {
 	WorkflowExecutor,
 	type AgentRoleConfiguration,
@@ -38,8 +38,26 @@ export interface WorkflowPackage {
 	readonly repository: string;
 }
 
+export interface WorkflowPhase {
+	readonly name: string;
+	readonly role: string;
+}
+
+export interface WorkflowAcceptance {
+	readonly criteria: readonly string[];
+	readonly validationCommands?: readonly string[];
+}
+
+export interface WorkflowDefinitionRecord {
+	readonly id: string;
+	readonly name: string;
+	readonly phases: readonly WorkflowPhase[];
+	readonly acceptance: WorkflowAcceptance;
+}
+
 export interface WorkflowRegistry {
 	readonly registeredWorkflows: readonly string[];
+	readonly workflowDefinitions?: readonly WorkflowDefinitionRecord[];
 }
 
 export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[] {
@@ -328,9 +346,19 @@ export interface FactorySetup {
 
 interface StoredSetup {
 	workflowPackage: WorkflowPackage;
-	workflowRegistry: WorkflowRegistry;
+	workflowRegistry: {
+		registeredWorkflows: string[];
+		workflowDefinitions?: WorkflowDefinitionRecord[];
+	};
 	agentRoles: AgentRole[];
 }
+
+export interface FactorySetupFailure {
+	readonly status: "Failed";
+	readonly failure: "InvalidWorkflowConfiguration";
+}
+
+type WorkflowSetupResult = FactorySetup | FactorySetupFailure;
 
 export class WorkflowPackageInstaller {
 	installWorkflowPackage(repository: string): FactorySetup {
@@ -340,8 +368,11 @@ export class WorkflowPackageInstaller {
 			workflowRegistry: {
 				registeredWorkflows: existing?.workflowRegistry.registeredWorkflows
 					.length
-					? existing.workflowRegistry.registeredWorkflows
+					? [...existing.workflowRegistry.registeredWorkflows]
 					: [...starterWorkflowIds],
+				workflowDefinitions: existing?.workflowRegistry.workflowDefinitions
+					? [...existing.workflowRegistry.workflowDefinitions]
+					: [],
 			},
 			agentRoles: starterRoleNames.map(
 				(name) =>
@@ -400,9 +431,11 @@ export class WorkflowPackageInstaller {
 		if (!setup.workflowRegistry.registeredWorkflows.includes(workflowId)) {
 			throw new Error(`Workflow not registered: ${workflowId}`);
 		}
-		const workflow = createStarterWorkflowDefinitions().find(
-			({ id }) => id === workflowId,
-		);
+		const workflow =
+			createStarterWorkflowDefinitions().find(({ id }) => id === workflowId) ??
+			setup.workflowRegistry.workflowDefinitions
+				?.map((definition) => this.toWorkflowDefinition(definition))
+				.find(({ id }) => id === workflowId);
 		if (!workflow) throw new Error(`Workflow not found: ${workflowId}`);
 		return workflow;
 	}
@@ -414,9 +447,12 @@ export class WorkflowPackageInstaller {
 	): WorkflowExecutor {
 		const setup = this.configureWorkflowPackage(repository);
 		const registered = new Set(setup.workflowRegistry.registeredWorkflows);
-		const workflows = createStarterWorkflowDefinitions().filter((workflow) =>
-			registered.has(workflow.id),
-		);
+		const workflows = [
+			...createStarterWorkflowDefinitions(),
+			...(setup.workflowRegistry.workflowDefinitions ?? []).map((definition) =>
+				this.toWorkflowDefinition(definition),
+			),
+		].filter((workflow) => registered.has(workflow.id));
 		const piAdapters = createPiAdapters();
 		return new WorkflowExecutor(workflows, {
 			ai: adapters.ai ?? piAdapters.ai,
@@ -425,6 +461,76 @@ export class WorkflowPackageInstaller {
 			traceStore: adapters.traceStore,
 			roles: setup.agentRoles,
 		});
+	}
+
+	createWorkflow(
+		workflowId: string,
+		repository: string,
+		phases: readonly (string | WorkflowPhase)[],
+		acceptance: WorkflowAcceptance,
+	): FactorySetup;
+	createWorkflow(
+		repository: string,
+		workflowId: string,
+		phases: readonly (string | WorkflowPhase)[],
+		acceptance: WorkflowAcceptance,
+	): FactorySetup;
+	createWorkflow(
+		first: string,
+		second: string,
+		phases: readonly (string | WorkflowPhase)[],
+		acceptance: WorkflowAcceptance,
+	): FactorySetup {
+		const [repository, workflowId] = this.resolveArguments(first, second);
+		const setup = this.requireSetup(repository);
+		const definition = this.buildDefinition(workflowId, phases, acceptance);
+		const definitions = setup.workflowRegistry.workflowDefinitions ?? [];
+		if (setup.workflowRegistry.registeredWorkflows.includes(workflowId)) {
+			throw new Error(`Workflow already registered: ${workflowId}`);
+		}
+		setup.workflowRegistry.registeredWorkflows.push(workflowId);
+		definitions.push(definition);
+		setup.workflowRegistry.workflowDefinitions = definitions;
+		this.writeSetup(repository, setup);
+		return this.validate(setup);
+	}
+
+	updateWorkflow(
+		workflowId: string,
+		repository: string,
+		phases: readonly (string | WorkflowPhase)[],
+		acceptance: WorkflowAcceptance,
+	): FactorySetup;
+	updateWorkflow(
+		repository: string,
+		workflowId: string,
+		phases: readonly (string | WorkflowPhase)[],
+		acceptance: WorkflowAcceptance,
+	): FactorySetup;
+	updateWorkflow(
+		first: string,
+		second: string,
+		phases: readonly (string | WorkflowPhase)[],
+		acceptance: WorkflowAcceptance,
+	): FactorySetup {
+		const [repository, workflowId] = this.resolveArguments(first, second);
+		const setup = this.requireSetup(repository);
+		const definition = this.buildDefinition(workflowId, phases, acceptance);
+		const definitions = setup.workflowRegistry.workflowDefinitions ?? [];
+		const index = definitions.findIndex((candidate) => candidate.id === workflowId);
+		if (index < 0) throw new Error(`Workflow not registered: ${workflowId}`);
+		definitions[index] = definition;
+		setup.workflowRegistry.workflowDefinitions = definitions;
+		this.writeSetup(repository, setup);
+		return this.validate(setup);
+	}
+
+	verifyFactory(repository: string): WorkflowSetupResult {
+		try {
+			return this.validate(this.requireSetup(repository));
+		} catch {
+			return { status: "Failed", failure: "InvalidWorkflowConfiguration" };
+		}
 	}
 
 	private readSetup(repository: string): StoredSetup | undefined {
@@ -449,12 +555,27 @@ export class WorkflowPackageInstaller {
 
 	private validate(setup: StoredSetup): FactorySetup {
 		const workflows = setup.workflowRegistry?.registeredWorkflows;
+		const definitions = setup.workflowRegistry?.workflowDefinitions ?? [];
 		const roles = setup.agentRoles;
 		const hasExpectedWorkflows =
 			Array.isArray(workflows) &&
-			workflows.length === starterWorkflowIds.length &&
-			new Set(workflows).size === starterWorkflowIds.length &&
+			new Set(workflows).size === workflows.length &&
 			starterWorkflowIds.every((id) => workflows.includes(id));
+		const customWorkflowIds =
+			Array.isArray(workflows) &&
+				workflows.filter(
+					(id) => !(starterWorkflowIds as readonly string[]).includes(id),
+				);
+		const hasValidDefinitions =
+			Array.isArray(definitions) &&
+			Array.isArray(customWorkflowIds) &&
+			customWorkflowIds.every((id) =>
+				definitions.some((definition) => definition.id === id),
+			) &&
+			definitions.every((definition) =>
+				workflows?.includes(definition.id) &&
+				this.isValidWorkflowDefinition(definition),
+			);
 		const hasExpectedRoles =
 			Array.isArray(roles) &&
 			starterRoleNames.every((name) =>
@@ -472,10 +593,91 @@ export class WorkflowPackageInstaller {
 					role.tools.length > 0 &&
 					Array.isArray(role.allowedWrites),
 			);
-		if (!hasExpectedWorkflows || !hasExpectedRoles || !rolesAreComplete) {
+		if (
+			!hasExpectedWorkflows ||
+			!hasValidDefinitions ||
+			!hasExpectedRoles ||
+			!rolesAreComplete
+		) {
 			throw new Error("Installed workflow package is invalid");
 		}
 		return setup;
+	}
+
+	private requireSetup(repository: string): StoredSetup {
+		const setup = this.readSetup(repository);
+		if (!setup) {
+			throw new Error(`Workflow package is not installed in ${repository}`);
+		}
+		return setup;
+	}
+
+	private resolveArguments(first: string, second: string): [string, string] {
+		return isAbsolute(first) ? [first, second] : [second, first];
+	}
+
+	private buildDefinition(
+		workflowId: string,
+		phases: readonly (string | WorkflowPhase)[],
+		acceptance: WorkflowAcceptance,
+	): WorkflowDefinitionRecord {
+		const normalizedPhases = phases.map((phase) =>
+			typeof phase === "string" ? { name: phase, role: phase } : { ...phase },
+		);
+		const definition = {
+			id: workflowId,
+			name: workflowId,
+			phases: normalizedPhases,
+			acceptance: {
+				criteria: [...(acceptance?.criteria ?? [])],
+				validationCommands: [...(acceptance?.validationCommands ?? [])],
+			},
+		};
+		if (!this.isValidWorkflowDefinition(definition)) {
+			throw new Error("Invalid workflow configuration");
+		}
+		return definition;
+	}
+
+	private isValidWorkflowDefinition(
+		definition: WorkflowDefinitionRecord,
+	): boolean {
+		return (
+			/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(definition.id) &&
+			definition.id.length > 0 &&
+			definition.phases.length > 0 &&
+			new Set(definition.phases.map((phase) => phase.name)).size ===
+				definition.phases.length &&
+			definition.phases.every(
+				(phase) => phase.name.length > 0 && phase.role.length > 0,
+			) &&
+			definition.acceptance.criteria.length > 0 &&
+			(definition.acceptance.validationCommands ?? []).every(
+				(command) => command.length > 0,
+			)
+		);
+	}
+
+	private toWorkflowDefinition(
+		definition: WorkflowDefinitionRecord,
+	): WorkflowDefinition {
+		return {
+			id: definition.id,
+			name: definition.name,
+			validationOperations: (definition.acceptance.validationCommands ?? []).map(
+				(command, index) => ({ name: `validation-${index + 1}`, command }),
+			),
+			controller: async ({ ai, harness, objective }) => {
+				for (const phase of definition.phases) {
+					const input = objective ?? definition.acceptance.criteria.join("; ");
+					if (["planner", "reviewer", "security"].includes(phase.role)) {
+						await ai(phase.role, phase.name, input);
+					} else {
+						await harness(phase.role, phase.name, input);
+					}
+				}
+			},
+		};
 	}
 }
 
