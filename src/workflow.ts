@@ -458,7 +458,7 @@ export class WorkflowExecutor {
 				await this.traceStore.save({ ...trace, events: traceEvents });
 			}
 			const role = workspacePath
-				? this.adapters.roles.get(invocationId)
+				? resolveRole(this.adapters.roles, invocationId)
 				: undefined;
 			if (role && workspacePath && !roleBaselines.has(role.name)) {
 				roleBaselines.set(role.name, inspectWorkspaceChanges(workspacePath));
@@ -894,6 +894,19 @@ function inspectWorkspaceChanges(workspacePath: string): readonly string[] {
 		.split("\\n")
 		.filter(Boolean)
 		.map((line) => line.slice(3).trim());
+}
+
+function resolveRole(
+	roles: ReadonlyMap<string, AgentRoleConfiguration>,
+	invocationId: string,
+): AgentRoleConfiguration | undefined {
+	const roleAliases: Record<string, string> = {
+		plan: "planner",
+		build: "builder",
+		review: "reviewer",
+		document: "documenter",
+	};
+	return roles.get(invocationId) ?? roles.get(roleAliases[invocationId] ?? "");
 }
 
 function isAllowedWrite(path: string, role: AgentRoleConfiguration): boolean {
