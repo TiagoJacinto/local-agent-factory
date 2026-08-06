@@ -59,9 +59,78 @@ export interface Artifact {
 	readonly reference?: string;
 }
 
+export interface CommitReference {
+	readonly product: "plan" | "build" | "documentation";
+	readonly phase: string;
+	readonly revision: string;
+	readonly message: string;
+}
+
+export interface ReviewHandoff {
+	readonly status: "AwaitingReview";
+	readonly commits: readonly CommitReference[];
+	readonly manualIntegrationGuidance: string;
+}
+
+export interface WorkflowPhase {
+	readonly name: string;
+	readonly owner: string;
+}
+
 export interface ValidationOperation {
 	readonly name: string;
 	readonly command: string;
+}
+
+export interface WorkflowPrimitives {
+	readonly context: RunContext;
+	readonly objective?: string;
+	readonly ai: PrimitiveFunction<"AI">;
+	readonly harness: PrimitiveFunction<"Harness">;
+	readonly gate: PrimitiveFunction<"Gate">;
+	readonly commit: (
+		phase: string,
+		product: CommitReference["product"],
+		message: string,
+	) => Promise<CommitReference>;
+	readonly validate: () => Promise<ValidationResult>;
+	readonly correctionBudget: number;
+	readonly fail: (
+		failure: WorkflowFailure,
+		message: string,
+		output?: unknown,
+	) => void;
+}
+
+export interface WorkflowDefinition {
+	readonly id: string;
+	readonly name: string;
+	readonly controller: WorkflowController;
+	readonly phases?: readonly WorkflowPhase[];
+	readonly validationOperations?: readonly ValidationOperation[];
+	readonly maxCorrectionAttempts?: number;
+	readonly completesWithReview?: boolean;
+}
+
+export interface WorkflowRun {
+	readonly workflowId: string;
+	readonly status: WorkflowStatus;
+	readonly sourceRepositoryUnchanged?: true;
+	readonly integration?: "Manual";
+	readonly invocations: readonly InvocationResult[];
+	readonly context: RunContext;
+	readonly phaseOwners: readonly WorkflowPhase[];
+	readonly reviewHandoff?: ReviewHandoff;
+	readonly runIdentifier?: string;
+	readonly sourceRevision?: string;
+	readonly workspacePath?: string;
+	readonly workspaceIsolation?: WorkspaceIsolation;
+	readonly sourceIntegrity?: SourceIntegrity;
+	readonly failure?: WorkflowFailure;
+	readonly failureEvidence?: WorkflowFailureEvidence;
+	readonly workspaceDisposition?: WorkspaceDisposition;
+	readonly validationResults: readonly ValidationResult[];
+	readonly session: WorkflowSession;
 }
 
 export interface ValidationResult {
@@ -129,33 +198,11 @@ export type PrimitiveFunction<T extends PrimitiveType> = (
 	]
 ) => Promise<InvocationResult<T>>;
 
-export interface WorkflowPrimitives {
-	readonly context: RunContext;
-	readonly objective?: string;
-	readonly ai: PrimitiveFunction<"AI">;
-	readonly harness: PrimitiveFunction<"Harness">;
-	readonly gate: PrimitiveFunction<"Gate">;
-	readonly validate: () => Promise<ValidationResult>;
-	readonly correctionBudget: number;
-	readonly fail: (
-		failure: WorkflowFailure,
-		message: string,
-		output?: unknown,
-	) => void;
-}
 
 export type WorkflowController = (
 	primitives: WorkflowPrimitives,
 ) => Promise<void> | void;
 
-export interface WorkflowDefinition {
-	readonly id: string;
-	readonly name: string;
-	readonly controller: WorkflowController;
-	readonly validationOperations?: readonly ValidationOperation[];
-	readonly maxCorrectionAttempts?: number;
-	readonly completesWithReview?: boolean;
-}
 
 export interface WorkflowFailureEvidence {
 	readonly invocationId?: string;
@@ -164,24 +211,6 @@ export interface WorkflowFailureEvidence {
 	readonly output?: unknown;
 }
 
-export interface WorkflowRun {
-	readonly workflowId: string;
-	readonly status: WorkflowStatus;
-	readonly sourceRepositoryUnchanged?: true;
-	readonly integration?: "Manual";
-	readonly invocations: readonly InvocationResult[];
-	readonly context: RunContext;
-	readonly runIdentifier?: string;
-	readonly sourceRevision?: string;
-	readonly workspacePath?: string;
-	readonly workspaceIsolation?: WorkspaceIsolation;
-	readonly sourceIntegrity?: SourceIntegrity;
-	readonly failure?: WorkflowFailure;
-	readonly failureEvidence?: WorkflowFailureEvidence;
-	readonly workspaceDisposition?: WorkspaceDisposition;
-	readonly validationResults: readonly ValidationResult[];
-	readonly session: WorkflowSession;
-}
 
 export interface WorkflowExecutionOptions {
 	readonly runIdentifier?: string;
@@ -382,6 +411,7 @@ export class WorkflowExecutor {
 				status: "Failed",
 				invocations: [],
 				context,
+				phaseOwners: uniquePhaseOwners(workflow.phases),
 				runIdentifier,
 				sourceRevision: source.revision,
 				sourceIntegrity: "Verified",
@@ -403,6 +433,7 @@ export class WorkflowExecutor {
 				status: "Failed",
 				invocations: [],
 				context,
+				phaseOwners: uniquePhaseOwners(workflow.phases),
 				runIdentifier,
 				sourceRevision: source.revision,
 				sourceIntegrity: "Verified",
@@ -420,6 +451,32 @@ export class WorkflowExecutor {
 			? [...persisted.invocations]
 			: [];
 		const roleBaselines = new Map<string, readonly string[]>();
+		const commitReferences: CommitReference[] = [];
+		const commit = async (
+			phase: string,
+			product: CommitReference["product"],
+			message: string,
+		): Promise<CommitReference> => {
+			if (!workspacePath)
+				throw new Error("Commit phases require a source repository workspace");
+			execFileSync("git", ["-C", workspacePath, "add", "--all"]);
+			execFileSync("git", [
+				"-C", workspacePath,
+				"-c", "user.name=Local Agent Factory",
+				"-c", "user.email=local-agent-factory@example.invalid",
+				"commit", "--quiet", "--allow-empty", "-m", message,
+			]);
+			const revision = execFileSync(
+			"git", ["-C", workspacePath, "rev-parse", "HEAD"], { encoding: "utf8" },
+			).trim();
+			const reference = { product, phase, revision, message };
+			commitReferences.push(reference);
+			await recordTraceEvent({
+				kind: "phase", name: phase, status: "Succeeded",
+				data: { owner: "git", product, revision, message },
+			});
+			return reference;
+		};
 		let failure: WorkflowFailure | undefined;
 		let failureEvidence: WorkflowFailureEvidence | undefined;
 		const recordTraceEvent = (event: Omit<WorkflowTraceEvent, "sequence">) => {
@@ -719,6 +776,7 @@ export class WorkflowExecutor {
 				invoke("AI", this.adapters.ai, id, name, input, options),
 			harness: (id, name, input, options) =>
 				invoke("Harness", this.adapters.harness, id, name, input, options),
+			commit,
 			gate: (id, name, input, options) =>
 				invoke("Gate", this.adapters.gate, id, name, input, options),
 		});
@@ -741,6 +799,22 @@ export class WorkflowExecutor {
 			invocations.some((invocation) => invocation.primitiveType === "Gate")
 		) {
 			status = "AwaitingReview";
+		}
+		const reviewHandoff =
+			status === "AwaitingReview"
+				? {
+						status: "AwaitingReview" as const,
+						commits: [...commitReferences],
+						manualIntegrationGuidance:
+							"Review each accepted product commit before manual integration.",
+					}
+				: undefined;
+		if (reviewHandoff) {
+			context.artifacts.set("review-handoff", {
+				id: "review-handoff",
+				producerInvocationId: "workflow",
+				value: reviewHandoff,
+			});
 		}
 		const workspaceDisposition =
 			status === "Failed" ? ("Retained" as const) : undefined;
@@ -772,6 +846,9 @@ export class WorkflowExecutor {
 				status,
 			},
 		];
+		trace.phaseOwners = uniquePhaseOwners(workflow.phases);
+		trace.reviewHandoff = reviewHandoff;
+
 		trace.validationResults = [...context.validationResults];
 		trace.envelopes = [...context.envelopes.values()];
 		trace.artifacts = [...context.artifacts.values()];
@@ -786,6 +863,8 @@ export class WorkflowExecutor {
 			runIdentifier,
 			invocations,
 			context,
+			phaseOwners: uniquePhaseOwners(workflow.phases),
+			...(reviewHandoff ? { reviewHandoff } : {}),
 			...(failure
 				? { failure, ...(failureEvidence ? { failureEvidence } : {}) }
 				: {}),
@@ -956,9 +1035,21 @@ function isAllowedWrite(path: string, role: AgentRoleConfiguration): boolean {
 		return false;
 	}
 	return role.allowedWrites.some(
+
 		(allowedPath) =>
 			allowedPath === "*" ||
 			allowedPath === path ||
 			path.startsWith(`${allowedPath}/`),
 	);
+}
+
+function uniquePhaseOwners(
+	phases: readonly WorkflowPhase[] | undefined,
+): readonly WorkflowPhase[] {
+	const owners = new Set<string>();
+	return (phases ?? []).filter((phase) => {
+		if (owners.has(phase.owner)) return false;
+		owners.add(phase.owner);
+		return true;
+	});
 }

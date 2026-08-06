@@ -102,6 +102,12 @@ The inspectable result offered to a human for integration, including the run evi
 **Trace**:
 The ordered record of workflow-run events, phase status, agent activity, validation checks, and produced evidence.
 
+**Code-Owned Commit Phase**:
+A bounded workflow phase where ordinary code records one accepted work product in a repository commit owned by the factory.
+
+**Commit Reference**:
+The product name, phase, commit revision, and message that identify one code-owned commit in a Review Handoff.
+
 **Workflow Trace**:
 The observable history of a workflow run, including phases, primitive invocations, validation results, workflow envelopes, and process activity.
 
