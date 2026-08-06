@@ -6,8 +6,8 @@ import { describe, expect, test } from "vitest";
 import {
 	WorkflowPackageInstaller,
 	createStarterWorkflowDefinitions,
-} from "./workflow-package.ts";
-import { WorkflowExecutor, type WorkflowDefinition } from "./workflow.ts";
+} from "./workflow-package.js";
+import { WorkflowExecutor, type WorkflowDefinition } from "./workflow.js";
 
 function createRepository(): { path: string; revision: string } {
 	const path = mkdtempSync(join(tmpdir(), "configured-workflow-source-"));
@@ -171,6 +171,50 @@ describe("configured agent workflow", () => {
 			run.invocations.map(({ name, status }) => ({ name, status })),
 		).toEqual([{ name: "Plan request", status: "Failed" }]);
 		expect(calls).toEqual(["Plan request"]);
+	});
+
+	test("configures a role and selects a named starter workflow", () => {
+		const repository = mkdtempSync(join(tmpdir(), "factory-configuration-"));
+		const installer = new WorkflowPackageInstaller();
+		installer.installWorkflowPackage(repository);
+
+		const configured = installer.configureAgentRole("builder", repository, {
+			model: "builder-model",
+			instructions: "Build only the requested change",
+			tools: ["read", "write"],
+			allowedWrites: ["src/"],
+		});
+		const planner = installer.configureAgentRole("planner", repository, {
+			harnessSupport: true,
+		});
+
+		// state verification
+		expect(configured.agentRoles.find((role) => role.name === "builder")).toMatchObject({
+			model: "builder-model",
+			instructions: "Build only the requested change",
+			tools: ["read", "write"],
+			allowedWrites: ["src/"],
+		});
+		expect(planner.agentRoles.find((role) => role.name === "planner")).toMatchObject({
+			harnessSupport: true,
+		});
+		expect(installer.selectWorkflow("simple-sdlc", repository)).toMatchObject({
+			id: "simple-sdlc",
+		});
+		expect(installer.configureWorkflowPackage(repository).workflowRegistry.registeredWorkflows).toEqual([
+			"prompt",
+			"scout",
+			"plan",
+			"build",
+			"quality",
+			"plan-build",
+			"build-test",
+			"build-review",
+			"plan-build-test",
+			"plan-build-test-quality",
+			"document",
+			"simple-sdlc",
+		]);
 	});
 
 	test("returns structured failure evidence when an adapter fails", async () => {

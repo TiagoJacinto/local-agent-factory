@@ -9,7 +9,7 @@ import type {
 	WorkflowFailure,
 	WorkflowFailureEvidence,
 	WorkflowStatus,
-} from "./workflow.ts";
+} from "./workflow.js";
 
 export type WorkflowTraceEventKind =
 	| "phase"

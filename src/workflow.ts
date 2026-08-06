@@ -8,7 +8,7 @@ import {
 	type WorkflowTrace,
 	type WorkflowTraceEvent,
 	type WorkflowTraceStore,
-} from "./workflow-trace.ts";
+} from "./workflow-trace.js";
 
 export type PrimitiveType = "AI" | "Harness" | "Gate";
 export type InvocationStatus = "Succeeded" | "Failed";
@@ -199,6 +199,7 @@ export interface AgentRoleConfiguration {
 	readonly instructions: string;
 	readonly tools: readonly string[];
 	readonly allowedWrites: readonly string[];
+	readonly harnessSupport?: boolean;
 	readonly protectedPaths?: readonly string[];
 }
 
@@ -266,9 +267,18 @@ export class WorkflowExecutor {
 		adapters: PrimitiveAdapters = {},
 		options: WorkflowExecutorOptions = {},
 	) {
-		this.workflows = new Map(
+		const workflowsById = new Map(
 			workflows.map((workflow) => [workflow.id, workflow]),
 		);
+		for (const [alias, id] of Object.entries({
+			"plan-build-test-review": "plan-build-test-quality",
+			"build-test-review": "build-test",
+			review: "quality",
+		})) {
+			const workflow = workflowsById.get(id);
+			if (workflow) workflowsById.set(alias, workflow);
+		}
+		this.workflows = workflowsById;
 		this.adapters = {
 			ai: adapters.ai ?? deterministicAdapter,
 			harness: adapters.harness ?? deterministicAdapter,
@@ -310,7 +320,12 @@ export class WorkflowExecutor {
 		workflowId: string,
 		options: WorkflowExecutionOptions = {},
 	): Promise<WorkflowRun> {
-		const workflow = this.workflows.get(workflowId);
+		const workflow = this.workflows.get(workflowId) ?? this.workflows.get({
+			"plan-build-test-review": "plan-build-test-quality",
+			"build-test-review": "build-test",
+			review: "quality",
+			document: "document",
+		}[workflowId] ?? workflowId);
 		if (!workflow) throw new Error(`Workflow not found: ${workflowId}`);
 
 		const runIdentifier = options.runIdentifier ?? `local-run-${randomUUID()}`;
