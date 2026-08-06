@@ -6,6 +6,7 @@ import { describe, expect, test } from "vitest";
 import {
 	WorkflowPackageInstaller,
 	createStarterWorkflowDefinitions,
+	type FactorySetupFailure,
 } from "./workflow-package.js";
 import { WorkflowExecutor, type WorkflowDefinition } from "./workflow.js";
 
@@ -222,6 +223,66 @@ describe("configured agent workflow", () => {
 			"document",
 			"simple-sdlc",
 		]);
+	});
+
+	test("creates and updates bounded custom workflows", () => {
+		const repository = mkdtempSync(join(tmpdir(), "factory-authoring-"));
+		const installer = new WorkflowPackageInstaller();
+		installer.installWorkflowPackage(repository);
+
+		const created = installer.createWorkflow(
+			"plan-build-security",
+			repository,
+			["planner", "builder", "security"],
+			{ criteria: ["Security checks pass"] },
+		);
+		expect(created.workflowRegistry.registeredWorkflows).toContain(
+			"plan-build-security",
+		);
+		expect(created.workflowRegistry.workflowDefinitions).toMatchObject([
+			{
+				id: "plan-build-security",
+				phases: [
+					{ name: "planner", role: "planner" },
+					{ name: "builder", role: "builder" },
+					{ name: "security", role: "security" },
+				],
+			},
+		]);
+
+		const updated = installer.updateWorkflow(
+			repository,
+			"plan-build-security",
+			["planner", "builder", "tester", "security"],
+			{ criteria: ["Tests and security checks pass"] },
+		);
+		expect(
+			updated.workflowRegistry.workflowDefinitions?.[0]?.phases.map(
+				(phase) => phase.name,
+			),
+		).toEqual(["planner", "builder", "tester", "security"]);
+	});
+
+	test("reports invalid workflow configuration before execution", () => {
+		const repository = mkdtempSync(join(tmpdir(), "factory-invalid-"));
+		const installer = new WorkflowPackageInstaller();
+		installer.installWorkflowPackage(repository);
+		const packagePath = join(
+			repository,
+			".local-agent-factory",
+			"package.json",
+		);
+		const setup = JSON.parse(readFileSync(packagePath, "utf8")) as {
+			workflowRegistry: { registeredWorkflows: string[] };
+		};
+		setup.workflowRegistry.registeredWorkflows.pop();
+		writeFileSync(packagePath, JSON.stringify(setup));
+
+		const result = installer.verifyFactory(repository) as FactorySetupFailure;
+		expect(result).toEqual({
+			status: "Failed",
+			failure: "InvalidWorkflowConfiguration",
+		});
 	});
 
 	test("returns structured failure evidence when an adapter fails", async () => {
