@@ -7,7 +7,7 @@ import {
 	type RunContext,
 	type WorkflowDefinition,
 } from "./workflow.js";
-import { createPiAdapters } from "./pi-adapter.js";
+import { createPiAdapters, type PiAdapterOptions } from "./pi-adapter.js";
 
 const packageDirectory = ".local-agent-factory";
 const packageFile = "package.json";
@@ -338,6 +338,10 @@ export interface AgentRole extends AgentRoleConfiguration {}
 
 export type AgentRoleChanges = Partial<Omit<AgentRole, "name">>;
 
+export interface WorkflowPackageInstallerOptions {
+	readonly pi?: PiAdapterOptions;
+}
+
 export interface FactorySetup {
 	readonly workflowPackage: WorkflowPackage;
 	readonly workflowRegistry: WorkflowRegistry;
@@ -361,6 +365,12 @@ export interface FactorySetupFailure {
 type WorkflowSetupResult = FactorySetup | FactorySetupFailure;
 
 export class WorkflowPackageInstaller {
+	private readonly piOptions: PiAdapterOptions;
+
+	constructor(options: WorkflowPackageInstallerOptions = {}) {
+		this.piOptions = options.pi ?? {};
+	}
+
 	installWorkflowPackage(repository: string): FactorySetup {
 		const existing = this.readSetup(repository);
 		const setup: StoredSetup = {
@@ -453,7 +463,7 @@ export class WorkflowPackageInstaller {
 				this.toWorkflowDefinition(definition),
 			),
 		].filter((workflow) => registered.has(workflow.id));
-		const piAdapters = createPiAdapters();
+		const piAdapters = createPiAdapters(this.piOptions);
 		return new WorkflowExecutor(workflows, {
 			ai: adapters.ai ?? piAdapters.ai,
 			harness: adapters.harness ?? piAdapters.harness,
