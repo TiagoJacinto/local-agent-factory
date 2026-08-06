@@ -220,7 +220,11 @@ export type PrimitiveAdapter = (input: {
 	outputArtifact?: string;
 	workspacePath?: string;
 	session?: WorkflowSession;
-	emit?: (event: { name: string; status: "Running"; data?: unknown }) => void;
+	emit?: (event: {
+		name: string;
+		status: "Running";
+		data?: unknown;
+	}) => void;
 }) =>
 	| Promise<PrimitiveAdapterOutput | undefined>
 	| PrimitiveAdapterOutput
@@ -453,7 +457,10 @@ export class WorkflowExecutor {
 					kind: "tool_call",
 					name,
 					status: "Running",
-					data: { invocationId },
+					data: {
+						invocationId,
+						arguments: input,
+					},
 				});
 				await this.traceStore.save({ ...trace, events: traceEvents });
 			}
@@ -480,6 +487,7 @@ export class WorkflowExecutor {
 							kind: "process",
 							...event,
 						});
+						void this.traceStore.save({ ...trace, events: traceEvents });
 					},
 				});
 				invocationStatus = adapterOutput?.status ?? "Succeeded";
@@ -574,8 +582,25 @@ export class WorkflowExecutor {
 				kind: "primitive",
 				name,
 				status: invocationStatus,
-				data: { invocationId, primitiveType },
+				data: {
+					invocationId,
+					primitiveType,
+					result: adapterOutput?.value,
+				},
 			});
+			if (primitiveType === "Harness") {
+				traceEvents.push({
+					sequence: traceEvents.length + 1,
+					kind: "tool_call",
+					name,
+					status: invocationStatus,
+					data: {
+						invocationId,
+						arguments: input,
+						result: adapterOutput?.value,
+					},
+				});
+			}
 			await this.traceStore.save({ ...trace, events: traceEvents });
 			return result;
 		};
