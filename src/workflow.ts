@@ -320,12 +320,16 @@ export class WorkflowExecutor {
 		workflowId: string,
 		options: WorkflowExecutionOptions = {},
 	): Promise<WorkflowRun> {
-		const workflow = this.workflows.get(workflowId) ?? this.workflows.get({
-			"plan-build-test-review": "plan-build-test-quality",
-			"build-test-review": "build-test",
-			review: "quality",
-			document: "document",
-		}[workflowId] ?? workflowId);
+		const workflow =
+			this.workflows.get(workflowId) ??
+			this.workflows.get(
+				{
+					"plan-build-test-review": "plan-build-test-quality",
+					"build-test-review": "build-test",
+					review: "quality",
+					document: "document",
+				}[workflowId] ?? workflowId,
+			);
 		if (!workflow) throw new Error(`Workflow not found: ${workflowId}`);
 
 		const runIdentifier = options.runIdentifier ?? `local-run-${randomUUID()}`;

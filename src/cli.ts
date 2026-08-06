@@ -21,9 +21,11 @@ const workflowOptionsSchema = z.object({
 });
 
 const traceOptionsSchema = z.object({
-	database: z.string().trim().min(1).default(
-		DEFAULT_WORKFLOW_TRACE_DATABASE_PATH,
-	),
+	database: z
+		.string()
+		.trim()
+		.min(1)
+		.default(DEFAULT_WORKFLOW_TRACE_DATABASE_PATH),
 });
 
 const packageOptionsSchema = z.object({ repository: z.string().trim().min(1) });
@@ -74,7 +76,15 @@ export function createCli(
 		.requiredOption("--repository <path>", "target repository")
 		.action((rawOptions: unknown) => {
 			const options = packageOptionsSchema.parse(rawOptions);
-			output(JSON.stringify(new WorkflowPackageInstaller().installWorkflowPackage(options.repository), null, 2));
+			output(
+				JSON.stringify(
+					new WorkflowPackageInstaller().installWorkflowPackage(
+						options.repository,
+					),
+					null,
+					2,
+				),
+			);
 		});
 
 	program
@@ -93,10 +103,24 @@ export function createCli(
 				...(options.model ? { model: options.model } : {}),
 				...(options.instructions ? { instructions: options.instructions } : {}),
 				...(options.tools ? { tools: options.tools.split(",") } : {}),
-				...(options.allowedWrites ? { allowedWrites: options.allowedWrites.split(",") } : {}),
-				...(options.harnessSupport !== undefined ? { harnessSupport: options.harnessSupport } : {}),
+				...(options.allowedWrites
+					? { allowedWrites: options.allowedWrites.split(",") }
+					: {}),
+				...(options.harnessSupport !== undefined
+					? { harnessSupport: options.harnessSupport }
+					: {}),
 			};
-			output(JSON.stringify(new WorkflowPackageInstaller().configureAgentRole(role, options.repository, changes), null, 2));
+			output(
+				JSON.stringify(
+					new WorkflowPackageInstaller().configureAgentRole(
+						role,
+						options.repository,
+						changes,
+					),
+					null,
+					2,
+				),
+			);
 		});
 
 	program
@@ -105,7 +129,15 @@ export function createCli(
 		.requiredOption("--repository <path>", "target repository")
 		.action((rawOptions: unknown) => {
 			const options = packageOptionsSchema.parse(rawOptions);
-			output(JSON.stringify(new WorkflowPackageInstaller().configureWorkflowPackage(options.repository), null, 2));
+			output(
+				JSON.stringify(
+					new WorkflowPackageInstaller().configureWorkflowPackage(
+						options.repository,
+					),
+					null,
+					2,
+				),
+			);
 		});
 
 	program

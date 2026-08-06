@@ -46,35 +46,55 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			id: "prompt",
 			name: "Prompt",
 			controller: async ({ ai, objective }) => {
-				await ai("planner", "Prompt request", objective ?? "Clarify the request");
+				await ai(
+					"planner",
+					"Prompt request",
+					objective ?? "Clarify the request",
+				);
 			},
 		},
 		{
 			id: "scout",
 			name: "Scout",
 			controller: async ({ harness, objective }) => {
-				await harness("scout", "Scout request", objective ?? "Scout the repository");
+				await harness(
+					"scout",
+					"Scout request",
+					objective ?? "Scout the repository",
+				);
 			},
 		},
 		{
 			id: "plan",
 			name: "Plan",
 			controller: async ({ ai, objective }) => {
-				await ai("planner", "Plan request", objective ?? "Plan the requested change");
+				await ai(
+					"planner",
+					"Plan request",
+					objective ?? "Plan the requested change",
+				);
 			},
 		},
 		{
 			id: "build",
 			name: "Build",
 			controller: async ({ harness, objective }) => {
-				await harness("builder", "Build request", objective ?? "Build the requested change");
+				await harness(
+					"builder",
+					"Build request",
+					objective ?? "Build the requested change",
+				);
 			},
 		},
 		{
 			id: "quality",
 			name: "Quality",
 			controller: async ({ ai, objective }) => {
-				await ai("reviewer", "Quality review", objective ?? "Review the change");
+				await ai(
+					"reviewer",
+					"Quality review",
+					objective ?? "Review the change",
+				);
 			},
 		},
 		{
@@ -167,13 +187,23 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			id: "plan-build-test",
 			name: "Plan, build, and test",
 			controller: async ({ ai, harness, objective }) => {
-				const plan = await ai("planner", "Plan request", objective ?? "Plan the requested change", {
-					outputArtifact: "plan",
-				});
+				const plan = await ai(
+					"planner",
+					"Plan request",
+					objective ?? "Plan the requested change",
+					{
+						outputArtifact: "plan",
+					},
+				);
 				if (plan.status === "Failed") return;
-				await harness("builder", "Build request", objective ?? "Build the requested change", {
-					inputArtifact: "plan",
-				});
+				await harness(
+					"builder",
+					"Build request",
+					objective ?? "Build the requested change",
+					{
+						inputArtifact: "plan",
+					},
+				);
 			},
 		},
 		{
@@ -324,14 +354,29 @@ export class WorkflowPackageInstaller {
 		return this.validate(setup);
 	}
 
-	configureAgentRole(role: string, repository: string, changes: AgentRoleChanges): FactorySetup;
-	configureAgentRole(repository: string, role: string, changes: AgentRoleChanges): FactorySetup;
-	configureAgentRole(first: string, second: string, changes: AgentRoleChanges): FactorySetup {
+	configureAgentRole(
+		role: string,
+		repository: string,
+		changes: AgentRoleChanges,
+	): FactorySetup;
+	configureAgentRole(
+		repository: string,
+		role: string,
+		changes: AgentRoleChanges,
+	): FactorySetup;
+	configureAgentRole(
+		first: string,
+		second: string,
+		changes: AgentRoleChanges,
+	): FactorySetup {
 		const repository = first.startsWith("/") ? first : second;
 		const roleName = first.startsWith("/") ? second : first;
 		const setup = this.readSetup(repository);
-		if (!setup) throw new Error(`Workflow package is not installed in ${repository}`);
-		const role = setup.agentRoles.find((candidate) => candidate.name === roleName);
+		if (!setup)
+			throw new Error(`Workflow package is not installed in ${repository}`);
+		const role = setup.agentRoles.find(
+			(candidate) => candidate.name === roleName,
+		);
 		if (!role) throw new Error(`Unknown agent role: ${roleName}`);
 		Object.assign(role, changes);
 		this.writeSetup(repository, setup);
@@ -347,7 +392,9 @@ export class WorkflowPackageInstaller {
 		if (!setup.workflowRegistry.registeredWorkflows.includes(workflowId)) {
 			throw new Error(`Workflow not registered: ${workflowId}`);
 		}
-		const workflow = createStarterWorkflowDefinitions().find(({ id }) => id === workflowId);
+		const workflow = createStarterWorkflowDefinitions().find(
+			({ id }) => id === workflowId,
+		);
 		if (!workflow) throw new Error(`Workflow not found: ${workflowId}`);
 		return workflow;
 	}
@@ -398,18 +445,20 @@ export class WorkflowPackageInstaller {
 			starterWorkflowIds.every((id) => workflows.includes(id));
 		const hasExpectedRoles =
 			Array.isArray(roles) &&
-			starterRoleNames.every((name) => roles.some((role) => role.name === name));
+			starterRoleNames.every((name) =>
+				roles.some((role) => role.name === name),
+			);
 		const rolesAreComplete =
 			Array.isArray(roles) &&
 			roles.every(
 				(role) =>
-				typeof role.model === "string" &&
-				role.model.length > 0 &&
-				typeof role.instructions === "string" &&
-				role.instructions.length > 0 &&
-				Array.isArray(role.tools) &&
-				role.tools.length > 0 &&
-				Array.isArray(role.allowedWrites),
+					typeof role.model === "string" &&
+					role.model.length > 0 &&
+					typeof role.instructions === "string" &&
+					role.instructions.length > 0 &&
+					Array.isArray(role.tools) &&
+					role.tools.length > 0 &&
+					Array.isArray(role.allowedWrites),
 			);
 		if (!hasExpectedWorkflows || !hasExpectedRoles || !rolesAreComplete) {
 			throw new Error("Installed workflow package is invalid");
