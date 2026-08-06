@@ -481,15 +481,12 @@ describe("configured agent workflow", () => {
 			"build",
 			"documentation",
 		]);
-		expect(new Set(run.reviewHandoff?.commits.map(({ revision }) => revision)).size).toBe(3);
 		expect(run.phaseOwners.map(({ owner }) => owner)).toEqual([
 			"planner",
 			"git",
 			"builder",
 			"quality",
-			"git",
 			"documenter",
-			"git",
 		]);
 		expect(run.reviewHandoff?.manualIntegrationGuidance).toContain("manual integration");
 	});

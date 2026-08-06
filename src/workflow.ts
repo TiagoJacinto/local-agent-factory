@@ -411,7 +411,7 @@ export class WorkflowExecutor {
 				status: "Failed",
 				invocations: [],
 				context,
-				phaseOwners: workflow.phases ?? [],
+				phaseOwners: uniquePhaseOwners(workflow.phases),
 				runIdentifier,
 				sourceRevision: source.revision,
 				sourceIntegrity: "Verified",
@@ -433,7 +433,7 @@ export class WorkflowExecutor {
 				status: "Failed",
 				invocations: [],
 				context,
-				phaseOwners: workflow.phases ?? [],
+				phaseOwners: uniquePhaseOwners(workflow.phases),
 				runIdentifier,
 				sourceRevision: source.revision,
 				sourceIntegrity: "Verified",
@@ -846,7 +846,7 @@ export class WorkflowExecutor {
 				status,
 			},
 		];
-		trace.phaseOwners = workflow.phases;
+		trace.phaseOwners = uniquePhaseOwners(workflow.phases);
 		trace.reviewHandoff = reviewHandoff;
 
 		trace.validationResults = [...context.validationResults];
@@ -863,7 +863,7 @@ export class WorkflowExecutor {
 			runIdentifier,
 			invocations,
 			context,
-			phaseOwners: workflow.phases ?? [],
+			phaseOwners: uniquePhaseOwners(workflow.phases),
 			...(reviewHandoff ? { reviewHandoff } : {}),
 			...(failure
 				? { failure, ...(failureEvidence ? { failureEvidence } : {}) }
@@ -1035,9 +1035,21 @@ function isAllowedWrite(path: string, role: AgentRoleConfiguration): boolean {
 		return false;
 	}
 	return role.allowedWrites.some(
+
 		(allowedPath) =>
 			allowedPath === "*" ||
 			allowedPath === path ||
 			path.startsWith(`${allowedPath}/`),
 	);
+}
+
+function uniquePhaseOwners(
+	phases: readonly WorkflowPhase[] | undefined,
+): readonly WorkflowPhase[] {
+	const owners = new Set<string>();
+	return (phases ?? []).filter((phase) => {
+		if (owners.has(phase.owner)) return false;
+		owners.add(phase.owner);
+		return true;
+	});
 }

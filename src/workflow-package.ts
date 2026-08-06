@@ -144,13 +144,15 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 				{ name: "commit-docs", owner: "git" },
 			],
 			controller: async ({ harness, ai, gate, validate, commit, objective }) => {
-				await ai("planner", "Plan request", objective ?? "Plan the requested change");
+				const plan = await ai("planner", "Plan request", objective ?? "Plan the requested change");
+				if (plan.status === "Failed") return;
 				await commit("commit-plan", "plan", "Commit accepted plan");
 				const build = await harness("builder", "Build request", objective ?? "Build the requested change");
 				if (build.status === "Failed" || (await validate()).status === "Failed") return;
 				await commit("commit-build", "build", "Commit verified build");
 				await ai("reviewer", "Review change", "Review the completed change");
-				await harness("documenter", "Document change", "Document the completed change", { outputArtifact: "documentation" });
+				const documentation = await harness("documenter", "Document change", "Document the completed change", { outputArtifact: "documentation" });
+				if (documentation.status === "Failed") return;
 				await commit("commit-docs", "documentation", "Commit completed documentation");
 				await gate("review-gate", "Await human review", "Review the proposed change");
 			},
@@ -160,13 +162,7 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 			id: "plan-build",
 			name: "Plan and build",
 			maxCorrectionAttempts: 1,
-			controller: async ({
-				ai,
-				harness,
-				objective,
-				correctionBudget,
-				fail,
-			}) => {
+			controller: async ({ ai, harness, objective, correctionBudget, fail }) => {
 				let plan = await ai(
 					"planner",
 					"Plan request",
@@ -177,10 +173,7 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 					},
 				);
 				let correctionAttempts = 0;
-				while (
-					plan.status === "Failed" &&
-					correctionAttempts < correctionBudget
-				) {
+				while (plan.status === "Failed" && correctionAttempts < correctionBudget) {
 					correctionAttempts += 1;
 					plan = await ai(
 						"planner",
@@ -194,19 +187,14 @@ export function createStarterWorkflowDefinitions(): readonly WorkflowDefinition[
 				}
 				if (plan.status === "Failed") {
 					if (correctionAttempts >= correctionBudget)
-						fail(
-							"CorrectionBudgetExceeded",
-							"Plan correction budget exhausted",
-						);
+						fail("CorrectionBudgetExceeded", "Plan correction budget exhausted");
 					return;
 				}
 				await harness(
 					"builder",
 					"Build request",
 					objective ?? "Build the requested change",
-					{
-						inputArtifact: "plan",
-					},
+					{ inputArtifact: "plan" },
 				);
 			},
 		},
@@ -758,14 +746,16 @@ export class WorkflowPackageInstaller {
 	private toWorkflowDefinition(
 		definition: WorkflowDefinitionRecord,
 	): WorkflowDefinition {
+		const hasCommitPhases = definition.phases.some((phase) => phase.role === "git");
 		return {
 			id: definition.id,
 			name: definition.name,
 			phases: definition.phases.map((phase) => ({ name: phase.name, owner: phase.role })),
+			completesWithReview: hasCommitPhases,
 			validationOperations: (definition.acceptance.validationCommands ?? []).map(
 				(command, index) => ({ name: `validation-${index + 1}`, command }),
 			),
-			controller: async ({ ai, harness, commit, objective }) => {
+			controller: async ({ ai, harness, commit, gate, objective }) => {
 				for (const phase of definition.phases) {
 					const input = objective ?? definition.acceptance.criteria.join("; ");
 					if (phase.role === "git") {
@@ -776,6 +766,8 @@ export class WorkflowPackageInstaller {
 						await harness(phase.role, phase.name, input);
 					}
 				}
+				if (hasCommitPhases)
+					await gate("review-gate", "Await human review", "Review the proposed change");
 			},
 		};
 	}
