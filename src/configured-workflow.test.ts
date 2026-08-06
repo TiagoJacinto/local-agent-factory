@@ -1,5 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	mkdtempSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -9,6 +14,22 @@ import {
 	type FactorySetupFailure,
 } from "./workflow-package.js";
 import { WorkflowExecutor, type WorkflowDefinition } from "./workflow.js";
+
+function createPiExecutable(): { executable: string; argsFile: string } {
+	const directory = mkdtempSync(join(tmpdir(), "configured-pi-"));
+	const argsFile = join(directory, "args.json");
+	const executable = join(directory, "pi");
+	writeFileSync(
+		executable,
+		`#!/usr/bin/env node
+const fs = require("node:fs");
+fs.writeFileSync(process.env.PI_ARGS_FILE, JSON.stringify(process.argv.slice(2)));
+console.log(JSON.stringify({type:"message_end",message:{role:"assistant",content:[{type:"text",text:"{\\"ok\\":true}"}]}}));
+`,
+	);
+	chmodSync(executable, 0o755);
+	return { executable, argsFile };
+}
 
 function createRepository(): { path: string; revision: string } {
 	const path = mkdtempSync(join(tmpdir(), "configured-workflow-source-"));
@@ -106,6 +127,52 @@ describe("configured agent workflow", () => {
 		});
 		expect(readFileSync(join(source.path, "README.md"), "utf8")).toBe(
 			"before\n",
+		);
+	});
+
+	test("executes a configured Pi agent from the installed registry", async () => {
+		const repository = mkdtempSync(
+			join(tmpdir(), "installed-pi-workflow-package-"),
+		);
+		const pi = createPiExecutable();
+		new WorkflowPackageInstaller({
+			pi: {
+				executable: pi.executable,
+				environment: { PI_ARGS_FILE: pi.argsFile },
+			},
+		}).installWorkflowPackage(repository);
+		new WorkflowPackageInstaller().configureAgentRole("builder", repository, {
+			model: "provider/model",
+			instructions: "Build only the requested change",
+			tools: ["read", "write"],
+		});
+
+		const run = await new WorkflowPackageInstaller({
+			pi: {
+				executable: pi.executable,
+				environment: { PI_ARGS_FILE: pi.argsFile },
+			},
+		}).createExecutor(repository).executeWorkflow("build", {
+			objective: "add a health endpoint",
+		});
+
+		expect(run.status).toBe("Succeeded");
+		expect(run.invocations[0]).toMatchObject({
+			primitiveType: "Harness",
+			status: "Succeeded",
+		});
+		const args = JSON.parse(readFileSync(pi.argsFile, "utf8")) as string[];
+		expect(args).toEqual(
+			expect.arrayContaining([
+				"--model",
+				"provider/model",
+				"--append-system-prompt",
+				"Build only the requested change",
+				"--tools",
+				"read,write",
+				"--session-id",
+				run.session.agentSessions.builder,
+			]),
 		);
 	});
 
