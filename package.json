@@ -7,11 +7,13 @@
   "scripts": {
     "test": "vitest run",
     "test:hvut": "bunx vitest run --project hvut tests/acceptance/unit/execute-workflow.hvut.ts",
-    "typecheck": "tsc --noEmit",
-    "lint": "oxlint src tests",
-    "lint:fix": "oxlint src tests --fix",
+    "typecheck": "bun run typecheck:factory && bun run typecheck:app",
+    "lint": "oxlint src/cli.ts src/workflow.ts tests",
+    "lint:fix": "oxlint src/cli.ts src/workflow.ts tests --fix",
     "start": "bun run src/cli.ts greet",
-    "dev": "bun --watch run src/cli.ts greet"
+    "dev": "bun --watch run src/cli.ts greet",
+    "typecheck:factory": "bun run typecheck.ts",
+    "typecheck:app": "tsc --noEmit"
   },
   "bin": {
     "local-agent-factory": "./src/cli.ts"
