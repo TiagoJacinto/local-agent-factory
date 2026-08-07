@@ -1,6 +1,25 @@
-node_modules
-.DS_Store
-coverage
+# Bun / Node
+node_modules/
+bun.lockb.tmp
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Build output
+dist/
+build/
+coverage/
+.vite/
+
+# Runtime
 .env
 .env.*
+!.env.sample
 !.env.example
+adws/adw_data/sessions/
+adws/adw_data/sssf.db*
+
+# Local tooling
+.DS_Store
+.idea/
+.vscode/
