@@ -5,10 +5,14 @@ import { join } from "node:path";
 
 export type PrimitiveType = "AI" | "Harness" | "Gate";
 export type InvocationStatus = "Succeeded" | "Failed";
-export type PrimitiveResultType<T extends PrimitiveType> = `${T}InvocationResult`;
-export type WorkflowFailure = "DirtySource" | "UnexpectedSourceRevision";
+export type PrimitiveResultType<T extends PrimitiveType> =
+	`${T}InvocationResult`;
+export type WorkflowFailure =
+	| "DirtySource"
+	| "UnexpectedSourceRevision"
+	| "SourceChanged";
 export type WorkspaceIsolation = "IndependentClone";
-export type SourceIntegrity = "Verified";
+export type SourceIntegrity = "Verified" | "Changed";
 export type WorkspaceDisposition = "Retained";
 
 export interface Artifact {
@@ -67,7 +71,9 @@ export interface WorkflowPrimitives {
 	readonly gate: PrimitiveFunction<"Gate">;
 }
 
-export type WorkflowController = (primitives: WorkflowPrimitives) => Promise<void> | void;
+export type WorkflowController = (
+	primitives: WorkflowPrimitives,
+) => Promise<void> | void;
 
 export interface WorkflowDefinition {
 	readonly id: string;
@@ -108,7 +114,10 @@ export type PrimitiveAdapter = (input: {
 	inputArtifact?: Artifact;
 	outputArtifact?: string;
 	workspacePath?: string;
-}) => Promise<PrimitiveAdapterOutput | undefined> | PrimitiveAdapterOutput | undefined;
+}) =>
+	| Promise<PrimitiveAdapterOutput | undefined>
+	| PrimitiveAdapterOutput
+	| undefined;
 
 interface ResolvedPrimitiveAdapters {
 	readonly ai: PrimitiveAdapter;
@@ -128,8 +137,13 @@ export class WorkflowExecutor {
 	private readonly workflows: ReadonlyMap<string, WorkflowDefinition>;
 	private readonly adapters: ResolvedPrimitiveAdapters;
 
-	public constructor(workflows: readonly WorkflowDefinition[], adapters: PrimitiveAdapters = {}) {
-		this.workflows = new Map(workflows.map((workflow) => [workflow.id, workflow]));
+	public constructor(
+		workflows: readonly WorkflowDefinition[],
+		adapters: PrimitiveAdapters = {},
+	) {
+		this.workflows = new Map(
+			workflows.map((workflow) => [workflow.id, workflow]),
+		);
 		this.adapters = {
 			ai: adapters.ai ?? deterministicAdapter,
 			harness: adapters.harness ?? deterministicAdapter,
@@ -227,8 +241,12 @@ export class WorkflowExecutor {
 				resultType: `${primitiveType}InvocationResult`,
 				status: adapterOutput?.status ?? "Succeeded",
 				input,
-				...(options.inputArtifact ? { consumedArtifact: options.inputArtifact } : {}),
-				...(options.outputArtifact ? { producedArtifact: options.outputArtifact } : {}),
+				...(options.inputArtifact
+					? { consumedArtifact: options.inputArtifact }
+					: {}),
+				...(options.outputArtifact
+					? { producedArtifact: options.outputArtifact }
+					: {}),
 				...(workspacePath ? { workspacePath } : {}),
 			};
 			invocations.push(result);
@@ -237,10 +255,35 @@ export class WorkflowExecutor {
 
 		await workflow.controller({
 			context,
-			ai: (id, name, input, options) => invoke("AI", this.adapters.ai, id, name, input, options),
-			harness: (id, name, input, options) => invoke("Harness", this.adapters.harness, id, name, input, options),
-			gate: (id, name, input, options) => invoke("Gate", this.adapters.gate, id, name, input, options),
+			ai: (id, name, input, options) =>
+				invoke("AI", this.adapters.ai, id, name, input, options),
+			harness: (id, name, input, options) =>
+				invoke("Harness", this.adapters.harness, id, name, input, options),
+			gate: (id, name, input, options) =>
+				invoke("Gate", this.adapters.gate, id, name, input, options),
 		});
+
+		if (source) {
+			const finalSource = inspectSource(source.path);
+			if (
+				finalSource.revision !== source.revision ||
+				finalSource.workingTree !== "Clean"
+			) {
+				return {
+					workflowId,
+					status: "Failed",
+					invocations,
+					context,
+					runIdentifier,
+					sourceRevision: finalSource.revision,
+					workspacePath,
+					workspaceIsolation: "IndependentClone",
+					sourceIntegrity: "Changed",
+					failure: "SourceChanged",
+					workspaceDisposition: "Retained",
+				};
+			}
+		}
 
 		let status: WorkflowRun["status"] = "Succeeded";
 		if (invocations.some((invocation) => invocation.status === "Failed")) {
@@ -271,6 +314,26 @@ function throwMissingRunIdentifier(): never {
 	throw new Error("Source execution requires a run identifier");
 }
 
+function safeGitEnv() {
+	const env: Record<string, string> = {};
+	for (const key of [
+		"HOME",
+		"LANG",
+		"LC_ALL",
+		"LC_CTYPE",
+		"PATH",
+		"TEMP",
+		"TERM",
+		"TMP",
+		"TMPDIR",
+		"USER",
+	]) {
+		const value = process.env[key];
+		if (value !== undefined) env[key] = value;
+	}
+	return env;
+}
+
 function inspectSource(path: string): {
 	path: string;
 	revision: string;
@@ -278,10 +341,18 @@ function inspectSource(path: string): {
 } {
 	const revision = execFileSync("git", ["-C", path, "rev-parse", "HEAD"], {
 		encoding: "utf8",
+		timeout: 30_000,
+		env: safeGitEnv(),
 	}).trim();
-	const workingTree = execFileSync("git", ["-C", path, "status", "--porcelain"], {
-		encoding: "utf8",
-	}).trim()
+	const workingTree = execFileSync(
+		"git",
+		["-C", path, "status", "--porcelain"],
+		{
+			encoding: "utf8",
+			timeout: 30_000,
+			env: safeGitEnv(),
+		},
+	).trim()
 		? "Dirty"
 		: "Clean";
 	return { path, revision, workingTree };
@@ -294,6 +365,10 @@ function createWorkspace(
 ): string {
 	const workspacePath = join(workspaceRoot, runIdentifier);
 	mkdirSync(workspaceRoot, { recursive: true });
-	execFileSync("git", ["clone", "--quiet", sourcePath, workspacePath]);
+	execFileSync(
+		"git",
+		["clone", "--quiet", "--no-hardlinks", sourcePath, workspacePath],
+		{ timeout: 30_000, env: safeGitEnv() },
+	);
 	return workspacePath;
 }

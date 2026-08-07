@@ -85,7 +85,7 @@ just obs                   # the trace UI, needs bun
 bun adws/adw_prompt.ts "reply with a one-line summary of this repo" --agent scout
 ```
 
-Re-running `install.ts` is safe. It skips every file that already exists and reports what it skipped, so a second run doubles as a drift check. `--force` refreshes stamped code to the skill's current version, but it overwrites **all** stamped files including your `sssf.config.yaml` and your prompts, so commit first.
+Re-running `install.ts` is safe. It skips every file that already exists and reports what it skipped, so a second run doubles as a drift check. `--update` refreshes runtime files while preserving your config, prompts, harness extensions, and justfile. `--force` refreshes **all** stamped files, including your `sssf.config.yaml` and your prompts, so commit first.
 
 Green on the smoke test means the whole path works: config validated, session minted, Pi ran, envelope parsed, events landed in `adws/adw_data/sssf.db`. Fix it there before composing anything larger, because every multi-agent chain rides this exact path.
 
@@ -370,7 +370,7 @@ Honest edges, because knowing them is cheaper than discovering them.
 | `install.ts --force` | Overwrites **all** stamped files, config and prompts included | Commit before you force |
 | `coding_agent: claude_code` | Schema-valid, but `agent_cc.ts` raises | v1 is Pi only |
 
-Also missing on purpose, so you know what to add: this runs on your current branch. For real work you want a branch per run, a sandbox around the agent, and a merge step at the end.
+The runtime now requires a clean source commit, creates a disposable clone for the run, rechecks the source after completion, and stops at a manual review result. It does not merge, push, deploy, or integrate the clone automatically.
 
 **Is this overkill for a one-off feature?** Yes. Prompt an agent and move on. This earns its keep when the same workflow runs a hundred times, when validation is the only thing standing between you and a bad merge, and when you need the thousandth run to look like the first.
 
@@ -393,7 +393,7 @@ Where to start, roughly in the order that pays off fastest:
 | Your definition of done | `adws/adw_modules/gates.ts` | A gate is one function. Whatever "done" means where you work, write it here |
 | Your agent capabilities | `adws/adw_data/harness_engineering/` | Pi extensions, a different set per agent if that is what the job needs |
 
-And what it deliberately does not do. It runs on your current branch. There is no sandbox, no branch per run, no merge step, no cloud, and no human-in-the-loop approval phase. Those are the obvious next things to build. They are left out so the core stays small enough to read in one sitting, which is the only reason you would trust it enough to change it.
+It still does not provide cloud workers, distributed scheduling, or automatic integration. The local safety boundary is the clean source check, disposable clone, bounded process runner, isolated environment, durable evidence, and manual review Gate.
 
 So take it. Fork it, strip the parts you do not need, rename the agents, throw out half the workflows, and roll what is left into the factory your product actually needs. The specific chains in here matter far less than the shape: code owns the loop, agents own the phases, and every run leaves a trace you can go read.
 

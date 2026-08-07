@@ -15,7 +15,7 @@ Run from the **target repo root** — the cwd is where everything lands. If the 
 `install.ts` copies `templates/` into the cwd:
 
 | Stamped | From | Tracked? |
-|---|---|---|
+| --- | --- | --- |
 | `adws/adw_sssf_config/sssf.config.yaml` | `templates/sssf.config.yaml` | yes — the agent roster |
 | `.env.sample` | `templates/env.sample` | yes |
 | `adws/adw_*.ts` | `templates/adws/` | yes — the twelve starter ADWs |
@@ -31,7 +31,7 @@ The two `*_engineering` dirs mirror the two config keys of the same name: `promp
 
 ## Idempotency
 
-Re-running is safe. `install.ts` skips **every** file that already exists — your config, your prompts, and previously stamped code alike — and reports what it skipped, so a second run doubles as a drift check. To refresh stamped code (`adw_modules/`, the starter `adw_*.ts`) to the skill's current version, run with `--force` — but know that `--force` overwrites ALL existing stamped files, including `sssf.config.yaml` and `prompt_engineering/`, so commit or back up user-owned edits first.
+Re-running is safe. `install.ts` skips **every** file that already exists — your config, your prompts, and previously stamped code alike — and reports what it skipped, so a second run doubles as a drift check. Use `--update` to refresh runtime files while preserving config, prompts, harness extensions, and the justfile. Use `--force` only when you also want to overwrite user-owned files.
 
 ## Post-install checklist
 

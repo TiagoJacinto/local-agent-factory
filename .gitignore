@@ -23,3 +23,9 @@ adws/adw_data/sssf.db*
 .DS_Store
 .idea/
 .vscode/
+
+# sssf runtime
+
+
+# sssf runtime
+adws/adw_data/runs/
