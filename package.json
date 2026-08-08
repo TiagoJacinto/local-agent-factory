@@ -5,11 +5,15 @@
   "type": "module",
   "packageManager": "bun@1.3.14",
   "scripts": {
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "test": "vitest run",
+    "test:unit": "vitest run --project unit",
     "test:hvut": "bunx vitest run --project hvut tests/acceptance/unit/execute-workflow.hvut.ts",
     "typecheck": "bun run typecheck:factory && bun run typecheck:app",
-    "lint": "oxlint src/cli.ts src/workflow.ts tests",
-    "lint:fix": "oxlint src/cli.ts src/workflow.ts tests --fix",
+    "lint": "oxlint src tests",
+    "lint:staged": "oxlint",
+    "lint:fix": "oxlint src tests --fix",
     "start": "bun run src/cli.ts greet",
     "dev": "bun --watch run src/cli.ts greet",
     "typecheck:factory": "bun run typecheck.ts",
@@ -25,6 +29,8 @@
   "devDependencies": {
     "@amiceli/vitest-cucumber": "^7.0.0",
     "@types/bun": "^1.3.4",
+    "lefthook": "^2.1.10",
+    "oxfmt": "^0.62.0",
     "oxlint": "^1.76.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"

@@ -1,0 +1,25 @@
+pre-commit:
+  jobs:
+    - name: format staged files
+      glob: "*.{js,jsx,ts,tsx,json,jsonc}"
+      run: oxfmt {staged_files}
+      stage_fixed: true
+
+    - name: lint staged files
+      glob: "*.{js,jsx,ts,tsx}"
+      run: bun run lint:staged -- {staged_files}
+
+    - name: typecheck
+      run: bun run typecheck
+
+    - name: unit tests
+      run: bun run test:unit
+
+pre-push:
+  parallel: true
+  jobs:
+    - name: lint all source and test files
+      run: bun run lint
+
+    - name: full test suite
+      run: bun run test
