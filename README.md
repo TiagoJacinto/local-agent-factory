@@ -58,7 +58,7 @@ Run this from the root of the target repository:
 curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash
 ```
 
-The installer downloads the skill, copies it to `.pi/skills/`, stamps the factory into the repository, and creates `.env` from `.env.sample` when needed. It requires [`Bun`](https://bun.sh) and `git`.
+The installer downloads the skill, copies it to `.pi/skills/`, stamps the factory into the repository, and creates `.env` from `.env.sample` when needed. It requires [`Bun`](https://bun.sh), `git`, and [`Gitleaks`](https://github.com/gitleaks/gitleaks#installing). Gitleaks blocks secrets before commit and push; GitHub Actions provides the final backstop.
 
 Add your API key to the created `.env`, then smoke-test it:
 
