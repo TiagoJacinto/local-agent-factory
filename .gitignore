@@ -29,3 +29,5 @@ adws/adw_data/sssf.db*
 
 # sssf runtime
 adws/adw_data/runs/
+
+.pi-subagents
