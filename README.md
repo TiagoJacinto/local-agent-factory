@@ -44,45 +44,39 @@ Agents are for the parts that need reading and deciding. Everything else is a `k
 
 The bill for skipping this is not only tokens. It is cost, speed, and consistency, and you pay it on run one hundred and run one thousand, not on run one.
 
-> *Same models. Same prompts. The difference is who owns the loop.*
+> _Same models. Same prompts. The difference is who owns the loop._
 
 ---
 
 ## Install
 
-Two steps: get the skill into your repo, then stamp the factory.
+### One-command install
 
-### Agentic Install
-
-**Claude Code:** Copy `.claude/skills/sssf/` into the target repo and type `/sssf install` inside Claude Code.
-
-**Pi:** Copy `.pi/skills/sssf/` into the target repo and type `/skill:sssf install` inside Pi. Pi discovers project skills from `.pi/skills/` and registers the skill as `/skill:sssf`.
-
-In both agents, `sssf` is the skill name followed by the `install` argument. There is no bare `/install` command. The agent reads the skill's own `cookbooks/install.md` and does the rest.
-
-### Manual Install
-
-**Prereqs:** [`Bun`](https://bun.sh), [`pi`](https://github.com/mariozechner/pi-coding-agent), `sqlite3`, and an API key for whichever providers your roster names (see below).
+Run this from the root of the target repository:
 
 ```bash
-# 1. get the skill into the target repo
-# Choose the directory for your agent. Pi is shown here.
-mkdir -p .pi/skills
-cp -r /path/to/super-simple-software-factory/.pi/skills/sssf .pi/skills/
+curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash
+```
 
-# 2. stamp the factory (run from the target repo ROOT, the cwd is where everything lands)
-bun .pi/skills/sssf/scripts/install.ts
-cp .env.sample .env                              # then set OPENROUTER_API_KEY
-pi --version                                     # confirm pi is on PATH, or set PI_PATH in .env
-git init && git commit --allow-empty -m init     # chains that end in a commit phase need a repo
+The installer downloads the skill, copies it to `.pi/skills/`, stamps the factory into the repository, and creates `.env` from `.env.sample` when needed. It requires [`Bun`](https://bun.sh) and `git`.
 
-# 3. smoke test: two cheap read-only runs, end to end
+Add your API key to the created `.env`, then smoke-test it:
+
+```bash
 just demo
-just sessions              # what just happened
-just obs                   # the trace UI, needs bun
+just sessions
+```
 
-# no just? every recipe is one line. the raw form of `just demo` is:
-bun adws/adw_prompt.ts "reply with a one-line summary of this repo" --agent scout
+In Pi, the installed skill is available as `/skill:sssf`. Ask it to run a scout, plan work, or execute a complete workflow. For Claude Code, copy `.claude/skills/sssf/` instead and use `/sssf install`.
+
+### Manual install
+
+If you prefer not to run a remote script:
+
+```bash
+mkdir -p .pi/skills
+cp -r /path/to/local-agent-factory/.pi/skills/sssf .pi/skills/
+bun .pi/skills/sssf/scripts/install.ts
 ```
 
 Re-running `install.ts` is safe. It skips every file that already exists and reports what it skipped, so a second run doubles as a drift check. `--update` refreshes runtime files while preserving your config, prompts, harness extensions, and justfile. `--force` refreshes **all** stamped files, including your `sssf.config.yaml` and your prompts, so commit first.
@@ -95,15 +89,15 @@ That depends on your roster, not on this repo. Every `model:` in `sssf.config.ya
 
 The starter roster deliberately mixes providers to show the point, so out of the box it wants three:
 
-| Model in the starter roster | Provider | Key |
-| --- | --- | --- |
-| `google/gemini-3.6-flash` (default, builder, scout) | served via openrouter | `OPENROUTER_API_KEY` |
-| `fireworks/accounts/fireworks/models/kimi-k3` (planner) | fireworks | `FIREWORKS_API_KEY` |
-| `openai/gpt-5.6-terra`, `openai/gpt-5.6-luna` (reviewer, documenter) | openai | `OPENAI_API_KEY` |
+| Model in the starter roster                                          | Provider              | Key                  |
+| -------------------------------------------------------------------- | --------------------- | -------------------- |
+| `google/gemini-3.6-flash` (default, builder, scout)                  | served via openrouter | `OPENROUTER_API_KEY` |
+| `fireworks/accounts/fireworks/models/kimi-k3` (planner)              | fireworks             | `FIREWORKS_API_KEY`  |
+| `openai/gpt-5.6-terra`, `openai/gpt-5.6-luna` (reviewer, documenter) | openai                | `OPENAI_API_KEY`     |
 
 **Want one key instead of three?** Delete the per-agent `model:` lines and let every agent inherit `defaults.model`. The whole roster then runs on one provider. Cheapest way to get a first green run.
 
-One sharp edge worth knowing: `agents.validate()` checks that a model is *written* as `provider/id`, not that the provider is reachable or that its key is set. A missing key does not fail at startup. It fails when that agent runs, partway into a chain.
+One sharp edge worth knowing: `agents.validate()` checks that a model is _written_ as `provider/id`, not that the provider is reachable or that its key is set. A missing key does not fail at startup. It fails when that agent runs, partway into a chain.
 
 ---
 
@@ -129,16 +123,16 @@ There are three actors here, and the design keeps them separate on purpose: **th
 
 The skill package lives in `.claude/skills/sssf/` for Claude Code and `.pi/skills/sssf/` for Pi. Both copies contain the same hard rules, cookbooks, references, scripts, and templates. `SKILL.md` routes each request to one of nine cookbooks; `templates/` holds exactly what gets stamped.
 
-| What lands in your repo | Where it comes from | Tracked |
-| --- | --- | --- |
-| `adws/adw_sssf_config/sssf.config.yaml` | `templates/sssf.config.yaml` | yes, it is your agent roster |
-| `adws/adw_*.ts` | `templates/adws/` | yes, twelve starter workflows |
-| `adws/adw_modules/` | `templates/adws/adw_modules/` | yes, all low-level logic |
-| `adws/adw_data/prompt_engineering/` | `templates/prompt_engineering/` | yes, **your prompts live here** |
-| `adws/adw_data/harness_engineering/` | `templates/harness_engineering/` | yes, pi extensions |
-| `.env.sample` | `templates/env.sample` | yes |
-| `justfile` | `templates/justfile` | yes, starter recipes to run and watch |
-| `adws/adw_data/sessions/`, `sssf.db` | created at runtime | no, gitignored |
+| What lands in your repo                 | Where it comes from              | Tracked                               |
+| --------------------------------------- | -------------------------------- | ------------------------------------- |
+| `adws/adw_sssf_config/sssf.config.yaml` | `templates/sssf.config.yaml`     | yes, it is your agent roster          |
+| `adws/adw_*.ts`                         | `templates/adws/`                | yes, twelve starter workflows         |
+| `adws/adw_modules/`                     | `templates/adws/adw_modules/`    | yes, all low-level logic              |
+| `adws/adw_data/prompt_engineering/`     | `templates/prompt_engineering/`  | yes, **your prompts live here**       |
+| `adws/adw_data/harness_engineering/`    | `templates/harness_engineering/` | yes, pi extensions                    |
+| `.env.sample`                           | `templates/env.sample`           | yes                                   |
+| `justfile`                              | `templates/justfile`             | yes, starter recipes to run and watch |
+| `adws/adw_data/sessions/`, `sssf.db`    | created at runtime               | no, gitignored                        |
 
 The prompts are yours the moment they land. Edit them in `adws/adw_data/prompt_engineering/{agent}/`, never back inside the skill.
 
@@ -152,10 +146,10 @@ There is no DSL here. No framework to learn. It is TypeScript, YAML, agents, and
 
 ```yaml
 defaults:
-  coding_agent: pi                 # v1 runs pi only, claude_code is schema-valid and stubbed
-  model: google/gemini-3.6-flash   # provider/model-id, a bare id can match several providers
-  thinking: medium                 # off | minimal | low | medium | high | xhigh | max
-  protected_files:                 # no agent may edit the machinery that grades it
+  coding_agent: pi # v1 runs pi only, claude_code is schema-valid and stubbed
+  model: google/gemini-3.6-flash # provider/model-id, a bare id can match several providers
+  thinking: medium # off | minimal | low | medium | high | xhigh | max
+  protected_files: # no agent may edit the machinery that grades it
     - adws/adw_modules/
     - adws/adw_sssf_config/
     - adws/adw_*.ts
@@ -164,15 +158,15 @@ defaults:
 agents:
   - name: planner
     model: fireworks/accounts/fireworks/models/kimi-k3
-    thinking: high                 # per-agent overrides win over defaults
-    color: "#a78bfa"               # this agent's lane swatch in the trace
+    thinking: high # per-agent overrides win over defaults
+    color: "#a78bfa" # this agent's lane swatch in the trace
     purpose: Turn a request into a plan the builder can implement without asking questions.
     prompt_engineering:
       system: adws/adw_data/prompt_engineering/planner/system.md
       user: adws/adw_data/prompt_engineering/planner/user.md
     harness_engineering:
-      - adws/adw_data/harness_engineering/subagents.ts   # this agent can spawn subagents
-    writes:                        # the plan is all it may leave in the repo
+      - adws/adw_data/harness_engineering/subagents.ts # this agent can spawn subagents
+    writes: # the plan is all it may leave in the repo
       - specs/
 ```
 
@@ -244,7 +238,7 @@ class BuildOutput(EnvelopeBase):
 
 Determinism is wired into every step. Agents must return a specific structure, every time. If it does not parse, they get asked again until it does.
 
-Gates verify claims, never predictions. Nobody knows which files an agent will touch before it finishes, so gates run **after** the fact against the envelope's own declarations: `artifacts_exist`, `files_non_empty`, `json_parses`, `diff_matches_claims`, `tests_pass(...)`. A gate is a callable with the signature `gate(envelope, run) -> GateReport`, one `check(item, ok, note)` per thing it examined, so a green gate tells you *what* it verified.
+Gates verify claims, never predictions. Nobody knows which files an agent will touch before it finishes, so gates run **after** the fact against the envelope's own declarations: `artifacts_exist`, `files_non_empty`, `json_parses`, `diff_matches_claims`, `tests_pass(...)`. A gate is a callable with the signature `gate(envelope, run) -> GateReport`, one `check(item, ok, note)` per thing it examined, so a green gate tells you _what_ it verified.
 
 When JSON does not parse or a gate returns violations, **nothing restarts**. The harness re-prompts the same session with a correction naming exactly what was wrong, and the context window stays intact. Pi treats `--session-id` as create-or-continue, so running an agent and continuing it are the same call. A cold restart throws away everything the agent learned. A correction costs one message.
 
@@ -305,7 +299,7 @@ super-simple-software-factory/          # the deployable factory, and nothing el
             └── adw_modules/            # ALL low-level logic, ADW scripts stay thin
 ```
 
-The skill is also what an agent reads to *operate* the factory. `SKILL.md` is the central idea, and the cookbooks are lazily loaded recipes it pulls in one at a time: set up the factory, create an ADW, modify a chain, add an agent, run and monitor. If you can teach an agent to do something, teach it, then go build the thing it cannot.
+The skill is also what an agent reads to _operate_ the factory. `SKILL.md` is the central idea, and the cookbooks are lazily loaded recipes it pulls in one at a time: set up the factory, create an ADW, modify a chain, add an agent, run and monitor. If you can teach an agent to do something, teach it, then go build the thing it cannot.
 
 ---
 
@@ -317,20 +311,20 @@ Every ADW takes the same shape:
 bun adws/adw_*.ts "<prompt or path/to/prompt.md>" [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
 ```
 
-| ADW | Chain | Reach for it when |
-| --- | --- | --- |
-| `adw_prompt` | engineer to \<agent\> | one agent, one prompt, `--agent NAME` picks who |
-| `adw_scout` | engineer to scout | read-only recon, nothing changes |
-| `adw_plan` | engineer to planner | you want the spec before any code |
-| `adw_build` | engineer to builder | the plan already exists |
-| `adw_quality` | engineer to code(quality) | lint, typecheck, build, no agents at all |
-| `adw_plan_build` | planner, builder, git(commit) | small, well-understood work |
-| `adw_build_test` | builder, code(test), bounded fix loop | there is a suite to satisfy |
-| `adw_build_review` | builder, reviewer, bounded revise loop | "is this what was asked for" matters more than "does it run" |
-| `adw_plan_build_test` | plan, build, code(test), git(commit) | the standard chain |
-| `adw_plan_build_test_quality` | same, plus lint/typecheck/build gates | the repo has quality commands worth enforcing |
-| `adw_document` | code(git diff), documenter | write up what just shipped |
-| `adw_simple_sdlc` | plan, build, test, review, document | the work is real and its shape is not obvious |
+| ADW                           | Chain                                  | Reach for it when                                            |
+| ----------------------------- | -------------------------------------- | ------------------------------------------------------------ |
+| `adw_prompt`                  | engineer to \<agent\>                  | one agent, one prompt, `--agent NAME` picks who              |
+| `adw_scout`                   | engineer to scout                      | read-only recon, nothing changes                             |
+| `adw_plan`                    | engineer to planner                    | you want the spec before any code                            |
+| `adw_build`                   | engineer to builder                    | the plan already exists                                      |
+| `adw_quality`                 | engineer to code(quality)              | lint, typecheck, build, no agents at all                     |
+| `adw_plan_build`              | planner, builder, git(commit)          | small, well-understood work                                  |
+| `adw_build_test`              | builder, code(test), bounded fix loop  | there is a suite to satisfy                                  |
+| `adw_build_review`            | builder, reviewer, bounded revise loop | "is this what was asked for" matters more than "does it run" |
+| `adw_plan_build_test`         | plan, build, code(test), git(commit)   | the standard chain                                           |
+| `adw_plan_build_test_quality` | same, plus lint/typecheck/build gates  | the repo has quality commands worth enforcing                |
+| `adw_document`                | code(git diff), documenter             | write up what just shipped                                   |
+| `adw_simple_sdlc`             | plan, build, test, review, document    | the work is real and its shape is not obvious                |
 
 `adw_simple_sdlc` lands three commits from three authors. The plan, the code, and the write-up each get their own, and each message is the words of the agent that produced it.
 
@@ -357,18 +351,18 @@ Reads never block a running workflow, the db is WAL. `install.ts` stamps a `just
 
 Honest edges, because knowing them is cheaper than discovering them.
 
-| Failure | What actually happens | What to do |
-| --- | --- | --- |
-| The test phase reports green on a fresh install | `quality.ts` ships placeholder commands that exit 0. Three ADWs run them as their test phase | Wire your real commands into `quality.ts` before trusting `adw_build_test`, `adw_plan_build_test`, or `adw_simple_sdlc`. This is the first thing to customize |
-| A bare model pattern | The same model sits under several providers, so `gemini-3.6-flash` matches three catalog entries and `agents.validate()` refuses to spawn | Always write `provider/model-id` |
-| `just` is not installed | The stamped `justfile` is a convenience wrapper, nothing depends on it | Every recipe is a one-line `bun` or `sqlite3` command. Open the justfile and run the line yourself |
-| A coding agent hangs silently | No events, no tokens, an empty `raw_output.jsonl`. The trace goes quiet rather than red | Query `processes` for what is alive and kill it children-first. A killed run finalizes its own trace to `fail` |
-| The synced triad drifts | Type, `## Report` example, and `output_type=` disagree, so every call burns correction rounds | Grep the type name and fix all three in one edit |
-| Gates pass, output is bad | Gates check what a predicate can check, not plan quality or code taste | Run the `reviewer`, or read it yourself |
-| An agent edits something it should not | Detected and rolled back after the call, and the phase fails | Expected. Widen that agent's `writes` if the change was legitimate |
-| Commit phase has nothing to commit | `commit_all` raises if the cwd is not a git repo or nothing changed | `git init` with one commit first. A no-op build fails the phase rather than committing nothing |
-| `install.ts --force` | Overwrites **all** stamped files, config and prompts included | Commit before you force |
-| `coding_agent: claude_code` | Schema-valid, but `agent_cc.ts` raises | v1 is Pi only |
+| Failure                                         | What actually happens                                                                                                                     | What to do                                                                                                                                                    |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The test phase reports green on a fresh install | `quality.ts` ships placeholder commands that exit 0. Three ADWs run them as their test phase                                              | Wire your real commands into `quality.ts` before trusting `adw_build_test`, `adw_plan_build_test`, or `adw_simple_sdlc`. This is the first thing to customize |
+| A bare model pattern                            | The same model sits under several providers, so `gemini-3.6-flash` matches three catalog entries and `agents.validate()` refuses to spawn | Always write `provider/model-id`                                                                                                                              |
+| `just` is not installed                         | The stamped `justfile` is a convenience wrapper, nothing depends on it                                                                    | Every recipe is a one-line `bun` or `sqlite3` command. Open the justfile and run the line yourself                                                            |
+| A coding agent hangs silently                   | No events, no tokens, an empty `raw_output.jsonl`. The trace goes quiet rather than red                                                   | Query `processes` for what is alive and kill it children-first. A killed run finalizes its own trace to `fail`                                                |
+| The synced triad drifts                         | Type, `## Report` example, and `output_type=` disagree, so every call burns correction rounds                                             | Grep the type name and fix all three in one edit                                                                                                              |
+| Gates pass, output is bad                       | Gates check what a predicate can check, not plan quality or code taste                                                                    | Run the `reviewer`, or read it yourself                                                                                                                       |
+| An agent edits something it should not          | Detected and rolled back after the call, and the phase fails                                                                              | Expected. Widen that agent's `writes` if the change was legitimate                                                                                            |
+| Commit phase has nothing to commit              | `commit_all` raises if the cwd is not a git repo or nothing changed                                                                       | `git init` with one commit first. A no-op build fails the phase rather than committing nothing                                                                |
+| `install.ts --force`                            | Overwrites **all** stamped files, config and prompts included                                                                             | Commit before you force                                                                                                                                       |
+| `coding_agent: claude_code`                     | Schema-valid, but `agent_cc.ts` raises                                                                                                    | v1 is Pi only                                                                                                                                                 |
 
 The runtime now requires a clean source commit, creates a disposable clone for the run, rechecks the source after completion, and stops at a manual review result. It does not merge, push, deploy, or integrate the clone automatically.
 
@@ -384,14 +378,14 @@ The tests it ships are not your tests. The prompts it ships describe a demo app,
 
 Where to start, roughly in the order that pays off fastest:
 
-| Change | File | Why |
-| --- | --- | --- |
-| Your real commands | `adws/adw_modules/quality.ts` | The shipped blocks are placeholders that exit 0. Until you wire this, your test phase is theater |
-| Your prompts | `adws/adw_data/prompt_engineering/{agent}/` | Where your standards live: what a good plan looks like, what a review has to catch |
-| Your roster | `adws/adw_sssf_config/sssf.config.yaml` | Models, thinking levels, tools, and what each agent is allowed to write |
-| Your chains | `adws/adw_*.ts` | Copy the closest workflow and edit the phase list. They are 40 to 180 lines on purpose |
-| Your definition of done | `adws/adw_modules/gates.ts` | A gate is one function. Whatever "done" means where you work, write it here |
-| Your agent capabilities | `adws/adw_data/harness_engineering/` | Pi extensions, a different set per agent if that is what the job needs |
+| Change                  | File                                        | Why                                                                                              |
+| ----------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Your real commands      | `adws/adw_modules/quality.ts`               | The shipped blocks are placeholders that exit 0. Until you wire this, your test phase is theater |
+| Your prompts            | `adws/adw_data/prompt_engineering/{agent}/` | Where your standards live: what a good plan looks like, what a review has to catch               |
+| Your roster             | `adws/adw_sssf_config/sssf.config.yaml`     | Models, thinking levels, tools, and what each agent is allowed to write                          |
+| Your chains             | `adws/adw_*.ts`                             | Copy the closest workflow and edit the phase list. They are 40 to 180 lines on purpose           |
+| Your definition of done | `adws/adw_modules/gates.ts`                 | A gate is one function. Whatever "done" means where you work, write it here                      |
+| Your agent capabilities | `adws/adw_data/harness_engineering/`        | Pi extensions, a different set per agent if that is what the job needs                           |
 
 It still does not provide cloud workers, distributed scheduling, or automatic integration. The local safety boundary is the clean source check, disposable clone, bounded process runner, isolated environment, durable evidence, and manual review Gate.
 
