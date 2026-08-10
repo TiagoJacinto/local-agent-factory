@@ -51,7 +51,7 @@ Every ADW run is a sequence of **phases**, each one `await run.phase({...}, hand
 
 ## Envelopes
 
-Agents have exactly two output channels: reference files written into `context_handoff/`, and a **final valid-JSON response** parsed against the output type the call declared. Code persists it as `envelope.json` and injects it into the next agent's `user.md` via `{{previous_envelope}}`. Bad JSON is never a restart — the harness re-prompts the *same session, context intact*, until it parses (bounded). See `references/handoff.md`.
+Agents have exactly two output channels: reference files written into `context_handoff/`, and a **final valid-JSON response** parsed against the output type the call declared. Code persists it as `envelope.json` and injects it into the next agent's `user.md` via `{{previous_envelope}}`. Bad JSON is never a restart — the harness re-prompts the _same session, context intact_, until it parses (bounded). See `references/handoff.md`.
 
 **The output contract is a synced triad**: the type in `data_types.ts` ↔ the `## Report` JSON example in the agent's `user.md` ↔ `output_type=` at the call site. Editing any one of the three means editing all three in the same change — drift between them taxes every call with correction retries.
 
@@ -74,15 +74,15 @@ Do not survey anything else — not the trace db, not the config, not past runs,
 
 Load one cookbook per request — this overview is the only one you read up front.
 
-| Request | Cookbook |
-|---|---|
+| Request                                    | Cookbook                                                      |
+| ------------------------------------------ | ------------------------------------------------------------- |
 | Turn a request into the prompt an ADW gets | `how_to_prompt_for_the_eng.md` — **read before every launch** |
-| Set the system up in a repo | `install.md` |
-| Write a new ADW script | `create_adw.md` |
-| Change an existing ADW chain | `update_adw.md` |
-| Generate `sssf.config.yaml` | `create_config.md` |
-| Add or retune an agent | `update_config.md` |
-| Add low-level logic or a gate | `update_modules.md` |
-| Run and monitor a workflow | `how_to_prompt_for_the_eng.md`, then `run_adw.md` |
+| Set the system up in a repo                | `install.md`                                                  |
+| Write a new ADW script                     | `create_adw.md`                                               |
+| Change an existing ADW chain               | `update_adw.md`                                               |
+| Generate `sssf.config.yaml`                | `create_config.md`                                            |
+| Add or retune an agent                     | `update_config.md`                                            |
+| Add low-level logic or a gate              | `update_modules.md`                                           |
+| Run and monitor a workflow                 | `how_to_prompt_for_the_eng.md`, then `run_adw.md`             |
 
 References, loaded when you need the spec: `references/config.md` (full config schema), `references/handoff.md` (envelope + session layout), `references/observability.md` (events, db tables, polling).

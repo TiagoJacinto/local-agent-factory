@@ -1,52 +1,52 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
-import type { SessionSummary } from '../lib/types'
-import { fetchSessions } from '../lib/api'
-import { ts } from '../lib/format'
-import SessionCard from './SessionCard.vue'
+import { computed, onMounted, onUnmounted, ref, shallowRef } from "vue";
+import type { SessionSummary } from "../lib/types";
+import { fetchSessions } from "../lib/api";
+import { ts } from "../lib/format";
+import SessionCard from "./SessionCard.vue";
 
-const sessions = shallowRef<SessionSummary[]>([])
-const apiError = ref<string | null>(null)
-const loaded = ref(false)
-const nowMs = ref(Date.now())
+const sessions = shallowRef<SessionSummary[]>([]);
+const apiError = ref<string | null>(null);
+const loaded = ref(false);
+const nowMs = ref(Date.now());
 
-let timer: ReturnType<typeof setInterval> | undefined
-let inflight = false
+let timer: ReturnType<typeof setInterval> | undefined;
+let inflight = false;
 
 async function tick() {
-  if (inflight) return
-  inflight = true
+  if (inflight) return;
+  inflight = true;
   try {
-    sessions.value = await fetchSessions()
-    nowMs.value = Date.now()
-    apiError.value = null
-    loaded.value = true
+    sessions.value = await fetchSessions();
+    nowMs.value = Date.now();
+    apiError.value = null;
+    loaded.value = true;
   } catch (err) {
-    apiError.value = err instanceof Error ? err.message : String(err)
+    apiError.value = err instanceof Error ? err.message : String(err);
   } finally {
-    inflight = false
+    inflight = false;
   }
 }
 
 onMounted(() => {
-  void tick()
-  timer = setInterval(() => void tick(), 500)
-})
+  void tick();
+  timer = setInterval(() => void tick(), 500);
+});
 
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => clearInterval(timer));
 
 /** Optimistic removal; an empty id means the write failed, so re-sync instead. */
 function onArchived(adwId: string) {
   if (!adwId) {
-    void tick()
-    return
+    void tick();
+    return;
   }
-  sessions.value = sessions.value.filter((s) => s.adw_id !== adwId)
+  sessions.value = sessions.value.filter((s) => s.adw_id !== adwId);
 }
 
 const ordered = computed(() =>
   sessions.value.toSorted((a, b) => (ts(b.started_at) || 0) - (ts(a.started_at) || 0)),
-)
+);
 </script>
 
 <template>
@@ -88,9 +88,4 @@ const ordered = computed(() =>
   gap: 18px;
   padding: 16px 24px 28px;
 }
-
-
-
-
-
 </style>

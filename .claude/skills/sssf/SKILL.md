@@ -44,16 +44,16 @@ You run the system, observe the system, and help the user interact with it. **Yo
 
 ## Request routing (lazy-load the cookbook, then follow it)
 
-| Request | Cookbook |
-|---|---|
-| `/sssf install`, set up the factory in this repo | [cookbooks/install.md](cookbooks/install.md) |
-| create a new ADW / workflow | [cookbooks/create_adw.md](cookbooks/create_adw.md) |
-| modify an existing ADW chain | [cookbooks/update_adw.md](cookbooks/update_adw.md) |
-| create the config / agent roster | [cookbooks/create_config.md](cookbooks/create_config.md) |
-| add or retune an agent (model, thinking, tools, prompts) | [cookbooks/update_config.md](cookbooks/update_config.md) |
-| extend adw_modules with new low-level logic | [cookbooks/update_modules.md](cookbooks/update_modules.md) |
-| run / monitor an ADW | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md) **first**, then [cookbooks/run_adw.md](cookbooks/run_adw.md) |
-| turn a request into an ADW prompt | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md) |
+| Request                                                  | Cookbook                                                                                                                                      |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/sssf install`, set up the factory in this repo         | [cookbooks/install.md](cookbooks/install.md)                                                                                                  |
+| create a new ADW / workflow                              | [cookbooks/create_adw.md](cookbooks/create_adw.md)                                                                                            |
+| modify an existing ADW chain                             | [cookbooks/update_adw.md](cookbooks/update_adw.md)                                                                                            |
+| create the config / agent roster                         | [cookbooks/create_config.md](cookbooks/create_config.md)                                                                                      |
+| add or retune an agent (model, thinking, tools, prompts) | [cookbooks/update_config.md](cookbooks/update_config.md)                                                                                      |
+| extend adw_modules with new low-level logic              | [cookbooks/update_modules.md](cookbooks/update_modules.md)                                                                                    |
+| run / monitor an ADW                                     | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md) **first**, then [cookbooks/run_adw.md](cookbooks/run_adw.md) |
+| turn a request into an ADW prompt                        | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md)                                                              |
 
 Deep specs, when needed: [references/config.md](references/config.md) · [references/handoff.md](references/handoff.md) · [references/observability.md](references/observability.md)
 

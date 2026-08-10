@@ -12,32 +12,32 @@ Location comes from `observability.db` in `sssf.config.yaml`, default `adws/adw_
 
 `tracer.ts` emits these types, every one logged against its `adw_id` **and** `phase_id`:
 
-| Type | Emitted when |
-|---|---|
-| `phase_start` | a `run.phase(...)` block is entered |
-| `agent_start` | a coding agent is spawned or resumed for `ph.call(...)` |
-| `tool_call` | a tool (`read`, `bash`, `edit`, `write`) returns — **one event per real call**, named `bash: ls -la src`, payload `{tool, tool_call_id, args, result_snippet, ok, duration_ms, agent}` |
-| `handoff` | an envelope crosses from one agent to the next |
-| `gate_pass` | a gate found no failed checks — payload carries `attempt`, `checks` (the evidence), and an empty `violations` |
-| `gate_fail` | a gate found at least one failed check — payload carries `attempt`, `checks`, and `violations` |
-| `log` | an explicit `ph.log(...)` from the ADW script |
-| `agent_end` | the agent's run completes; envelope parsed or not — payload carries `cost`, `usage` (the per-component breakdown), `context_tokens`, `context_window` |
-| `phase_end` | the block exits; carries the resolved status |
-| `error` | a raise inside a phase block |
+| Type          | Emitted when                                                                                                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `phase_start` | a `run.phase(...)` block is entered                                                                                                                                                    |
+| `agent_start` | a coding agent is spawned or resumed for `ph.call(...)`                                                                                                                                |
+| `tool_call`   | a tool (`read`, `bash`, `edit`, `write`) returns — **one event per real call**, named `bash: ls -la src`, payload `{tool, tool_call_id, args, result_snippet, ok, duration_ms, agent}` |
+| `handoff`     | an envelope crosses from one agent to the next                                                                                                                                         |
+| `gate_pass`   | a gate found no failed checks — payload carries `attempt`, `checks` (the evidence), and an empty `violations`                                                                          |
+| `gate_fail`   | a gate found at least one failed check — payload carries `attempt`, `checks`, and `violations`                                                                                         |
+| `log`         | an explicit `ph.log(...)` from the ADW script                                                                                                                                          |
+| `agent_end`   | the agent's run completes; envelope parsed or not — payload carries `cost`, `usage` (the per-component breakdown), `context_tokens`, `context_window`                                  |
+| `phase_end`   | the block exits; carries the resolved status                                                                                                                                           |
+| `error`       | a raise inside a phase block                                                                                                                                                           |
 
 `parent_id` nests spans, so an agent phase expands into its tool-call spans in the UI.
 
-**Spend is itemised per phase.** `agent_end.usage` carries tokens *and* dollars for each component pi reports — `input`, `output`, `cache_read`, `cache_write` — summed across every send the phase made, so a phase that retried on a bad envelope or a failed gate shows what all its attempts cost, not just the last one. The four components sum to `total_tokens`, and their costs sum to `total_cost`; the visualizer's Cost panel renders them as a table you can add up by eye.
+**Spend is itemised per phase.** `agent_end.usage` carries tokens _and_ dollars for each component pi reports — `input`, `output`, `cache_read`, `cache_write` — summed across every send the phase made, so a phase that retried on a bad envelope or a failed gate shows what all its attempts cost, not just the last one. The four components sum to `total_tokens`, and their costs sum to `total_cost`; the visualizer's Cost panel renders them as a table you can add up by eye.
 
 `reasoning_tokens` is the thinking share and is **inside** `output_tokens`, not a fifth component — measured across every session on disk, reasoning never exceeds output and the four components always reconcile to the total. It bills at the output rate, so the panel nests it under output rather than adding it. Runs predating the breakdown have no `usage` key at all; the lump `cost` and the event's own `tokens` still stand, and the UI says so rather than rendering zeroes.
 
 **Context is occupancy, not spend.** `events.tokens` and `sessions.total_tokens` bill every turn, so they only grow — an agent that burned 100k tokens may be sitting in a 15k window. `context_tokens` is how full the window actually was when the agent stopped, which is what the visualizer's per-lane Context bar measures against `context_window`.
 
-It is computed the way pi computes it for its own footer and its auto-compaction trigger (`calculateContextTokens` in the coding agent's `core/compaction/compaction.ts`): take the last *valid* assistant turn — skipping `aborted` and `error` turns — and read `usage.totalTokens`, falling back to `input + output + cacheRead + cacheWrite`. Cache reads count; cached prompt is still prompt. `context_window` is the same `contextWindow` pi reads from `~/.pi/agent/models.json`, so `context_tokens / context_window` is the number pi would show. Both are NULL on rows written before the columns existed, and the lane draws no bar rather than a misleading empty one.
+It is computed the way pi computes it for its own footer and its auto-compaction trigger (`calculateContextTokens` in the coding agent's `core/compaction/compaction.ts`): take the last _valid_ assistant turn — skipping `aborted` and `error` turns — and read `usage.totalTokens`, falling back to `input + output + cacheRead + cacheWrite`. Cache reads count; cached prompt is still prompt. `context_window` is the same `contextWindow` pi reads from `~/.pi/agent/models.json`, so `context_tokens / context_window` is the number pi would show. Both are NULL on rows written before the columns existed, and the lane draws no bar rather than a misleading empty one.
 
-Two caveats worth knowing. Pi adds an *estimate* for any messages trailing the last assistant usage; in a batch (`-p`) run the session ends on that message, so the two agree. And if auto-compaction fires as the very last act of a run, the recorded number is the pre-compaction size — pi itself reports `null` in that window rather than guessing.
+Two caveats worth knowing. Pi adds an _estimate_ for any messages trailing the last assistant usage; in a batch (`-p`) run the session ends on that message, so the two agree. And if auto-compaction fires as the very last act of a run, the recorded number is the pre-compaction size — pi itself reports `null` in that window rather than guessing.
 
-**Gates record evidence, not just a verdict.** A gate returns one `{item, ok, note}` check per thing it looked at, and `violations` are derived from the failed ones. Both land in `gate_results` (`checks_json` + `violations_json`) and in the `gate_pass`/`gate_fail` payload, so a green gate can answer *what did you verify* — `{"item": "…/plan.md", "ok": true, "note": "exists, 454B"}` — rather than only *did it pass*. Rows written before this existed have `checks_json` NULL; treat that as "no evidence recorded", not "nothing checked".
+**Gates record evidence, not just a verdict.** A gate returns one `{item, ok, note}` check per thing it looked at, and `violations` are derived from the failed ones. Both land in `gate_results` (`checks_json` + `violations_json`) and in the `gate_pass`/`gate_fail` payload, so a green gate can answer _what did you verify_ — `{"item": "…/plan.md", "ok": true, "note": "exists, 454B"}` — rather than only _did it pass_. Rows written before this existed have `checks_json` NULL; treat that as "no evidence recorded", not "nothing checked".
 
 The gate event payload carries `attempt` too, so the `gate_results` table and the event stream are equivalent sources — a live consumer can group gate results per correction round from events alone, without a second query.
 

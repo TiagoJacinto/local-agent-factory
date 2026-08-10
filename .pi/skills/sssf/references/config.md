@@ -9,7 +9,7 @@ It lives at **`adws/adw_sssf_config/sssf.config.yaml`** — the default path eve
 ```yaml
 defaults:
   coding_agent: pi
-  model: google/gemini-3.6-flash        # ALWAYS provider/model-id
+  model: google/gemini-3.6-flash # ALWAYS provider/model-id
   thinking: medium
   harness_engineering: []
   tools: [read, bash, edit, write, grep, find, ls]
@@ -22,7 +22,7 @@ observability:
 agents:
   - name: planner
     coding_agent: pi
-    model: google/gemini-3.6-flash        # ALWAYS provider/model-id
+    model: google/gemini-3.6-flash # ALWAYS provider/model-id
     thinking: high
     color: "#a78bfa"
     purpose: Turn a request into a plan the builder can implement without asking questions.
@@ -40,38 +40,38 @@ agents:
 
 ### `defaults`
 
-| Field | Type | Meaning |
-|---|---|---|
-| `coding_agent` | `pi` \| `claude_code` | Which interface runs the agent. **v1 implements `pi` only**; `claude_code` is specced and stubbed in `agent_cc.ts`, landing in v2. |
-| `model` | string | Model id. For Pi, any id registered in `~/.pi/agent/models.json`. Default `gemini-3.6-flash`. |
-| `thinking` | enum | Reasoning effort — see below. Default `medium`. |
-| `color` | hex string | Lane color for every agent that does not set its own. Default empty — the visualizer falls back to its own palette. |
-| `harness_engineering` | list[string] | Coding-agent extensions. Pi: extension names. Claude Code: reserved (MCP, hooks). |
-| `tools` | list[string] | Roster-wide tool allowlist. Every agent that omits its own `tools` inherits this. Unset = all tools usable. |
-| `protected_files` | list[string] | Paths **no** agent may modify unless it names them in its own `writes`. Default: `adws/adw_modules/`, `adws/adw_sssf_config/`, `adws/adw_*.ts` — an agent must not be able to edit the machinery that decides whether its work passed. |
-| `data_dir` | path | Runtime home. Sessions land at `{data_dir}/sessions/{adw_id}/{agent_name}/`. Default `adws/adw_data`. |
+| Field                 | Type                  | Meaning                                                                                                                                                                                                                                |
+| --------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coding_agent`        | `pi` \| `claude_code` | Which interface runs the agent. **v1 implements `pi` only**; `claude_code` is specced and stubbed in `agent_cc.ts`, landing in v2.                                                                                                     |
+| `model`               | string                | Model id. For Pi, any id registered in `~/.pi/agent/models.json`. Default `gemini-3.6-flash`.                                                                                                                                          |
+| `thinking`            | enum                  | Reasoning effort — see below. Default `medium`.                                                                                                                                                                                        |
+| `color`               | hex string            | Lane color for every agent that does not set its own. Default empty — the visualizer falls back to its own palette.                                                                                                                    |
+| `harness_engineering` | list[string]          | Coding-agent extensions. Pi: extension names. Claude Code: reserved (MCP, hooks).                                                                                                                                                      |
+| `tools`               | list[string]          | Roster-wide tool allowlist. Every agent that omits its own `tools` inherits this. Unset = all tools usable.                                                                                                                            |
+| `protected_files`     | list[string]          | Paths **no** agent may modify unless it names them in its own `writes`. Default: `adws/adw_modules/`, `adws/adw_sssf_config/`, `adws/adw_*.ts` — an agent must not be able to edit the machinery that decides whether its work passed. |
+| `data_dir`            | path                  | Runtime home. Sessions land at `{data_dir}/sessions/{adw_id}/{agent_name}/`. Default `adws/adw_data`.                                                                                                                                  |
 
 ### `observability`
 
-| Field | Type | Meaning |
-|---|---|---|
-| `db` | path | SQLite trace db. `tracer.ts` writes it directly; the visualizer polls it. Default `adws/adw_data/sssf.db`. |
-| `poll_ms` | int | Visualizer live-poll cadence in ms. History uses the same queries, lazy-paged. Default `500`. |
+| Field     | Type | Meaning                                                                                                    |
+| --------- | ---- | ---------------------------------------------------------------------------------------------------------- |
+| `db`      | path | SQLite trace db. `tracer.ts` writes it directly; the visualizer polls it. Default `adws/adw_data/sssf.db`. |
+| `poll_ms` | int  | Visualizer live-poll cadence in ms. History uses the same queries, lazy-paged. Default `500`.              |
 
 ### `agents[]`
 
-| Field | Required | Meaning |
-|---|---|---|
-| `name` | yes | The identifier ADW scripts use. **ADWs name agents, never models.** |
-| `purpose` | yes | One sentence: what this agent is for. Should match its `system.md` Purpose. |
-| `prompt_engineering.system` | yes | Path to the system prompt — who the agent is, its single purpose, its output contract. |
-| `prompt_engineering.user` | yes | Path to the default user prompt — the task template with `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`. |
-| `color` | no | Hex swatch (`"#a78bfa"`) for this agent's lane in the visualizer. Travels config → `agent_sessions.color` → `/api/sessions/:adw_id`, and rides the `agent_start` event so a lane is colored while the agent is still running. Unset = the UI's fallback palette. |
-| `coding_agent`, `model`, `thinking`, `color`, `harness_engineering` | no | Override the corresponding `defaults` key. |
-| `tools` | no | Allowlist. **Omitting the key means all tools usable.** A capability list, not a boundary — see `writes`. |
-| `writes` | no | What this agent may modify **in the repo**, enforced after every call. Omitted = unrestricted (still barred from `protected_files`). `[]` = no repo writes at all. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **The session runtime under `data_dir` is always writable** — `writes: []` means read-only with respect to the repo, not unable to write its own report. |
+| Field                                                               | Required | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                                              | yes      | The identifier ADW scripts use. **ADWs name agents, never models.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `purpose`                                                           | yes      | One sentence: what this agent is for. Should match its `system.md` Purpose.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `prompt_engineering.system`                                         | yes      | Path to the system prompt — who the agent is, its single purpose, its output contract.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `prompt_engineering.user`                                           | yes      | Path to the default user prompt — the task template with `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `color`                                                             | no       | Hex swatch (`"#a78bfa"`) for this agent's lane in the visualizer. Travels config → `agent_sessions.color` → `/api/sessions/:adw_id`, and rides the `agent_start` event so a lane is colored while the agent is still running. Unset = the UI's fallback palette.                                                                                                                                                                                                                                                                                  |
+| `coding_agent`, `model`, `thinking`, `color`, `harness_engineering` | no       | Override the corresponding `defaults` key.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `tools`                                                             | no       | Allowlist. **Omitting the key means all tools usable.** A capability list, not a boundary — see `writes`.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `writes`                                                            | no       | What this agent may modify **in the repo**, enforced after every call. Omitted = unrestricted (still barred from `protected_files`). `[]` = no repo writes at all. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **The session runtime under `data_dir` is always writable** — `writes: []` means read-only with respect to the repo, not unable to write its own report. |
 
-Output types are deliberately absent: config defines who an agent *is*; the ADW call site defines how it's *used*. One agent serves many calls — same system prompt, different user prompt + output type per call.
+Output types are deliberately absent: config defines who an agent _is_; the ADW call site defines how it's _used_. One agent serves many calls — same system prompt, different user prompt + output type per call.
 
 ## Defaults merging
 
@@ -89,7 +89,7 @@ Mapped to Pi's reasoning effort control and honored when the model is registered
 
 ## Model resolution
 
-**Always write `model` as `provider/model-id`.** `agents.ts` hands the string to the Pi interface, which resolves it against pi's merged catalog — `~/.pi/agent/models.json` plus pi's built-in providers. The same model is usually carried by more than one provider (`gemini-3.6-flash` lives under `google` *and* under `openrouter` as `google/gemini-3.6-flash`), and a bare id that matches several **raises at resolution**:
+**Always write `model` as `provider/model-id`.** `agents.ts` hands the string to the Pi interface, which resolves it against pi's merged catalog — `~/.pi/agent/models.json` plus pi's built-in providers. The same model is usually carried by more than one provider (`gemini-3.6-flash` lives under `google` _and_ under `openrouter` as `google/gemini-3.6-flash`), and a bare id that matches several **raises at resolution**:
 
 ```
 agent 'scout': model pattern 'gemini-3.6-flash' is ambiguous:
@@ -109,15 +109,15 @@ Other consequences worth knowing:
 
 `tools` maps to `pi --tools`. Pi's seven builtin tool names:
 
-| Tool | Purpose | Pi's own default |
-|---|---|---|
-| `read` | read file contents | on |
-| `bash` | execute bash commands | on |
-| `edit` | find/replace edits | on |
-| `write` | create/overwrite files | on |
-| `grep` | search file contents | **off** |
-| `find` | find files by glob | **off** |
-| `ls` | list directory contents | **off** |
+| Tool    | Purpose                 | Pi's own default |
+| ------- | ----------------------- | ---------------- |
+| `read`  | read file contents      | on               |
+| `bash`  | execute bash commands   | on               |
+| `edit`  | find/replace edits      | on               |
+| `write` | create/overwrite files  | on               |
+| `grep`  | search file contents    | **off**          |
+| `find`  | find files by glob      | **off**          |
+| `ls`    | list directory contents | **off**          |
 
 `grep`, `find`, and `ls` are off in bare Pi, so an agent that does not name them will shell out through `bash` to do the same work. The starter roster therefore sets `defaults.tools` to all seven and lets each agent narrow from there.
 
@@ -156,9 +156,9 @@ defaults:
   protected_files: [adws/adw_modules/, adws/adw_sssf_config/, "adws/adw_*.ts"]
 
 agents:
-  - name: builder      # no `writes` key -> unrestricted, minus protected_files
+  - name: builder # no `writes` key -> unrestricted, minus protected_files
   - name: scout
-    writes: []         # no repo writes; its findings still land in context_handoff/
+    writes: [] # no repo writes; its findings still land in context_handoff/
   - name: planner
     writes: [specs/]
   - name: documenter
@@ -172,7 +172,7 @@ from `data_dir` rather than from `.gitignore`: the runtime is normally ignored,
 so it never even appears in a snapshot, but an agent's ability to record its own
 work must not depend on a gitignore line someone can delete.
 
-Narrow by role, not by reflex. Anything that must produce a `context_handoff/` artifact needs `write`, or it will resort to a `bash` heredoc. Withhold `edit`/`write` only where the restriction *is* the guarantee — a reviewer that cannot edit cannot quietly fix what it was asked to report.
+Narrow by role, not by reflex. Anything that must produce a `context_handoff/` artifact needs `write`, or it will resort to a `bash` heredoc. Withhold `edit`/`write` only where the restriction _is_ the guarantee — a reviewer that cannot edit cannot quietly fix what it was asked to report.
 
 ### Extension tools must be named explicitly
 
@@ -181,19 +181,19 @@ Narrow by role, not by reflex. Anything that must produce a `context_handoff/` a
 This fails quietly. The extension still loads, the run still succeeds, and the tool the extension exists to provide is simply never offered to the model — you find out by noticing the agent never called it.
 
 ```yaml
-  - name: reviewer
-    harness_engineering:
-      - .pi/extensions/ast_query.ts     # registers tool: ast_query
-    tools:
-      - read
-      - grep
-      - find
-      - ls
-      - bash
-      - ast_query                       # REQUIRED — the extension's tool, named or lost
+- name: reviewer
+  harness_engineering:
+    - .pi/extensions/ast_query.ts # registers tool: ast_query
+  tools:
+    - read
+    - grep
+    - find
+    - ls
+    - bash
+    - ast_query # REQUIRED — the extension's tool, named or lost
 ```
 
-Rule: **every entry in `harness_engineering` that registers a tool must have that tool name added to the agent's `tools` list.** Adding an extension is therefore a two-line change, never one. The alternative is dropping the `tools` key *and* leaving `defaults.tools` unset so the agent resolves to `None` (all tools) — but with a roster-wide `defaults.tools` in place, that escape hatch is closed; naming the tool is the only path.
+Rule: **every entry in `harness_engineering` that registers a tool must have that tool name added to the agent's `tools` list.** Adding an extension is therefore a two-line change, never one. The alternative is dropping the `tools` key _and_ leaving `defaults.tools` unset so the agent resolves to `None` (all tools) — but with a roster-wide `defaults.tools` in place, that escape hatch is closed; naming the tool is the only path.
 
 ## Harness engineering
 

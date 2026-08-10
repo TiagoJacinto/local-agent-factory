@@ -23,4 +23,4 @@ export type {
   PhaseStatus,
   PhaseKind,
   EventType,
-} from '@shared/types'
+} from "@shared/types";

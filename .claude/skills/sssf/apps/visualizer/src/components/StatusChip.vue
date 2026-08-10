@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { Check, Circle, LoaderCircle, X } from 'lucide-vue-next'
+import { Check, Circle, LoaderCircle, X } from "lucide-vue-next";
 
-defineProps<{ status: string }>()
+defineProps<{ status: string }>();
 
 const ICONS: Record<string, unknown> = {
   success: Check,
   fail: X,
   running: LoaderCircle,
   queued: Circle,
-}
+};
 </script>
 
 <template>

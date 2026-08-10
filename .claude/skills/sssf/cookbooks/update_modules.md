@@ -8,22 +8,22 @@ Extend `adws/adw_modules/` with new low-level logic.
 
 ## Where things go
 
-| Module | Owns |
-|---|---|
-| `data_types.ts` | Every Pydantic model: `AgentCall`, `PhaseParams`, `Phase`, `EnvelopeBase` + one output type per agent call, the config models (`AgentConfig`, `SSSFConfig`), `EventRecord`, and `PiRequest`/`PiResult` |
-| `agents.ts` | `load_config`, `validate`, resolving an entry → coding-agent interface + model + thinking + harness extensions |
-| `runner.ts` | the `Run` object; `run.phase(PhaseParams)` context manager; `ph.call(AgentCall)` |
-| `agent_pi.ts` | the Pi interface (v1) — non-interactive `pi -p --mode json`, JSONL stream tailed live, model resolved against `~/.pi/agent/models.json`; `--session-id` creates-or-continues, so running and continuing an agent are the same call |
-| `agent_cc.ts` | the Claude Code interface — stubbed in v1, lands in v2 |
-| `gates.ts` | validation gates over envelope claims |
-| `changes.ts` | deterministic change capture: resolve the base ref, `git diff` into `context_handoff/changes.diff`, adapt the `ChangeSet` into an envelope an agent can be handed |
-| `prompts.ts` | load system/user prompt refs from config, render placeholders |
-| `session.ts` | mint or join `adw_id`, maintain `agent_map.json`, create session dirs incl. `context_handoff/` |
-| `tracer.ts` | append JSONL **and** insert every event into `sssf.db` as it happens |
-| `console.ts` | the terminal narrative — every line printed also lands in the db as a `log` event, so the UI reads the same story; plain sequential lines, no spinners |
-| `console.ts` | the rich stdout reporter — every line printed is ALSO traced as a `log` event (`{message, level}`) so the terminal and the swim-lane UI tell the same story |
-| `git_helper.ts` | branch, status, diff, commit — the raw plumbing `changes.ts` composes |
-| `utils.ts` | safe subprocess env, logging, `resolve_prompt` |
+| Module          | Owns                                                                                                                                                                                                                               |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_types.ts` | Every Pydantic model: `AgentCall`, `PhaseParams`, `Phase`, `EnvelopeBase` + one output type per agent call, the config models (`AgentConfig`, `SSSFConfig`), `EventRecord`, and `PiRequest`/`PiResult`                             |
+| `agents.ts`     | `load_config`, `validate`, resolving an entry → coding-agent interface + model + thinking + harness extensions                                                                                                                     |
+| `runner.ts`     | the `Run` object; `run.phase(PhaseParams)` context manager; `ph.call(AgentCall)`                                                                                                                                                   |
+| `agent_pi.ts`   | the Pi interface (v1) — non-interactive `pi -p --mode json`, JSONL stream tailed live, model resolved against `~/.pi/agent/models.json`; `--session-id` creates-or-continues, so running and continuing an agent are the same call |
+| `agent_cc.ts`   | the Claude Code interface — stubbed in v1, lands in v2                                                                                                                                                                             |
+| `gates.ts`      | validation gates over envelope claims                                                                                                                                                                                              |
+| `changes.ts`    | deterministic change capture: resolve the base ref, `git diff` into `context_handoff/changes.diff`, adapt the `ChangeSet` into an envelope an agent can be handed                                                                  |
+| `prompts.ts`    | load system/user prompt refs from config, render placeholders                                                                                                                                                                      |
+| `session.ts`    | mint or join `adw_id`, maintain `agent_map.json`, create session dirs incl. `context_handoff/`                                                                                                                                     |
+| `tracer.ts`     | append JSONL **and** insert every event into `sssf.db` as it happens                                                                                                                                                               |
+| `console.ts`    | the terminal narrative — every line printed also lands in the db as a `log` event, so the UI reads the same story; plain sequential lines, no spinners                                                                             |
+| `console.ts`    | the rich stdout reporter — every line printed is ALSO traced as a `log` event (`{message, level}`) so the terminal and the swim-lane UI tell the same story                                                                        |
+| `git_helper.ts` | branch, status, diff, commit — the raw plumbing `changes.ts` composes                                                                                                                                                              |
+| `utils.ts`      | safe subprocess env, logging, `resolve_prompt`                                                                                                                                                                                     |
 
 ## Never `print()`
 

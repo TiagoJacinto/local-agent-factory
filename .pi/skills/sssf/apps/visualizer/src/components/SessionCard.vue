@@ -1,189 +1,189 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, shallowRef, watch } from 'vue'
-import type { EventRow, SessionSummary } from '../lib/types'
-import { archiveSession, fetchEvents } from '../lib/api'
-import { axisTicks, fmtDate, fmtOffset, ts } from '../lib/format'
-import { agentColor, dotColor, eventLabel } from '../lib/events'
-import { hrefFor } from '../lib/router'
-import StatusChip from './StatusChip.vue'
-import StatChip from './StatChip.vue'
-import PhaseDots from './PhaseDots.vue'
+import { computed, onMounted, onUnmounted, shallowRef, watch } from "vue";
+import type { EventRow, SessionSummary } from "../lib/types";
+import { archiveSession, fetchEvents } from "../lib/api";
+import { axisTicks, fmtDate, fmtOffset, ts } from "../lib/format";
+import { agentColor, dotColor, eventLabel } from "../lib/events";
+import { hrefFor } from "../lib/router";
+import StatusChip from "./StatusChip.vue";
+import StatChip from "./StatChip.vue";
+import PhaseDots from "./PhaseDots.vue";
 
-const props = defineProps<{ session: SessionSummary; nowMs: number }>()
-const emit = defineEmits<{ archived: [adwId: string] }>()
+const props = defineProps<{ session: SessionSummary; nowMs: number }>();
+const emit = defineEmits<{ archived: [adwId: string] }>();
 
 // The card is an <a>; the button lives inside it, so the click must not
 // navigate. Told the parent optimistically — the poll would take up to half a
 // second to drop the card, and a triage click should feel instant.
 async function archive(event: MouseEvent) {
-  event.preventDefault()
-  event.stopPropagation()
-  emit('archived', props.session.adw_id)
+  event.preventDefault();
+  event.stopPropagation();
+  emit("archived", props.session.adw_id);
   try {
-    await archiveSession(props.session.adw_id)
+    await archiveSession(props.session.adw_id);
   } catch {
-    emit('archived', '')   // signals the parent to re-sync from the server
+    emit("archived", ""); // signals the parent to re-sync from the server
   }
 }
 
 // Each card tails its own event stream: one full fetch on mount, then the
 // same rowid-cursor poll as the trace view — but only while the run is live.
-const events = shallowRef<EventRow[]>([])
-let cursor = 0
-let inflight = false
-let timer: ReturnType<typeof setInterval> | undefined
+const events = shallowRef<EventRow[]>([]);
+let cursor = 0;
+let inflight = false;
+let timer: ReturnType<typeof setInterval> | undefined;
 
 function stopPolling() {
-  clearInterval(timer)
-  timer = undefined
+  clearInterval(timer);
+  timer = undefined;
 }
 
 async function pull() {
-  if (inflight) return
-  inflight = true
+  if (inflight) return;
+  inflight = true;
   try {
-    const fresh: EventRow[] = []
-    let page
+    const fresh: EventRow[] = [];
+    let page;
     do {
       // Cursor pagination is inherently sequential: each request needs the previous cursor.
       // oxlint-disable-next-line no-await-in-loop
-      page = await fetchEvents(props.session.adw_id, cursor, 1000)
-      cursor = Math.max(cursor, page.cursor)
-      fresh.push(...page.events)
-    } while (page.has_more)
-    if (fresh.length) events.value = [...events.value, ...fresh]
-    if (props.session.status !== 'running') stopPolling()
+      page = await fetchEvents(props.session.adw_id, cursor, 1000);
+      cursor = Math.max(cursor, page.cursor);
+      fresh.push(...page.events);
+    } while (page.has_more);
+    if (fresh.length) events.value = [...events.value, ...fresh];
+    if (props.session.status !== "running") stopPolling();
   } catch {
     /* the list view surfaces api errors; a card just retries next poll */
   } finally {
-    inflight = false
+    inflight = false;
   }
 }
 
 onMounted(() => {
-  void pull()
-  if (props.session.status === 'running') timer = setInterval(() => void pull(), 500)
-})
+  void pull();
+  if (props.session.status === "running") timer = setInterval(() => void pull(), 500);
+});
 
-onUnmounted(stopPolling)
+onUnmounted(stopPolling);
 
 watch(
   () => props.session.status,
   (status) => {
-    if (status === 'running' && !timer) timer = setInterval(() => void pull(), 500)
+    if (status === "running" && !timer) timer = setInterval(() => void pull(), 500);
     // On the transition out of running, one last pull drains the tail and stops the timer.
-    else if (status !== 'running') void pull()
+    else if (status !== "running") void pull();
   },
-)
+);
 
-const running = computed(() => props.session.status === 'running')
+const running = computed(() => props.session.status === "running");
 
 const range = computed(() => {
-  const s = props.session
-  let t0 = ts(s.started_at)
+  const s = props.session;
+  let t0 = ts(s.started_at);
   if (!Number.isFinite(t0)) {
-    t0 = Math.min(...events.value.map((e) => ts(e.started_at)).filter(Number.isFinite))
+    t0 = Math.min(...events.value.map((e) => ts(e.started_at)).filter(Number.isFinite));
   }
-  if (!Number.isFinite(t0)) t0 = props.nowMs
-  let t1 = running.value ? props.nowMs : ts(s.ended_at)
+  if (!Number.isFinite(t0)) t0 = props.nowMs;
+  let t1 = running.value ? props.nowMs : ts(s.ended_at);
   if (!Number.isFinite(t1)) {
-    t1 = Math.max(...events.value.map((e) => ts(e.started_at)).filter(Number.isFinite))
+    t1 = Math.max(...events.value.map((e) => ts(e.started_at)).filter(Number.isFinite));
   }
-  if (!Number.isFinite(t1)) t1 = t0 + 1000
-  return { t0, span: Math.max(t1 - t0, 1000) }
-})
+  if (!Number.isFinite(t1)) t1 = t0 + 1000;
+  return { t0, span: Math.max(t1 - t0, 1000) };
+});
 
-const ticks = computed(() => axisTicks(range.value.span, 5))
+const ticks = computed(() => axisTicks(range.value.span, 5));
 
 interface TimelineDot {
-  id: string
-  xPct: number
-  color: string
-  title: string
-  latest: boolean
+  id: string;
+  xPct: number;
+  color: string;
+  title: string;
+  latest: boolean;
 }
 
 interface TimelineRow {
-  owner: string
-  color: string
-  title: string
-  dots: TimelineDot[]
+  owner: string;
+  color: string;
+  title: string;
+  dots: TimelineDot[];
 }
 
 // Per-agent rows: events attribute to an agent through their phase's owner.
 const rows = computed<TimelineRow[]>(() => {
-  const owners: string[] = []
-  const ownerByPhase = new Map<string, string>()
+  const owners: string[] = [];
+  const ownerByPhase = new Map<string, string>();
   for (const p of props.session.phases ?? []) {
-    if (p.kind !== 'agent' || !p.owner) continue
-    ownerByPhase.set(p.phase_id, p.owner)
-    if (!owners.includes(p.owner)) owners.push(p.owner)
+    if (p.kind !== "agent" || !p.owner) continue;
+    ownerByPhase.set(p.phase_id, p.owner);
+    if (!owners.includes(p.owner)) owners.push(p.owner);
   }
-  if (!owners.length) return []
+  if (!owners.length) return [];
 
-  const { t0, span } = range.value
-  const byOwner = new Map<string, TimelineDot[]>(owners.map((o) => [o, []]))
-  let latest: TimelineDot | null = null
-  let latestT = -Infinity
+  const { t0, span } = range.value;
+  const byOwner = new Map<string, TimelineDot[]>(owners.map((o) => [o, []]));
+  let latest: TimelineDot | null = null;
+  let latestT = -Infinity;
 
   for (const e of events.value) {
-    const owner = e.phase_id ? ownerByPhase.get(e.phase_id) : undefined
-    const color = dotColor(e.type)
-    if (!owner || !color) continue
-    const t = ts(e.started_at)
-    if (!Number.isFinite(t)) continue
+    const owner = e.phase_id ? ownerByPhase.get(e.phase_id) : undefined;
+    const color = dotColor(e.type);
+    if (!owner || !color) continue;
+    const t = ts(e.started_at);
+    if (!Number.isFinite(t)) continue;
     const dot: TimelineDot = {
       id: e.event_id,
       xPct: Math.min(Math.max(((t - t0) / span) * 100, 0), 100),
       color,
       title: `${e.type} ${eventLabel(e)} at ${fmtOffset(t - t0)}`,
       latest: false,
-    }
-    byOwner.get(owner)?.push(dot)
+    };
+    byOwner.get(owner)?.push(dot);
     if (t >= latestT) {
-      latestT = t
-      latest = dot
+      latestT = t;
+      latest = dot;
     }
   }
-  if (running.value && latest) latest.latest = true
+  if (running.value && latest) latest.latest = true;
 
   // /api/sessions embeds agents so the labels can use config colors with no
   // extra request; historical sessions return color null → fallback palette.
   return owners.map((owner, i) => {
-    const info = (props.session.agents ?? []).find((a) => a.agent === owner)
+    const info = (props.session.agents ?? []).find((a) => a.agent === owner);
     return {
       owner,
       color: agentColor(info?.color, null, i),
       title: info?.model ? `${owner} ${info.model}` : owner,
       dots: byOwner.get(owner) ?? [],
-    }
-  })
-})
+    };
+  });
+});
 
 const durationMs = computed(() => {
-  const s = props.session
-  const start = ts(s.started_at)
-  if (!Number.isFinite(start)) return NaN
-  const end = running.value ? props.nowMs : ts(s.ended_at)
-  return (Number.isFinite(end) ? end : props.nowMs) - start
-})
+  const s = props.session;
+  const start = ts(s.started_at);
+  if (!Number.isFinite(start)) return NaN;
+  const end = running.value ? props.nowMs : ts(s.ended_at);
+  return (Number.isFinite(end) ? end : props.nowMs) - start;
+});
 
 // Cards are a fixed size, so the timeline region fits exactly MAX_VISIBLE_ROWS
 // row slots. A roster that overflows spends one slot on the "+N more" line and
 // shows MIN_VISIBLE_ROWS agents in the rest — never fewer than three, so a
 // five-agent chain still reads as a chain rather than as a pair and a count.
-const MAX_VISIBLE_ROWS = 4
-const MIN_VISIBLE_ROWS = 3
+const MAX_VISIBLE_ROWS = 4;
+const MIN_VISIBLE_ROWS = 3;
 
-const overflowing = computed(() => rows.value.length > MAX_VISIBLE_ROWS)
+const overflowing = computed(() => rows.value.length > MAX_VISIBLE_ROWS);
 
 const visibleRows = computed(() =>
   overflowing.value ? rows.value.slice(0, MIN_VISIBLE_ROWS) : rows.value,
-)
+);
 
 const hiddenRowCount = computed(() =>
   overflowing.value ? rows.value.length - MIN_VISIBLE_ROWS : 0,
-)
+);
 </script>
 
 <template>
@@ -198,7 +198,7 @@ const hiddenRowCount = computed(() =>
       ×
     </button>
     <span class="card-id">{{ session.adw_id }}</span>
-    <span class="card-adw" :title="session.adw_name ?? ''">{{ session.adw_name ?? '—' }}</span>
+    <span class="card-adw" :title="session.adw_name ?? ''">{{ session.adw_name ?? "—" }}</span>
     <span class="card-req" :title="session.request ?? ''">{{ session.request }}</span>
 
     <div v-if="rows.length" class="tl">
@@ -259,7 +259,7 @@ const hiddenRowCount = computed(() =>
   flex-direction: column;
   gap: 10px;
   padding: 20px 22px;
-  position: relative;          /* anchors the archive button */
+  position: relative; /* anchors the archive button */
   border: 1px solid var(--border-soft);
   border-radius: 16px;
   background: var(--surface);

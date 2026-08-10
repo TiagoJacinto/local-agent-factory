@@ -113,14 +113,13 @@ async function serveStatic(req: Request): Promise<Response> {
 const server = Bun.serve({
   port: PORT,
   routes: {
-    "/api/health": safely(
-      () =>
-        json({
-          ok: true,
-          db: db.path,
-          journal_mode: db.journalMode,
-          sessions: db.sessionCount(),
-        } satisfies HealthResponse),
+    "/api/health": safely(() =>
+      json({
+        ok: true,
+        db: db.path,
+        journal_mode: db.journalMode,
+        sessions: db.sessionCount(),
+      } satisfies HealthResponse),
     ),
 
     "/api/sessions": safely((req) => json(db.sessions(intQuery(req, "limit", 200)))),
@@ -147,18 +146,10 @@ const server = Bun.serve({
     },
 
     "/api/sessions/:adw_id/events": safely((req) =>
-      json(
-        db.events(
-          param(req, "adw_id"),
-          intQuery(req, "after", 0),
-          intQuery(req, "limit", 500),
-        ),
-      ),
+      json(db.events(param(req, "adw_id"), intQuery(req, "after", 0), intQuery(req, "limit", 500))),
     ),
 
-    "/api/sessions/:adw_id/envelopes": safely((req) =>
-      json(db.envelopes(param(req, "adw_id"))),
-    ),
+    "/api/sessions/:adw_id/envelopes": safely((req) => json(db.envelopes(param(req, "adw_id")))),
 
     "/api/sessions/:adw_id/gates": safely((req) => json(db.gates(param(req, "adw_id")))),
 

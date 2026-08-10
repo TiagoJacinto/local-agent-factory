@@ -36,8 +36,14 @@ Delete the block, drop any now-unused agent from `REQUIRED_AGENTS`, and re-threa
 Gates are callables over the finished envelope — `gate(envelope, run) -> GateReport`, recording one `check(item, ok, note)` per thing they looked at, with violations derived from the failed ones. Compose them per call:
 
 ```typescript
-        build = ph.call(AgentCall(output_type=BuildOutput, prompt=prompt, previous=plan,
-                                  gates=[gates.artifacts_exist, gates.diff_matches_claims]))
+build = ph.call(
+  AgentCall(
+    (output_type = BuildOutput),
+    (prompt = prompt),
+    (previous = plan),
+    (gates = [gates.artifacts_exist, gates.diff_matches_claims]),
+  ),
+);
 ```
 
 On violations the harness does **not** restart the agent — it sends the violation list back into the **same session** as a correction (pi's `--session-id` creates-or-continues, so the context window is intact), bounded by that phase's `retries`. Every gate result is traced to the `gate_results` table. Exhausting the retries raises `GateFailure` and fails the phase.
@@ -81,8 +87,8 @@ the exit code, the session status, and the banner are decided together.
 
 Three distinctions worth keeping straight:
 
-- **Gate retries vs. JSON retries.** `retries` buys extra *gate*-correction rounds. Malformed final JSON is handled separately and always — `JSON_FIX_ATTEMPTS` in `adw_modules/agents.ts` (2 by default) re-prompts the same session for a valid object even on a phase with `retries=0`. Raising the phase's `retries` does not buy more JSON attempts, and vice versa.
-- **Phase retries vs. fix loops.** `retries=N` on `PhaseParams` re-attempts one agent phase's gate corrections, re-sent into the same session with its context intact. (Code-phase re-execution is not implemented in v1.) A fix loop is a *chain* of phases repeated — different agents, new envelopes each pass.
+- **Gate retries vs. JSON retries.** `retries` buys extra _gate_-correction rounds. Malformed final JSON is handled separately and always — `JSON_FIX_ATTEMPTS` in `adw_modules/agents.ts` (2 by default) re-prompts the same session for a valid object even on a phase with `retries=0`. Raising the phase's `retries` does not buy more JSON attempts, and vice versa.
+- **Phase retries vs. fix loops.** `retries=N` on `PhaseParams` re-attempts one agent phase's gate corrections, re-sent into the same session with its context intact. (Code-phase re-execution is not implemented in v1.) A fix loop is a _chain_ of phases repeated — different agents, new envelopes each pass.
 - **The test phase succeeds when it runs and reports correctly.** A failing suite does not fail that phase; it fails the run, checked at the end. The runner did its job; the code didn't.
 
 ## Keep scripts thin

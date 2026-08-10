@@ -1,22 +1,22 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
+import type { Component } from "vue";
 
 defineProps<{
-  title: string
+  title: string;
   /** Lucide icon component rendered before the title. */
-  icon?: Component
+  icon?: Component;
   /** Shown after the title; omit for sections without a natural count. */
-  count?: number | null
-  open: boolean
-}>()
+  count?: number | null;
+  open: boolean;
+}>();
 
-defineEmits<{ toggle: [] }>()
+defineEmits<{ toggle: [] }>();
 </script>
 
 <template>
   <section class="dsec">
     <button class="dsec-head" @click="$emit('toggle')">
-      <span class="chev">{{ open ? '▾' : '▸' }}</span>
+      <span class="chev">{{ open ? "▾" : "▸" }}</span>
       <component :is="icon" v-if="icon" class="dsec-icon" :size="19" :stroke-width="2" />
       <span class="dsec-title">{{ title }}</span>
       <span v-if="count != null" class="dsec-count dim">({{ count }})</span>

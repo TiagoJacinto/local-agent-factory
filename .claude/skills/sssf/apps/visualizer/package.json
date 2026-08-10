@@ -2,8 +2,8 @@
   "name": "sssf-visualizer",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "Read-only observability UI for the Super Simple Software Factory — polls sssf.db in a target repo.",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "server": "bun run server/index.ts",

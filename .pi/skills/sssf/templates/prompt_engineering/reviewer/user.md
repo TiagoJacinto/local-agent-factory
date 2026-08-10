@@ -33,7 +33,11 @@ Respond with ONLY valid JSON matching `ReviewOutput` — no prose before or afte
   "approved": false,
   "summary": "<one sentence: N of M requirements met>",
   "findings": [
-    { "requirement": "<the ask, in the requester's words>", "met": true, "evidence": "src/server.ts:42 — handler registered" }
+    {
+      "requirement": "<the ask, in the requester's words>",
+      "met": true,
+      "evidence": "src/server.ts:42 — handler registered"
+    }
   ],
   "blocking": ["<what must change before this can be approved>"],
   "artifacts": ["<context_handoff_dir>/review.md"],

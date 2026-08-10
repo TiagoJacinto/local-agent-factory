@@ -67,8 +67,9 @@ The envelope is a **manifest of claims**. Gates verify those claims after the fa
 **Every agent call passes a concrete output type**, and the agent's final JSON is parsed against exactly that type. No untyped handoffs.
 
 ```typescript
-plan = ph.call(AgentCall(output_type=PlanOutput, prompt=prompt,
-                         gates=[gates.artifacts_exist]))
+plan = ph.call(
+  AgentCall((output_type = PlanOutput), (prompt = prompt), (gates = [gates.artifacts_exist])),
+);
 ```
 
 The user prompt asks for the shape; the type enforces it. They always travel as a pair, which is what lets one agent serve many calls — same system prompt, different user prompt + output type per call site. Output types live in code, never in `sssf.config.yaml`.
@@ -81,11 +82,11 @@ In v1 there is no separate continue call to make: `agent_pi.run()` passes `--ses
 
 `prompts.ts` renders the agent's `user.md`, substituting:
 
-| Placeholder | Value |
-|---|---|
-| `{{prompt}}` | the engineer's ask (or the ADW's per-call prompt) |
-| `{{previous_envelope}}` | the upstream envelope JSON, from `AgentCall(previous=...)` |
-| `{{context_handoff_dir}}` | absolute path to this session's `context_handoff/` |
+| Placeholder               | Value                                                      |
+| ------------------------- | ---------------------------------------------------------- |
+| `{{prompt}}`              | the engineer's ask (or the ADW's per-call prompt)          |
+| `{{previous_envelope}}`   | the upstream envelope JSON, from `AgentCall(previous=...)` |
+| `{{context_handoff_dir}}` | absolute path to this session's `context_handoff/`         |
 
 A `user.md` declares one h3 per incoming datum, then the task, then the output contract:
 
@@ -118,15 +119,13 @@ Respond with ONLY valid JSON matching `ScoutOutput` — no prose before or after
 {
   "status": "success",
   "summary": "<one sentence on what you found>",
-  "findings": [
-    { "file": "src/server.ts", "note": "<why this file matters>" }
-  ],
+  "findings": [{ "file": "src/server.ts", "note": "<why this file matters>" }],
   "artifacts": ["<context_handoff_dir>/scout_findings.md"]
 }
 ```
 ````
 
-The `## Report` section shows the exact JSON shape of the declared output type — that is the agent's output contract, and it lives in `user.md` because the shape belongs to the *use*, not the identity. The matching `system.md` stays static: Purpose + Instructions only.
+The `## Report` section shows the exact JSON shape of the declared output type — that is the agent's output contract, and it lives in `user.md` because the shape belongs to the _use_, not the identity. The matching `system.md` stays static: Purpose + Instructions only.
 
 ## Session directory layout
 
@@ -147,10 +146,16 @@ adws/adw_data/sessions/{adw_id}/
 
 ```json
 {
-  "planner": {"session_id": "sssf-a1b2c3d4-planner-9f2e",
-              "model": "google/gemini-3.6-flash", "coding_agent": "pi"},
-  "builder": {"session_id": "sssf-a1b2c3d4-builder-71ac",
-              "model": "google/gemini-3.6-flash", "coding_agent": "pi"}
+  "planner": {
+    "session_id": "sssf-a1b2c3d4-planner-9f2e",
+    "model": "google/gemini-3.6-flash",
+    "coding_agent": "pi"
+  },
+  "builder": {
+    "session_id": "sssf-a1b2c3d4-builder-71ac",
+    "model": "google/gemini-3.6-flash",
+    "coding_agent": "pi"
+  }
 }
 ```
 

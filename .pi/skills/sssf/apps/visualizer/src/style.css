@@ -16,9 +16,10 @@
   --cyan: #5ad2dd;
   --violet: #94a3ff;
   /* Play carries the UI voice; mono is reserved for data (ids, times, code). */
-  --sans: 'Play', 'Helvetica Neue', system-ui, sans-serif;
-  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, 'Cascadia Mono',
-    'Roboto Mono', monospace;
+  --sans: "Play", "Helvetica Neue", system-ui, sans-serif;
+  --mono:
+    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, "Cascadia Mono", "Roboto Mono",
+    monospace;
   /* Surface gradient shared by cards and panels — one recipe, everywhere. */
   --surface: linear-gradient(180deg, #10141f 0%, #0b0f18 100%);
 }

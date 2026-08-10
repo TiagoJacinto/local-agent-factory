@@ -7,9 +7,9 @@ Add or retune agents in `sssf.config.yaml`.
 Edit the agent's entry in place:
 
 ```yaml
-  - name: builder
-    model: google/gemini-3.6-flash   # ALWAYS provider/model-id
-    thinking: high                   # was medium
+- name: builder
+  model: google/gemini-3.6-flash # ALWAYS provider/model-id
+  thinking: high # was medium
 ```
 
 Write the model as `provider/model-id`, never a bare id. The same model is usually carried by several providers, and an ambiguous pattern raises in `agents.validate()` — grounding every agent that inherits it. See `references/config.md`.
@@ -21,8 +21,8 @@ Thinking levels are Pi's reasoning effort: `off | minimal | low | medium | high 
 ## Recolor an agent's lane
 
 ```yaml
-  - name: builder
-    color: "#22d3ee"      # hex; the starter roster ships violet/cyan/amber/green
+- name: builder
+  color: "#22d3ee" # hex; the starter roster ships violet/cyan/amber/green
 ```
 
 Purely cosmetic and safe to change mid-project: the color rides the `agent_start` event and the `agent_sessions` row, so the visualizer picks it up on the next run without touching past sessions. Omit the key to let the UI's fallback palette choose.
@@ -39,7 +39,7 @@ defaults:
 
 agents:
   - name: reviewer
-    tools:                # explicit list wins over defaults
+    tools: # explicit list wins over defaults
       - read
       - grep
       - find
@@ -53,7 +53,7 @@ agents:
 Narrow by role, not by reflex:
 
 - Any agent that must produce a `context_handoff/` artifact needs **`write`** — without it, it falls back to a `bash` heredoc to create the file the gate checks for.
-- Withhold `edit`/`write` only where the restriction *is* the guarantee. The reviewer's contract is "change nothing", so withholding `edit` makes that structural instead of merely prompted.
+- Withhold `edit`/`write` only where the restriction _is_ the guarantee. The reviewer's contract is "change nothing", so withholding `edit` makes that structural instead of merely prompted.
 - Recon agents should get the full read surface (`read`, `grep`, `find`, `ls`) — cheaper and more legible in the trace than the equivalent `bash` calls.
 
 **Extension tools count against the allowlist.** `--tools` filters built-in, extension, and custom tools alike. Once an agent has a `tools` list — its own, or inherited from `defaults` — a tool registered by one of its `harness_engineering` extensions is dropped unless it is named there. Nothing errors: the extension loads, the run passes, the tool is just never offered. Any agent with a tool-registering extension must list that tool by name.
@@ -61,25 +61,25 @@ Narrow by role, not by reflex:
 ## Add harness extensions
 
 ```yaml
-    harness_engineering:
-      - .pi/extensions/json_guard.ts    # a pi extension FILE PATH
+harness_engineering:
+  - .pi/extensions/json_guard.ts # a pi extension FILE PATH
 ```
 
 Entries are pi extension **file paths**, passed through as `pi -e <path>`, applied to that agent only. Reach for an output-tightening extension when an agent keeps wrapping its envelope in prose and burning correction retries. The starter roster ships with none — this is an escape hatch, not a default.
 
-**Adding a tool-registering extension is a two-part edit.** The extension path goes in `harness_engineering`, *and* the tool name it registers goes in that agent's `tools` list:
+**Adding a tool-registering extension is a two-part edit.** The extension path goes in `harness_engineering`, _and_ the tool name it registers goes in that agent's `tools` list:
 
 ```yaml
-  - name: reviewer
-    harness_engineering:
-      - .pi/extensions/ast_query.ts     # registers tool: ast_query
-    tools:
-      - read
-      - grep
-      - find
-      - ls
-      - bash
-      - ast_query                       # REQUIRED — or the extension loads and its tool is filtered out
+- name: reviewer
+  harness_engineering:
+    - .pi/extensions/ast_query.ts # registers tool: ast_query
+  tools:
+    - read
+    - grep
+    - find
+    - ls
+    - bash
+    - ast_query # REQUIRED — or the extension loads and its tool is filtered out
 ```
 
 Skip the second half and it fails silently: extension loaded, run green, tool never available to the model. Extensions that only shape output or register flags — no new tool — need no `tools` change.

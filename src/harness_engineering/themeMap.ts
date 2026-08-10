@@ -22,31 +22,31 @@ import { fileURLToPath } from "url";
 // Value = theme name from .pi/themes/<value>.json
 //
 export const THEME_MAP: Record<string, string> = {
-	"agent-chain":        "midnight-ocean",   // deep sequential pipeline
-	"agent-team":         "dracula",          // rich orchestration palette
-	"coms":               "ocean-breeze",     // peer-to-peer messaging, cross-boundary
-	"coms-net":           "ocean-breeze",     // peer-to-peer messaging, cross-boundary
-	"cross-agent":        "ocean-breeze",     // cross-boundary, connecting
-	"damage-control":     "gruvbox",          // grounded, earthy safety
-	"minimal":            "synthwave",        // synthwave by default now!
-	"pi-pi":              "rose-pine",        // warm creative meta-agent
-	"pure-focus":         "everforest",       // calm, distraction-free
-	"purpose-gate":       "tokyo-night",      // intentional, sharp focus
-	"session-replay":     "catppuccin-mocha", // soft, reflective history
-	"subagent-widget":    "cyberpunk",        // multi-agent futuristic
-	"system-select":      "catppuccin-mocha", // soft selection UI
-	"theme-cycler":       "synthwave",        // neon, it's a theme tool
-	"tilldone":           "everforest",       // task-focused calm
-	"tool-counter":       "synthwave",        // techy metrics
-	"tool-counter-widget":"synthwave",        // same family
+  "agent-chain": "midnight-ocean", // deep sequential pipeline
+  "agent-team": "dracula", // rich orchestration palette
+  coms: "ocean-breeze", // peer-to-peer messaging, cross-boundary
+  "coms-net": "ocean-breeze", // peer-to-peer messaging, cross-boundary
+  "cross-agent": "ocean-breeze", // cross-boundary, connecting
+  "damage-control": "gruvbox", // grounded, earthy safety
+  minimal: "synthwave", // synthwave by default now!
+  "pi-pi": "rose-pine", // warm creative meta-agent
+  "pure-focus": "everforest", // calm, distraction-free
+  "purpose-gate": "tokyo-night", // intentional, sharp focus
+  "session-replay": "catppuccin-mocha", // soft, reflective history
+  "subagent-widget": "cyberpunk", // multi-agent futuristic
+  "system-select": "catppuccin-mocha", // soft selection UI
+  "theme-cycler": "synthwave", // neon, it's a theme tool
+  tilldone: "everforest", // task-focused calm
+  "tool-counter": "synthwave", // techy metrics
+  "tool-counter-widget": "synthwave", // same family
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 /** Derive the extension name (e.g. "minimal") from its import.meta.url. */
 function extensionName(fileUrl: string): string {
-	const filePath = fileUrl.startsWith("file://") ? fileURLToPath(fileUrl) : fileUrl;
-	return basename(filePath).replace(/\.[^.]+$/, "");
+  const filePath = fileUrl.startsWith("file://") ? fileURLToPath(fileUrl) : fileUrl;
+  return basename(filePath).replace(/\.[^.]+$/, "");
 }
 
 // ── Theme ──────────────────────────────────────────────────────────────────
@@ -59,34 +59,34 @@ function extensionName(fileUrl: string): string {
  * @returns         true if the theme was applied successfully, false otherwise.
  */
 export function applyExtensionTheme(fileUrl: string, ctx: ExtensionContext): boolean {
-	if (!ctx.hasUI) return false;
+  if (!ctx.hasUI) return false;
 
-	const name = extensionName(fileUrl);
-	
-	// If there are multiple extensions stacked in 'ipi', they each fire session_start
-	// and try to apply their own mapped theme. The LAST one to fire wins.
-	// Since system-select is last in the ipi alias array, it was setting 'catppuccin-mocha'.
-	
-	// We want to skip theme application for all secondary extensions if they are stacked,
-	// so the primary extension (first in the array) dictates the theme.
-	const primaryExt = primaryExtensionName();
-	if (primaryExt && primaryExt !== name) {
-		return true; // Pretend we succeeded, but don't overwrite the primary theme
-	}
+  const name = extensionName(fileUrl);
 
-	let themeName = THEME_MAP[name];
-	
-	if (!themeName) {
-		themeName = "synthwave";
-	}
+  // If there are multiple extensions stacked in 'ipi', they each fire session_start
+  // and try to apply their own mapped theme. The LAST one to fire wins.
+  // Since system-select is last in the ipi alias array, it was setting 'catppuccin-mocha'.
 
-	const result = ctx.ui.setTheme(themeName);
-	
-	if (!result.success && themeName !== "synthwave") {
-		return ctx.ui.setTheme("synthwave").success;
-	}
-	
-	return result.success;
+  // We want to skip theme application for all secondary extensions if they are stacked,
+  // so the primary extension (first in the array) dictates the theme.
+  const primaryExt = primaryExtensionName();
+  if (primaryExt && primaryExt !== name) {
+    return true; // Pretend we succeeded, but don't overwrite the primary theme
+  }
+
+  let themeName = THEME_MAP[name];
+
+  if (!themeName) {
+    themeName = "synthwave";
+  }
+
+  const result = ctx.ui.setTheme(themeName);
+
+  if (!result.success && themeName !== "synthwave") {
+    return ctx.ui.setTheme("synthwave").success;
+  }
+
+  return result.success;
 }
 // ── Title ──────────────────────────────────────────────────────────────────
 
@@ -103,13 +103,13 @@ export function applyExtensionTheme(fileUrl: string, ctx: ExtensionContext): boo
  * Returns null if no -e flag is present (e.g. plain `pi` with no extensions).
  */
 function primaryExtensionName(): string | null {
-	const argv = process.argv;
-	for (let i = 0; i < argv.length - 1; i++) {
-		if (argv[i] === "-e" || argv[i] === "--extension") {
-			return basename(argv[i + 1]).replace(/\.[^.]+$/, "");
-		}
-	}
-	return null;
+  const argv = process.argv;
+  for (let i = 0; i < argv.length - 1; i++) {
+    if (argv[i] === "-e" || argv[i] === "--extension") {
+      return basename(argv[i + 1]).replace(/\.[^.]+$/, "");
+    }
+  }
+  return null;
 }
 
 /**
@@ -120,10 +120,10 @@ function primaryExtensionName(): string | null {
  * Deferred 150 ms to fire after Pi's own startup title-set.
  */
 function applyExtensionTitle(ctx: ExtensionContext): void {
-	if (!ctx.hasUI) return;
-	const name = primaryExtensionName();
-	if (!name) return;
-	setTimeout(() => ctx.ui.setTitle(`π - ${name}`), 150);
+  if (!ctx.hasUI) return;
+  const name = primaryExtensionName();
+  if (!name) return;
+  setTimeout(() => ctx.ui.setTitle(`π - ${name}`), 150);
 }
 
 // ── Combined default ───────────────────────────────────────────────────────
@@ -141,6 +141,6 @@ function applyExtensionTitle(ctx: ExtensionContext): void {
  *   });
  */
 export function applyExtensionDefaults(fileUrl: string, ctx: ExtensionContext): void {
-	applyExtensionTheme(fileUrl, ctx);
-	applyExtensionTitle(ctx);
+  applyExtensionTheme(fileUrl, ctx);
+  applyExtensionTitle(ctx);
 }

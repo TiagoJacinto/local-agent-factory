@@ -18,11 +18,11 @@ Source features: [`execute-workflow.feature`](../2-solution/1-features/execute-w
 
 The Workflow Operator calls the Local Agent Factory from outside the system through its CLI.
 
-| Vertical | Interface available to the role | Permitted interaction |
-| --- | --- | --- |
-| Workflow execution | Local Agent Factory CLI | Request execution of one registered workflow, optionally against an expected revision of a clean source repository. |
-| Workflow-run inspection | CLI workflow-run output | Inspect the run identifier, status, source revision, disposable workspace path when one was created, and ordered primitive invocation results. |
-| Artifact inspection | CLI artifact output | Inspect artifacts and their production and consumption within the workflow run. |
+| Vertical                | Interface available to the role | Permitted interaction                                                                                                                          |
+| ----------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workflow execution      | Local Agent Factory CLI         | Request execution of one registered workflow, optionally against an expected revision of a clean source repository.                            |
+| Workflow-run inspection | CLI workflow-run output         | Inspect the run identifier, status, source revision, disposable workspace path when one was created, and ordered primitive invocation results. |
+| Artifact inspection     | CLI artifact output             | Inspect artifacts and their production and consumption within the workflow run.                                                                |
 
 #### Access boundary
 

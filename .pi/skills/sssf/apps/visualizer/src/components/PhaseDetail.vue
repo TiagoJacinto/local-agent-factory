@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from "vue";
 import type {
   AgentEndPayload,
   Envelope,
@@ -8,7 +8,7 @@ import type {
   GateResult,
   Phase,
   ToolCallPayload,
-} from '../lib/types'
+} from "../lib/types";
 import {
   Activity,
   AlignLeft,
@@ -21,57 +21,57 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   SquareTerminal,
-} from 'lucide-vue-next'
-import { fmtClock, payloadOk, ts } from '../lib/format'
-import { highlightJson, highlightJsonText } from '../lib/highlight'
-import { eventLabel, parseAgentStart, parseToolCall } from '../lib/events'
-import { modelIcon, modelName } from '../lib/models'
-import { fetchPrompts, type PromptsResponse } from '../lib/api'
-import { renderMarkdown } from '../lib/markdown'
-import StatusChip from './StatusChip.vue'
-import StatChip from './StatChip.vue'
-import DetailSection from './DetailSection.vue'
+} from "lucide-vue-next";
+import { fmtClock, payloadOk, ts } from "../lib/format";
+import { highlightJson, highlightJsonText } from "../lib/highlight";
+import { eventLabel, parseAgentStart, parseToolCall } from "../lib/events";
+import { modelIcon, modelName } from "../lib/models";
+import { fetchPrompts, type PromptsResponse } from "../lib/api";
+import { renderMarkdown } from "../lib/markdown";
+import StatusChip from "./StatusChip.vue";
+import StatChip from "./StatChip.vue";
+import DetailSection from "./DetailSection.vue";
 
 const props = defineProps<{
-  phase: Phase
-  events: EventRow[]
-  envelopes: Envelope[]
-  gates: GateResult[]
-}>()
+  phase: Phase;
+  events: EventRow[];
+  envelopes: Envelope[];
+  gates: GateResult[];
+}>();
 
-defineEmits<{ close: [] }>()
+defineEmits<{ close: [] }>();
 
 const phaseEvents = computed(() =>
   props.events.filter((e) => e.phase_id === props.phase.phase_id).sort((a, b) => a.rowid - b.rowid),
-)
+);
 
 const phaseGates = computed(() =>
   props.gates
     .filter((g) => g.phase_id === props.phase.phase_id)
     .sort((a, b) => (a.attempt ?? 0) - (b.attempt ?? 0) || a.id - b.id),
-)
+);
 
 const phaseOutputs = computed(() =>
   props.envelopes
     .filter((e) => e.phase_id === props.phase.phase_id)
     .sort((a, b) => (a.attempt ?? 0) - (b.attempt ?? 0)),
-)
+);
 
 // The agent's configuration, carried on its phase's `agent_start` event.
 // Older rows carry only model/thinking — rows render what was recorded.
 const agentConfig = computed(() => {
-  if (props.phase.kind !== 'agent') return null
-  const start = phaseEvents.value.find((e) => e.type === 'agent_start')
-  return start ? parseAgentStart(start) : null
-})
+  if (props.phase.kind !== "agent") return null;
+  const start = phaseEvents.value.find((e) => e.type === "agent_start");
+  return start ? parseAgentStart(start) : null;
+});
 
 interface UsageRow {
-  label: string
-  tokens: number
-  cost: number
+  label: string;
+  tokens: number;
+  cost: number;
   /** Total gets a rule above it; reasoning is indented under output. */
-  kind?: 'total' | 'nested'
-  title?: string
+  kind?: "total" | "nested";
+  title?: string;
 }
 
 /**
@@ -82,153 +82,154 @@ interface UsageRow {
  * from whatever was written.
  */
 const phaseUsage = computed<{ rows: UsageRow[]; partial: boolean } | null>(() => {
-  if (props.phase.kind !== 'agent') return null
-  const end = phaseEvents.value.find((e) => e.type === 'agent_end')
-  if (!end) return null
-  let payload: AgentEndPayload = {}
+  if (props.phase.kind !== "agent") return null;
+  const end = phaseEvents.value.find((e) => e.type === "agent_end");
+  if (!end) return null;
+  let payload: AgentEndPayload = {};
   try {
-    payload = JSON.parse(end.payload_json ?? '{}') as AgentEndPayload
+    payload = JSON.parse(end.payload_json ?? "{}") as AgentEndPayload;
   } catch {
     // A malformed payload is a missing panel, never a broken detail view.
   }
-  const u = payload.usage
+  const u = payload.usage;
   if (!u) {
     // Pre-breakdown run: the event's own token count and the lump cost still hold.
     return {
       partial: true,
-      rows: [{ label: 'total', tokens: end.tokens ?? 0, cost: payload.cost ?? 0, kind: 'total' }],
-    }
+      rows: [{ label: "total", tokens: end.tokens ?? 0, cost: payload.cost ?? 0, kind: "total" }],
+    };
   }
   const rows: UsageRow[] = [
-    { label: 'input', tokens: u.input_tokens, cost: u.input_cost },
-    { label: 'output', tokens: u.output_tokens, cost: u.output_cost },
-  ]
+    { label: "input", tokens: u.input_tokens, cost: u.input_cost },
+    { label: "output", tokens: u.output_tokens, cost: u.output_cost },
+  ];
   if (u.reasoning_tokens) {
     // Thinking bills at the output rate, so its share of the output cost is
     // exact arithmetic — but it is already INSIDE the output row above.
-    const share = u.output_tokens ? (u.output_cost * u.reasoning_tokens) / u.output_tokens : 0
+    const share = u.output_tokens ? (u.output_cost * u.reasoning_tokens) / u.output_tokens : 0;
     rows.push({
-      label: 'thinking',
+      label: "thinking",
       tokens: u.reasoning_tokens,
       cost: share,
-      kind: 'nested',
-      title: 'Thinking tokens — part of output above, billed at the output rate. Not added to the total.',
-    })
+      kind: "nested",
+      title:
+        "Thinking tokens — part of output above, billed at the output rate. Not added to the total.",
+    });
   }
   rows.push(
-    { label: 'cache read', tokens: u.cache_read_tokens, cost: u.cache_read_cost },
-    { label: 'cache write', tokens: u.cache_write_tokens, cost: u.cache_write_cost },
-    { label: 'total', tokens: u.total_tokens, cost: u.total_cost, kind: 'total' },
-  )
-  return { rows, partial: false }
-})
+    { label: "cache read", tokens: u.cache_read_tokens, cost: u.cache_read_cost },
+    { label: "cache write", tokens: u.cache_write_tokens, cost: u.cache_write_cost },
+    { label: "total", tokens: u.total_tokens, cost: u.total_cost, kind: "total" },
+  );
+  return { rows, partial: false };
+});
 
-const NUM = new Intl.NumberFormat('en-US')
+const NUM = new Intl.NumberFormat("en-US");
 
 /** Per-component costs run to fractions of a cent; four places keeps them real. */
 function money(n: number): string {
-  if (!n) return '$0'
-  return n < 0.0001 ? '<$0.0001' : `$${n.toFixed(4)}`
+  if (!n) return "$0";
+  return n < 0.0001 ? "<$0.0001" : `$${n.toFixed(4)}`;
 }
 
 // The engineer's incoming ask, logged by every ADW's request phase as a
 // `log` event with an `input` payload — surfaced as its own section.
 const requestText = computed(() => {
-  if (props.phase.kind !== 'engineer') return null
+  if (props.phase.kind !== "engineer") return null;
   for (const e of phaseEvents.value) {
-    if (e.type !== 'log' || !e.payload_json) continue
+    if (e.type !== "log" || !e.payload_json) continue;
     try {
-      const p: unknown = JSON.parse(e.payload_json)
-      if (p && typeof p === 'object' && 'input' in p) {
-        const input = (p as { input?: unknown }).input
-        if (typeof input === 'string' && input.trim()) return input
+      const p: unknown = JSON.parse(e.payload_json);
+      if (p && typeof p === "object" && "input" in p) {
+        const input = (p as { input?: unknown }).input;
+        if (typeof input === "string" && input.trim()) return input;
       }
     } catch {
       /* not JSON — skip */
     }
   }
-  return null
-})
+  return null;
+});
 
 const phaseDurationMs = computed(() => {
-  const start = ts(props.phase.started_at)
-  if (!Number.isFinite(start)) return NaN
-  const end = props.phase.status === 'running' ? Date.now() : ts(props.phase.ended_at)
-  return Number.isFinite(end) ? end - start : NaN
-})
+  const start = ts(props.phase.started_at);
+  if (!Number.isFinite(start)) return NaN;
+  const end = props.phase.status === "running" ? Date.now() : ts(props.phase.ended_at);
+  return Number.isFinite(end) ? end - start : NaN;
+});
 
 function violations(g: GateResult): string[] {
   try {
-    const v: unknown = JSON.parse(g.violations_json ?? '[]')
-    if (Array.isArray(v)) return v.map((x) => (typeof x === 'string' ? x : JSON.stringify(x)))
+    const v: unknown = JSON.parse(g.violations_json ?? "[]");
+    if (Array.isArray(v)) return v.map((x) => (typeof x === "string" ? x : JSON.stringify(x)));
   } catch {
     /* keep raw below */
   }
-  return g.violations_json ? [g.violations_json] : []
+  return g.violations_json ? [g.violations_json] : [];
 }
 
 // New-tracer gate rows carry per-item evidence in checks_json. null means no
 // evidence was recorded (legacy row → plain non-expandable line); "[]" means
 // the gate ran and inspected nothing — a real, different answer.
 function gateChecks(g: GateResult): GateCheck[] | null {
-  const raw = g.checks_json
-  if (raw == null) return null
+  const raw = g.checks_json;
+  if (raw == null) return null;
   try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return null
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
     return parsed
-      .filter((c): c is Record<string, unknown> => c !== null && typeof c === 'object')
+      .filter((c): c is Record<string, unknown> => c !== null && typeof c === "object")
       .map((c) => ({
-        item: typeof c.item === 'string' ? c.item : '',
+        item: typeof c.item === "string" ? c.item : "",
         ok: c.ok === true,
-        note: typeof c.note === 'string' ? c.note : '',
-      }))
+        note: typeof c.note === "string" ? c.note : "",
+      }));
   } catch {
-    return null
+    return null;
   }
 }
 
 /** Collapsed-row count label: mixed gates surface how many items failed. */
 function checksLabel(checks: GateCheck[]): string {
-  const failed = checks.filter((c) => !c.ok).length
-  return failed > 0 ? `${failed} of ${checks.length} failed` : String(checks.length)
+  const failed = checks.filter((c) => !c.ok).length;
+  return failed > 0 ? `${failed} of ${checks.length} failed` : String(checks.length);
 }
 
-const openGates = reactive(new Set<number>())
+const openGates = reactive(new Set<number>());
 
 function toggleGate(id: number) {
-  if (openGates.has(id)) openGates.delete(id)
-  else openGates.add(id)
+  if (openGates.has(id)) openGates.delete(id);
+  else openGates.add(id);
 }
 
 function eventDurationMs(e: EventRow): number {
-  const a = ts(e.started_at)
-  const b = ts(e.ended_at)
-  if (Number.isFinite(a) && Number.isFinite(b)) return b - a
+  const a = ts(e.started_at);
+  const b = ts(e.ended_at);
+  if (Number.isFinite(a) && Number.isFinite(b)) return b - a;
   // tool_call rows on older tracers have no ended_at — the payload's
   // duration_ms (when the coding agent reported one) is the source of truth.
-  if (e.type === 'tool_call') {
-    const call = parseToolCall(e)
-    if (call?.duration_ms != null) return call.duration_ms
+  if (e.type === "tool_call") {
+    const call = parseToolCall(e);
+    if (call?.duration_ms != null) return call.duration_ms;
   }
-  return NaN
+  return NaN;
 }
 
-const expanded = reactive(new Set<string>())
+const expanded = reactive(new Set<string>());
 
 function toggle(e: EventRow) {
-  if (expanded.has(e.event_id)) expanded.delete(e.event_id)
-  else expanded.add(e.event_id)
+  if (expanded.has(e.event_id)) expanded.delete(e.event_id);
+  else expanded.add(e.event_id);
 }
 
 /** Rich tool_call payload for the expanded panel, when the event has one. */
 function richCall(e: EventRow): ToolCallPayload | null {
-  return e.type === 'tool_call' ? parseToolCall(e) : null
+  return e.type === "tool_call" ? parseToolCall(e) : null;
 }
 
 // Safe for v-html: highlightJsonText/highlightJson escape all input.
 function argsHtml(call: ToolCallPayload | null): string {
-  return highlightJsonText(JSON.stringify(call?.args ?? {}, null, 2))
+  return highlightJsonText(JSON.stringify(call?.args ?? {}, null, 2));
 }
 
 // ── Collapsible sections ─────────────────────────────────────────────────────
@@ -237,104 +238,104 @@ function argsHtml(call: ToolCallPayload | null): string {
 // a user's open/closed choices — only selecting a different phase does.
 
 // Every section starts closed — the engineer opens exactly what they need.
-const DEFAULT_OPEN_SECTIONS: string[] = []
-const openSections = reactive(new Set<string>(DEFAULT_OPEN_SECTIONS))
+const DEFAULT_OPEN_SECTIONS: string[] = [];
+const openSections = reactive(new Set<string>(DEFAULT_OPEN_SECTIONS));
 
 watch(
   () => props.phase.phase_id,
   () => {
-    openSections.clear()
-    for (const s of DEFAULT_OPEN_SECTIONS) openSections.add(s)
-    openGates.clear()
+    openSections.clear();
+    for (const s of DEFAULT_OPEN_SECTIONS) openSections.add(s);
+    openGates.clear();
   },
-)
+);
 
 function toggleSection(id: string) {
-  if (openSections.has(id)) openSections.delete(id)
-  else openSections.add(id)
+  if (openSections.has(id)) openSections.delete(id);
+  else openSections.add(id);
 }
 
 const typeClass: Record<string, string> = {
-  gate_fail: 't-red',
-  error: 't-red',
-  gate_pass: 't-green',
-  tool_call: 't-cyan',
-  handoff: 't-violet',
-  agent_start: 't-purple',
-  agent_end: 't-green',
-}
+  gate_fail: "t-red",
+  error: "t-red",
+  gate_pass: "t-green",
+  tool_call: "t-cyan",
+  handoff: "t-violet",
+  agent_start: "t-purple",
+  agent_end: "t-green",
+};
 
 // ── Compiled prompts ─────────────────────────────────────────────────────────
 // The exact system/user prompts sent to this phase's agent, fetched once per
 // (adw_id, agent) and cached for the trace view's lifetime.
 
-const prompts = ref<PromptsResponse | null>(null)
-const promptsState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
-const promptCache = new Map<string, PromptsResponse>()
-const openPanels = reactive(new Set<string>())
-const rawView = reactive(new Set<string>())
+const prompts = ref<PromptsResponse | null>(null);
+const promptsState = ref<"idle" | "loading" | "ready" | "error">("idle");
+const promptCache = new Map<string, PromptsResponse>();
+const openPanels = reactive(new Set<string>());
+const rawView = reactive(new Set<string>());
 
 // The trace view replaces the phase object on every poll tick, so the watch
 // getter re-fires constantly — only react when the (adw_id, agent) key truly
 // changes, or open panels would snap shut twice a second.
-let lastPromptKey: string | null | undefined
+let lastPromptKey: string | null | undefined;
 watch(
   () => [props.phase.adw_id, props.phase.owner, props.phase.kind] as const,
   async ([adwId, owner, kind]) => {
-    const key = kind === 'agent' && owner ? `${adwId}:${owner}` : null
-    if (key === lastPromptKey) return
-    lastPromptKey = key
-    openPanels.clear()
-    rawView.clear()
+    const key = kind === "agent" && owner ? `${adwId}:${owner}` : null;
+    if (key === lastPromptKey) return;
+    lastPromptKey = key;
+    openPanels.clear();
+    rawView.clear();
     if (key === null || !owner) {
-      prompts.value = null
-      promptsState.value = 'idle'
-      return
+      prompts.value = null;
+      promptsState.value = "idle";
+      return;
     }
-    const cached = promptCache.get(key)
+    const cached = promptCache.get(key);
     if (cached) {
-      prompts.value = cached
-      promptsState.value = 'ready'
-      return
+      prompts.value = cached;
+      promptsState.value = "ready";
+      return;
     }
-    promptsState.value = 'loading'
+    promptsState.value = "loading";
     try {
-      const result = await fetchPrompts(adwId, owner)
-      promptCache.set(key, result)
-      prompts.value = result
-      promptsState.value = 'ready'
+      const result = await fetchPrompts(adwId, owner);
+      promptCache.set(key, result);
+      prompts.value = result;
+      promptsState.value = "ready";
     } catch {
-      promptsState.value = 'error'
+      promptsState.value = "error";
     }
   },
   { immediate: true },
-)
+);
 
 interface PromptPanel {
-  id: string
-  title: string
-  text: string
-  html: string
-  lines: number
+  id: string;
+  title: string;
+  text: string;
+  html: string;
+  lines: number;
 }
 
 const promptPanels = computed<PromptPanel[]>(() => {
-  const p = prompts.value
-  if (!p) return []
-  const panels: PromptPanel[] = []
+  const p = prompts.value;
+  if (!p) return [];
+  const panels: PromptPanel[] = [];
   for (const [id, title, text] of [
-    ['system', 'system prompt', p.system],
-    ['user', 'user prompt', p.user],
+    ["system", "system prompt", p.system],
+    ["user", "user prompt", p.user],
   ] as const) {
-    if (text == null) continue
-    panels.push({ id, title, text, html: renderMarkdown(text), lines: text.split('\n').length })
+    if (text == null) continue;
+    panels.push({ id, title, text, html: renderMarkdown(text), lines: text.split("\n").length });
   }
-  return panels
-})
+  return panels;
+});
 
 function togglePanel(id: string) {
-  if (openPanels.has(id)) openPanels.delete(id)
-  else openPanels.add(id)
+  if (openPanels.has(id)) openPanels.delete(id);
+  else openPanels.add(id);
 }
 </script>
 
@@ -344,20 +345,16 @@ function togglePanel(id: string) {
       <div class="d-main">
         <span class="d-name">{{ phase.name }}</span>
         <StatusChip :status="phase.status ?? 'queued'" />
-        <StatChip
-          v-if="Number.isFinite(phaseDurationMs)"
-          kind="runtime"
-          :value="phaseDurationMs"
-        />
+        <StatChip v-if="Number.isFinite(phaseDurationMs)" kind="runtime" :value="phaseDurationMs" />
       </div>
       <div class="d-tags">
         <span class="tag">
           <span class="tag-k">owner</span>
-          <span class="tag-v">{{ phase.owner ?? '—' }}</span>
+          <span class="tag-v">{{ phase.owner ?? "—" }}</span>
         </span>
         <span class="tag">
           <span class="tag-k">kind</span>
-          <span class="tag-v">{{ phase.kind ?? '—' }}</span>
+          <span class="tag-v">{{ phase.kind ?? "—" }}</span>
         </span>
         <span class="tag">
           <span class="tag-k">attempt</span>
@@ -399,7 +396,12 @@ function togglePanel(id: string) {
             <div v-if="agentConfig.model" class="cfg-row">
               <span class="cfg-k">model</span>
               <span class="cfg-chip" :title="agentConfig.model">
-                <img v-if="modelIcon(agentConfig.model)" class="cfg-model-icon" :src="modelIcon(agentConfig.model)!" alt="" />
+                <img
+                  v-if="modelIcon(agentConfig.model)"
+                  class="cfg-model-icon"
+                  :src="modelIcon(agentConfig.model)!"
+                  alt=""
+                />
                 {{ modelName(agentConfig.model) }}
               </span>
             </div>
@@ -421,7 +423,9 @@ function togglePanel(id: string) {
               <span class="cfg-k">harness</span>
               <span v-if="!agentConfig.harness_engineering?.length" class="cfg-v dim">none</span>
               <span v-else class="cfg-chips">
-                <span v-for="h in agentConfig.harness_engineering" :key="h" class="cfg-chip">{{ h }}</span>
+                <span v-for="h in agentConfig.harness_engineering" :key="h" class="cfg-chip">{{
+                  h
+                }}</span>
               </span>
             </div>
             <div v-if="agentConfig.purpose" class="cfg-row">
@@ -462,7 +466,7 @@ function togglePanel(id: string) {
             <div v-if="!promptPanels.length" class="faint">no compiled prompts recorded</div>
             <div v-for="panel in promptPanels" :key="panel.id" class="prompt-panel">
               <button class="prompt-head" @click="togglePanel(panel.id)">
-                <span class="chev">{{ openPanels.has(panel.id) ? '▾' : '▸' }}</span>
+                <span class="chev">{{ openPanels.has(panel.id) ? "▾" : "▸" }}</span>
                 <span class="prompt-title">{{ panel.title }}</span>
                 <span class="dim">{{ panel.lines }} lines</span>
               </button>
@@ -497,8 +501,8 @@ function togglePanel(id: string) {
           <div v-for="g in phaseGates" :key="g.id" class="gate" :class="g.passed ? 'pass' : 'fail'">
             <template v-if="gateChecks(g)">
               <button class="gate-line gate-toggle" @click="toggleGate(g.id)">
-                <span class="chev">{{ openGates.has(g.id) ? '▾' : '▸' }}</span>
-                <span class="gate-mark">{{ g.passed ? '✓' : '✗' }}</span>
+                <span class="chev">{{ openGates.has(g.id) ? "▾" : "▸" }}</span>
+                <span class="gate-mark">{{ g.passed ? "✓" : "✗" }}</span>
                 <span class="gate-name">{{ g.gate }}</span>
                 <span class="tag" :class="{ 'tag-fail': !g.passed }">
                   <span class="tag-k">checks</span>
@@ -520,7 +524,7 @@ function togglePanel(id: string) {
                   class="gate-check"
                   :class="c.ok ? 'pass' : 'fail'"
                 >
-                  <span class="check-mark">{{ c.ok ? '✓' : '✗' }}</span>
+                  <span class="check-mark">{{ c.ok ? "✓" : "✗" }}</span>
                   <span class="check-item">{{ c.item }}</span>
                   <!-- A failed tests_pass note is "exit N" + a command-output tail:
                        multi-line evidence gets a block, one-liners stay inline. -->
@@ -536,7 +540,7 @@ function togglePanel(id: string) {
             </template>
             <template v-else>
               <div class="gate-line">
-                <span class="gate-mark">{{ g.passed ? '✓' : '✗' }}</span>
+                <span class="gate-mark">{{ g.passed ? "✓" : "✗" }}</span>
                 <span class="gate-name">{{ g.gate }}</span>
                 <span class="tag">
                   <span class="tag-k">attempt</span>
@@ -597,14 +601,14 @@ function togglePanel(id: string) {
               <span class="output-type">{{ env.output_type }}</span>
               <span class="tag">
                 <span class="tag-k">agent</span>
-                <span class="tag-v">{{ env.agent ?? '—' }}</span>
+                <span class="tag-v">{{ env.agent ?? "—" }}</span>
               </span>
               <span class="tag">
                 <span class="tag-k">attempt</span>
                 <span class="tag-v">{{ env.attempt ?? 0 }}</span>
               </span>
               <span class="output-valid" :class="env.valid ? 'pass' : 'fail'">
-                {{ env.valid ? 'valid' : 'invalid' }}
+                {{ env.valid ? "valid" : "invalid" }}
               </span>
             </div>
             <!-- Safe: highlightJson escapes ALL input before emitting its own spans. -->
@@ -614,7 +618,11 @@ function togglePanel(id: string) {
       </div>
 
       <div class="d-col">
-        <h3><Activity class="h3-icon" :size="19" :stroke-width="2" /> events ({{ phaseEvents.length }})</h3>
+        <h3>
+          <Activity class="h3-icon" :size="19" :stroke-width="2" /> events ({{
+            phaseEvents.length
+          }})
+        </h3>
         <div v-if="!phaseEvents.length" class="faint">no events</div>
         <div v-for="e in phaseEvents" :key="e.event_id" class="event">
           <button class="event-row" :class="{ open: expanded.has(e.event_id) }" @click="toggle(e)">

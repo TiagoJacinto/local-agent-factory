@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { BookOpen, CircleDollarSign, Coins, PenLine, Timer } from 'lucide-vue-next'
-import { fmtCost, fmtDuration, fmtTokens } from '../lib/format'
+import { computed } from "vue";
+import { BookOpen, CircleDollarSign, Coins, PenLine, Timer } from "lucide-vue-next";
+import { fmtCost, fmtDuration, fmtTokens } from "../lib/format";
 
 const props = defineProps<{
-  kind: 'cost' | 'tokens' | 'runtime' | 'read' | 'written'
+  kind: "cost" | "tokens" | "runtime" | "read" | "written";
   /** Raw value — cost in dollars, tokens as a count, runtime in milliseconds. */
-  value: number | null | undefined
+  value: number | null | undefined;
   /** Bare value, no pill chrome — for tight spots like waterfall blocks. */
-  compact?: boolean
-}>()
+  compact?: boolean;
+}>();
 
 const ICONS = {
   cost: CircleDollarSign,
@@ -17,32 +17,32 @@ const ICONS = {
   runtime: Timer,
   read: BookOpen,
   written: PenLine,
-}
+};
 
 // Every chip explains itself on hover. The token numbers in particular are read
 // wrong without one — the headline is billed volume, not distinct tokens.
 const TITLES = {
-  cost: 'Cost — dollars billed for this run, all agents combined.',
+  cost: "Cost — dollars billed for this run, all agents combined.",
   tokens:
-    'Tokens exchanged (billed) — everything sent or generated, counted once per turn. ' +
-    'Each turn re-sends the whole conversation, so this is far larger than the ' +
-    'conversation itself: it is spend, not size. The gap between it and read + ' +
-    'written is cached context re-read on later turns.',
-  runtime: 'Duration — wall-clock from the first phase starting to the last one ending.',
+    "Tokens exchanged (billed) — everything sent or generated, counted once per turn. " +
+    "Each turn re-sends the whole conversation, so this is far larger than the " +
+    "conversation itself: it is spend, not size. The gap between it and read + " +
+    "written is cached context re-read on later turns.",
+  runtime: "Duration — wall-clock from the first phase starting to the last one ending.",
   read:
-    'Read — raw tokens the models took in: prompts, file contents and tool results, ' +
-    'counted the first time they enter the context. Excludes cached re-reads of ' +
-    'material already counted here.',
+    "Read — raw tokens the models took in: prompts, file contents and tool results, " +
+    "counted the first time they enter the context. Excludes cached re-reads of " +
+    "material already counted here.",
   written:
-    'Written — tokens the models actually generated. Each one produced exactly ' +
-    'once, so this is a true count of output.',
-}
+    "Written — tokens the models actually generated. Each one produced exactly " +
+    "once, so this is a true count of output.",
+};
 
 const text = computed(() => {
-  if (props.kind === 'cost') return fmtCost(props.value)
-  if (props.kind === 'runtime') return fmtDuration(props.value ?? NaN)
-  return fmtTokens(props.value)
-})
+  if (props.kind === "cost") return fmtCost(props.value);
+  if (props.kind === "runtime") return fmtDuration(props.value ?? NaN);
+  return fmtTokens(props.value);
+});
 </script>
 
 <template>

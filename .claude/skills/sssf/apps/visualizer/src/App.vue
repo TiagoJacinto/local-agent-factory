@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { useRoute, hrefFor, phaseCrumb } from './lib/router'
-import SessionsList from './components/SessionsList.vue'
-import SessionTrace from './components/SessionTrace.vue'
+import { useRoute, hrefFor, phaseCrumb } from "./lib/router";
+import SessionsList from "./components/SessionsList.vue";
+import SessionTrace from "./components/SessionTrace.vue";
 
-const route = useRoute()
+const route = useRoute();
 </script>
 
 <template>
@@ -22,9 +22,7 @@ const route = useRoute()
         <a :href="hrefFor()" :class="{ current: !route.adwId }">sessions</a>
         <template v-if="route.adwId">
           <span class="sep">›</span>
-          <a :href="hrefFor(route.adwId)" :class="{ current: !route.phaseId }">{{
-            route.adwId
-          }}</a>
+          <a :href="hrefFor(route.adwId)" :class="{ current: !route.phaseId }">{{ route.adwId }}</a>
         </template>
         <template v-if="route.adwId && route.phaseId">
           <span class="sep">›</span>
@@ -56,7 +54,7 @@ const route = useRoute()
 
 /* Gradient hairline instead of a hard border — the brand colors, whispered. */
 .topbar::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   right: 0;

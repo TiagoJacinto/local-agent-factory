@@ -25,7 +25,7 @@ The prompt is inline text or a file path. Launch in the background so you can po
 
 ### Listen for the roster
 
-The chain says *what runs*; the config says *who runs it*. **If the engineer references a roster, a config, or a model tier, pass it — do not fall through to the default.**
+The chain says _what runs_; the config says _who runs it_. **If the engineer references a roster, a config, or a model tier, pass it — do not fall through to the default.**
 
 ```bash
 just rosters                            # every roster on disk, and the model each agent runs
@@ -45,12 +45,12 @@ Read those from disk every time. Rosters are the engineer's to add, rename, and 
 
 They will rarely say `--config`. Treat any of these as naming a roster, then resolve it to a file:
 
-| What they say | What it means |
-|---|---|
-| "run it on the frontier config", "use the frontier roster" | the roster file whose name matches |
-| "run this with the big models", "use the sota roster" | the non-default roster — confirm which if there is more than one. Each config's header comment lists the names it answers to, so `head -3` on the file settles it |
-| "have opus plan this one" | a roster whose planner is that model; if none exists, say so rather than editing the config mid-request |
-| nothing about models at all | the default, `adws/adw_sssf_config/sssf.config.yaml` |
+| What they say                                              | What it means                                                                                                                                                     |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "run it on the frontier config", "use the frontier roster" | the roster file whose name matches                                                                                                                                |
+| "run this with the big models", "use the sota roster"      | the non-default roster — confirm which if there is more than one. Each config's header comment lists the names it answers to, so `head -3` on the file settles it |
+| "have opus plan this one"                                  | a roster whose planner is that model; if none exists, say so rather than editing the config mid-request                                                           |
+| nothing about models at all                                | the default, `adws/adw_sssf_config/sssf.config.yaml`                                                                                                              |
 
 `--config` takes the path directly; the justfile recipes read `SSSF_CONFIG` instead:
 

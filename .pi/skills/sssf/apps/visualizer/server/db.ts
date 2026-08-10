@@ -81,9 +81,7 @@ export class SssfDb {
     // busy_timeout so a concurrent writer never turns into a failed request.
     this.db.exec("PRAGMA busy_timeout = 5000");
     this.db.exec("PRAGMA synchronous = NORMAL");
-    const mode = this.db
-      .query<{ journal_mode: string }, []>("PRAGMA journal_mode")
-      .get();
+    const mode = this.db.query<{ journal_mode: string }, []>("PRAGMA journal_mode").get();
     this.journalMode = mode?.journal_mode ?? "unknown";
     if (this.journalMode.toLowerCase() !== "wal") {
       console.warn(
@@ -91,7 +89,6 @@ export class SssfDb {
           `live reads during agent writes may block`,
       );
     }
-
   }
 
   /**
@@ -111,10 +108,11 @@ export class SssfDb {
   private hasColumn(table: string, column: string): boolean {
     const key = `${table}.${column}`;
     if (!this.columnCache.get(key)) {
-      const cols = this.db
-        .query<{ name: string }, []>(`PRAGMA table_info(${table})`)
-        .all();
-      this.columnCache.set(key, cols.some((c) => c.name === column));
+      const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
+      this.columnCache.set(
+        key,
+        cols.some((c) => c.name === column),
+      );
     }
     return this.columnCache.get(key) ?? false;
   }
@@ -405,9 +403,7 @@ export class SssfDb {
   }
 
   sessionCount(): number {
-    const row = this.db
-      .query<{ n: number }, []>("SELECT COUNT(*) AS n FROM sessions")
-      .get();
+    const row = this.db.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM sessions").get();
     return row?.n ?? 0;
   }
 }

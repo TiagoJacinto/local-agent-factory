@@ -10,13 +10,13 @@ Turn what the engineer said into the prompt the ADW receives: **clearer, not dif
 
 **The intent is theirs. The precision is yours.**
 
-| You MAY | You MAY NOT |
-|---|---|
-| Carry every constraint forward, verbatim | Quietly drop a requirement because it looks hard or odd |
-| Fix grammar, cut rambling, order the steps | Soften a strong ask ("rewrite" → "refactor a bit") |
+| You MAY                                                 | You MAY NOT                                                       |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| Carry every constraint forward, verbatim                | Quietly drop a requirement because it looks hard or odd           |
+| Fix grammar, cut rambling, order the steps              | Soften a strong ask ("rewrite" → "refactor a bit")                |
 | Change the language used to better communicate the idea | Research the codebase for exact file names, never go into the app |
 
-If you catch yourself improving the *idea* rather than the *sentence*, stop. Raise the concern to the engineer in your own message and launch what they asked for.
+If you catch yourself improving the _idea_ rather than the _sentence_, stop. Raise the concern to the engineer in your own message and launch what they asked for.
 
 ## You never touch the application, you prompt, monitor, observe, and report.
 
@@ -67,14 +67,14 @@ head -20 adws/adw_<name>.ts            # every ADW opens with its `Phases:` line
 
 Chains are the engineer's to add, rename, and rewire, so **the files on disk are the only authority**. Never launch from memory or from a name you saw in a doc; read the docstrings, then match by shape:
 
-| The work | Look for a chain that |
-|---|---|
-| Changes code, and the shape is not obvious — new behaviour, more than one file, anything you would want a plan for | goes end to end: plans, builds, verifies, reviews, and documents |
-| Changes code, one well-understood edit | plans, builds, and verifies |
-| Implements a plan this session already produced (`--adw-id`) | starts at build and verifies |
-| Confirms built work is what was asked for | ends in a review phase |
-| Writes up work already shipped | captures the diff and documents it |
-| Is a question, and nothing should change | is a single read-only agent — the one case where one phase is right |
+| The work                                                                                                           | Look for a chain that                                               |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Changes code, and the shape is not obvious — new behaviour, more than one file, anything you would want a plan for | goes end to end: plans, builds, verifies, reviews, and documents    |
+| Changes code, one well-understood edit                                                                             | plans, builds, and verifies                                         |
+| Implements a plan this session already produced (`--adw-id`)                                                       | starts at build and verifies                                        |
+| Confirms built work is what was asked for                                                                          | ends in a review phase                                              |
+| Writes up work already shipped                                                                                     | captures the diff and documents it                                  |
+| Is a question, and nothing should change                                                                           | is a single read-only agent — the one case where one phase is right |
 
 **Never a single-agent chain when the engineer asked for work to be done.** One-phase ADWs answer questions and run one-offs; they do not deliver.
 
@@ -89,7 +89,7 @@ If nothing on disk fits the shape you need, say so and offer to compose one (`cr
 3. **Draft the four lines.**
 4. **Diff against the original.** Every specific thing they said, still there? Anything in your draft they did not say? Delete it.
 5. **Ask at most one question**, only when two readings would produce different code. Otherwise state your assumption in the prompt and say so when you report.
-6. **Launch** the chain from *Which ADW* above; `run_adw.md` covers the mechanics and the watching. Inline for a short ask; for anything longer, write `requests/<slug>.md` and pass the path — every ADW takes either.
+6. **Launch** the chain from _Which ADW_ above; `run_adw.md` covers the mechanics and the watching. Inline for a short ask; for anything longer, write `requests/<slug>.md` and pass the path — every ADW takes either.
 
 ## Rules that do not bend here
 
