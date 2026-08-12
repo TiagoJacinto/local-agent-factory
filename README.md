@@ -89,11 +89,11 @@ That depends on your roster, not on this repo. Every `model:` in `sssf.config.ya
 
 The starter roster deliberately mixes providers to show the point, so out of the box it wants three:
 
-| Model in the starter roster                                          | Provider              | Key                  |
-| -------------------------------------------------------------------- | --------------------- | -------------------- |
-| `google/gemini-3.6-flash` (default, builder, scout)                  | served via openrouter | `OPENROUTER_API_KEY` |
-| `fireworks/accounts/fireworks/models/kimi-k3` (planner)              | fireworks             | `FIREWORKS_API_KEY`  |
-| `openai/gpt-5.6-terra`, `openai/gpt-5.6-luna` (reviewer, documenter) | openai                | `OPENAI_API_KEY`     |
+| Model in the starter roster                                          | Provider                 | Key                  |
+| -------------------------------------------------------------------- | ------------------------ | -------------------- |
+| `opencode-go/mimo-v2.5` (default roster model)                       | OpenCode Go via Pi login | `/login opencode-go` |
+| `fireworks/accounts/fireworks/models/kimi-k3` (planner)              | fireworks                | `FIREWORKS_API_KEY`  |
+| `openai/gpt-5.6-terra`, `openai/gpt-5.6-luna` (reviewer, documenter) | openai                   | `OPENAI_API_KEY`     |
 
 **Want one key instead of three?** Delete the per-agent `model:` lines and let every agent inherit `defaults.model`. The whole roster then runs on one provider. Cheapest way to get a first green run.
 

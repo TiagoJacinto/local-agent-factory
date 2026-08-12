@@ -102,7 +102,7 @@ Other consequences worth knowing:
 
 - A model must be in the catalog before any agent can name it. An unknown id fails at resolution, before spawn. `pi --list-models` is the catalog the resolver actually reads.
 - **Ambiguity can appear without you touching the config.** Registering a new provider that carries a model you already use turns a formerly-fine bare pattern ambiguous. If a roster stops validating and nobody edited it, that is why.
-- Provider credentials come from the environment, not the config — the key that matches the provider you named (`GEMINI_API_KEY` for `google/...`, `OPENROUTER_API_KEY` for `openrouter/...`).
+- Provider credentials come from the environment, not the config. The default `opencode-go/mimo-v2.5` uses Pi's OpenCode login (`/login opencode-go`), so no OpenRouter API key is required. Other providers may require their own key.
 - The resolved model is recorded per session in `agent_map.json` and mirrored into the `agent_sessions` table. **Changing an agent's model invalidates its session**: a joined run starts that agent fresh instead of resuming a context window built by a different model.
 
 ## Tools
