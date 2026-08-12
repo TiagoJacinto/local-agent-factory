@@ -1,11 +1,11 @@
 pre-commit:
   jobs:
     - name: scan staged changes for secrets
-      run: gitleaks git --pre-commit --staged --redact
+      run: gitleaks protect --staged --redact
 
     - name: format staged files
       glob: "*.{js,jsx,ts,tsx,json,jsonc}"
-      run: oxfmt {staged_files}
+      run: bunx --no-install oxfmt {staged_files}
       stage_fixed: true
 
     - name: lint staged files
@@ -16,7 +16,7 @@ pre-push:
   parallel: true
   jobs:
     - name: scan Git history for secrets
-      run: gitleaks git --redact
+      run: gitleaks detect --redact
 
     - name: check formatting
       run: bun run format:check

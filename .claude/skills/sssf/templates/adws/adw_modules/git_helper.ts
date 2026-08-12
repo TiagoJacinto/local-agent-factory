@@ -97,7 +97,8 @@ export function changedFiles(cwd = process.cwd()) {
     .map((x) => x.slice(3));
 }
 export function commitAll(message: string, cwd = process.cwd()) {
-  if (!isRepo(cwd)) throw new Error("not a git repository — a commit phase needs one");
+  // Non-Git runs can execute agent phases, but they cannot create commits.
+  if (!isRepo(cwd)) return "skipped (not a git repository)";
   git(["add", "-A"], cwd);
   if (!git(["status", "--porcelain"], cwd))
     throw new Error("nothing to commit — preceding phases changed no files");

@@ -1,0 +1,16 @@
+{
+  "name": "pi-git-push-gate",
+  "version": "0.1.0",
+  "private": true,
+  "keywords": [
+    "pi-package"
+  ],
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.84.1"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  }
+}
