@@ -1,5 +1,4 @@
 # sssf.config.yaml — the factory's agent roster. One agent, one prompt, one purpose.
-# v1 runs the Pi coding agent only; coding_agent: claude_code arrives in v2.
 defaults:
   coding_agent: pi
   model: opencode-go/mimo-v2.5 # Pi's OpenCode Go MiMo model

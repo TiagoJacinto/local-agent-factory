@@ -67,7 +67,7 @@ just demo
 just sessions
 ```
 
-In Pi, the installed skill is available as `/skill:sssf`. Ask it to run a scout, plan work, or execute a complete workflow. For Claude Code, copy `.claude/skills/sssf/` instead and use `/sssf install`.
+In Pi, the installed skill is available as `/skill:sssf`. Ask it to run a scout, plan work, or execute a complete workflow.
 
 ### Manual install
 
@@ -121,7 +121,7 @@ There are three actors here, and the design keeps them separate on purpose: **th
   <img src="images/03_skill_stamp.svg" alt="The sssf skill directory on the left stamping config, adws, and prompt_engineering into three different target repos" width="780">
 </p>
 
-The skill package lives in `.claude/skills/sssf/` for Claude Code and `.pi/skills/sssf/` for Pi. Both copies contain the same hard rules, cookbooks, references, scripts, and templates. `SKILL.md` routes each request to one of nine cookbooks; `templates/` holds exactly what gets stamped.
+The skill package lives in `.pi/skills/sssf/`. It contains the hard rules, cookbooks, references, scripts, and templates. `SKILL.md` routes each request to one of nine cookbooks; `templates/` holds exactly what gets stamped.
 
 | What lands in your repo                 | Where it comes from              | Tracked                               |
 | --------------------------------------- | -------------------------------- | ------------------------------------- |
@@ -146,7 +146,7 @@ There is no DSL here. No framework to learn. It is TypeScript, YAML, agents, and
 
 ```yaml
 defaults:
-  coding_agent: pi # v1 runs pi only, claude_code is schema-valid and stubbed
+  coding_agent: pi # Pi is the supported coding agent
   model: google/gemini-3.6-flash # provider/model-id, a bare id can match several providers
   thinking: medium # off | minimal | low | medium | high | xhigh | max
   protected_files: # no agent may edit the machinery that grades it
@@ -269,7 +269,7 @@ Files stay the raw record (`raw_output.jsonl`, `envelope.json`, `agent_map.json`
 The skill ships a read-only UI for this db at `.<agent>/skills/sssf/apps/visualizer/`: Vue and Vite served by Bun on port 4600, with sessions, a trace waterfall, and per-phase tool-call detail.
 
 ```bash
-# Use .claude for Claude Code or .pi for Pi.
+# Use .pi for Pi.
 cd .pi/skills/sssf/apps/visualizer && bun install
 SSSF_DB=/abs/path/to/your-repo/adws/adw_data/sssf.db bun run server/index.ts &
 bunx vite
@@ -283,7 +283,6 @@ It resolves its target through `--db`, then `SSSF_DB`, then `<cwd>/adws/adw_data
 
 ```text
 super-simple-software-factory/          # the deployable factory, and nothing else
-├── .claude/skills/sssf/                  # Claude Code skill package
 └── .pi/skills/sssf/                     # Pi skill package
     ├── SKILL.md                        # hard rules + request routing table
     ├── cookbooks/                      # 9 orchestrator playbooks, loaded lazily
@@ -363,7 +362,7 @@ Honest edges, because knowing them is cheaper than discovering them.
 | An agent edits something it should not          | Detected and rolled back after the call, and the phase fails                                                                              | Expected. Widen that agent's `writes` if the change was legitimate                                                                                            |
 | Commit phase has nothing to commit              | `commit_all` raises if the cwd is not a git repo or nothing changed                                                                       | `git init` with one commit first. A no-op build fails the phase rather than committing nothing                                                                |
 | `install.ts --force`                            | Overwrites **all** stamped files, config and prompts included                                                                             | Commit before you force                                                                                                                                       |
-| `coding_agent: claude_code`                     | Schema-valid, but `agent_cc.ts` raises                                                                                                    | v1 is Pi only                                                                                                                                                 |
+| `coding_agent: pi`                             | Supported coding agent                                                                                                                     | Use Pi                                                                                                                                                         |
 
 The runtime uses Git when available: it requires a clean source commit, creates a disposable clone, rechecks the source after completion, and stops at a manual review result. A non-Git directory is also supported for agent-only workflows. It is copied to a disposable workspace, but there is no source integrity check, Git diff/change capture, or commit phase; use `adw_prompt`, `adw_scout`, `adw_plan`, `adw_build`, and `adw_quality`. Git-dependent workflows such as `adw_document` and change-capture steps still require Git. The factory never merges, pushes, deploys, or integrates the workspace automatically.
 

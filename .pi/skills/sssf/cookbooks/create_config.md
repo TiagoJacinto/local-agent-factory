@@ -5,7 +5,7 @@ Generate `sssf.config.yaml` — the agent roster for a target repo.
 ## Generate it
 
 ```bash
-bun .claude/skills/sssf/scripts/make_config.ts
+bun .pi/skills/sssf/scripts/make_config.ts
 ```
 
 Writes `adws/adw_sssf_config/sssf.config.yaml` — creating the directory if needed — with the starter agents (planner, builder, scout, reviewer, documenter) wired to the prompt files `/sssf install` stamped into `adws/adw_data/prompt_engineering/`. That path is the default every ADW and the justfile look for; `--config` overrides it. `make_config.ts` refuses to overwrite an existing config unless you pass `--force`, so retuning an existing roster is a hand edit — see `update_config.md`.
@@ -18,7 +18,7 @@ Writes `adws/adw_sssf_config/sssf.config.yaml` — creating the directory if nee
 
 ```yaml
 defaults:
-  coding_agent: pi # v1: pi only (claude_code is specced, stubbed until v2)
+  coding_agent: pi # Pi is the supported coding agent
   model: google/gemini-3.6-flash # ALWAYS provider/model-id — a bare id is ambiguous
   thinking: medium # off | minimal | low | medium | high | xhigh | max
   harness_engineering: [] # pi extension names

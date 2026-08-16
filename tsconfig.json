@@ -10,5 +10,5 @@
     "types": ["bun"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": [".claude/skills/sssf/apps/visualizer/node_modules"]
+  "exclude": [".pi/skills/sssf/apps/visualizer/node_modules"]
 }

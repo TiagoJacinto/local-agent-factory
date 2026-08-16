@@ -5,10 +5,10 @@
 ## Run it
 
 ```bash
-bun .claude/skills/sssf/scripts/install.ts
+bun .pi/skills/sssf/scripts/install.ts
 ```
 
-Run from the **target repo root** — the cwd is where everything lands. If the skill lives in your user scope, the path is `~/.claude/skills/sssf/scripts/install.ts`.
+Run from the **target repo root** — the cwd is where everything lands. If the skill lives in your user scope, the path is `~/.pi/skills/sssf/scripts/install.ts`.
 
 ## What gets stamped
 

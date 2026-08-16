@@ -23,7 +23,7 @@ adws/
 │   ├── data_types.ts            AgentCall, PhaseParams, Phase, Envelope + one output type per agent call
 │   ├── agents.ts                load_config, validate, resolve entry → interface + model + thinking
 │   ├── runner.ts                the Run object: run.phase(PhaseParams) → ph.call(AgentCall)
-│   ├── agent_pi.ts              Pi interface (v1)   ·   agent_cc.ts  Claude Code (v2, stubbed)
+│   ├── agent_pi.ts              Pi interface
 │   ├── gates.ts                 gate(envelope, run) -> GateReport — one check per item verified
 │   ├── changes.ts               git diff vs a resolved base → ChangeSet → envelope for the documenter
 │   ├── prompts.ts, session.ts, tracer.ts, console.ts, git_helper.ts, utils.ts
@@ -37,7 +37,7 @@ adws/
     └── sssf.db                  gitignored SQLite trace db the visualizer polls
 ```
 
-**v1 runs Pi only.** `coding_agent: pi`, default model `gemini-3.6-flash`, thinking `medium`. `claude_code` is specced in the config and stubbed in the interface — it lands in v2.
+**The factory runs Pi only.** `coding_agent: pi` is the supported setting.
 
 ## The phase model
 
