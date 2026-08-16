@@ -48,6 +48,32 @@ The bill for skipping this is not only tokens. It is cost, speed, and consistenc
 
 ---
 
+## Quick start
+
+Install the factory in the repository where you want to use it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash
+```
+
+Add a provider key to the new `.env` file, then run the two read-only smoke tests:
+
+```bash
+$EDITOR .env
+just demo
+just sessions
+```
+
+Open Pi in that repository and use the installed skill:
+
+```text
+/skill:sssf
+```
+
+Ask it to scout the repository, create a plan, or run a complete workflow. Start with read-only work before allowing changes.
+
+---
+
 ## Install
 
 ### One-command install
