@@ -82,6 +82,21 @@ agents:
       - edit
       - write
 
+  - name: double_tdd
+    color: "#34d399"
+    purpose: Drive the double-loop TDD state machine and make only the changes allowed by its current state.
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/double_tdd/system.md
+      user: adws/adw_data/prompt_engineering/double_tdd/user.md
+    tools:
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - edit
+      - write
+
   - name: scout
     color: "#fbbf24"
     purpose: Find and report where things live; change nothing.

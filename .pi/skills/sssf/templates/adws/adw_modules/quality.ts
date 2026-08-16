@@ -94,6 +94,16 @@ function result(checks: QualityCheckResult[]): QualityResult {
     ),
   };
 }
+export async function runCommand(
+  run: any,
+  name: string,
+  argv: string[],
+  area = "backend",
+  operation = "build",
+  timeoutSeconds = 600,
+) {
+  return result([await runOne({ name, area, operation, argv, timeoutSeconds }, run)]);
+}
 export async function runTests(run: any) {
   return result([await test(run)]);
 }

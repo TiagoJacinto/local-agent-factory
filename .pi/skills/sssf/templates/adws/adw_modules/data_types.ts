@@ -65,6 +65,56 @@ export interface VerifyOutput extends EnvelopeBase {
   passed?: boolean;
   failures?: string[];
 }
+export type DoubleTddStateName =
+  | "S0_SCOPE"
+  | "S1_SELECT_OUTER"
+  | "S2_WRITE_OUTER"
+  | "S3_FOCUSED_OUTER"
+  | "S4_SELECT_INNER"
+  | "S5_INNER_RED"
+  | "S6_INNER_GREEN"
+  | "S7_UNIT_SUITE"
+  | "S9_FULL_ACCEPTANCE"
+  | "S10_COVERAGE"
+  | "DONE";
+export interface DoubleTddInventoryEntry {
+  example: string;
+  criterion: string;
+  high_value_test?: string;
+  status: "handled" | "unhandled" | "gap";
+}
+export interface DoubleTddState {
+  STATE: DoubleTddStateName;
+  ACCEPTANCE_FULL_COMMAND: string[] | null;
+  UNIT_FULL_COMMAND: string[] | null;
+  FOCUSED_OUTER_COMMAND: string[] | null;
+  FOCUSED_INNER_COMMAND: string[] | null;
+  INVENTORY: DoubleTddInventoryEntry[];
+  SELECTED_EXAMPLE: string | null;
+  OUTER_RED_PROOF: unknown;
+  INNER_RESPONSIBILITY: string | null;
+  INNER_TEST: string | null;
+  INNER_RED_PROOF: unknown;
+  LATEST_RESULTS: Record<string, unknown>;
+}
+export interface DoubleTddOutput extends EnvelopeBase {
+  state?: DoubleTddStateName;
+  acceptance_full_command?: string[];
+  unit_full_command?: string[];
+  focused_outer_command?: string[];
+  focused_inner_command?: string[];
+  inventory?: DoubleTddInventoryEntry[];
+  selected_example?: string;
+  criterion?: string;
+  oracle?: string;
+  high_value_test?: string;
+  inner_responsibility?: string;
+  inner_test?: string;
+  red_proof?: string;
+  failure_kind?: "plumbing" | "missing_behavior";
+  handled?: boolean;
+  acceptance_gap?: boolean;
+}
 export type OutputType =
   | "GenericOutput"
   | "PlanOutput"
@@ -73,7 +123,8 @@ export type OutputType =
   | "ReviewOutput"
   | "DocumentOutput"
   | "ChangesOutput"
-  | "VerifyOutput";
+  | "VerifyOutput"
+  | "DoubleTddOutput";
 export class AgentCall {
   constructor(
     public outputType: OutputType,
@@ -321,6 +372,36 @@ export function envelope(type: OutputType, value: any): EnvelopeBase {
   if (type === "VerifyOutput") {
     if (typeof value.passed !== "boolean") throw new Error("VerifyOutput.passed must be boolean");
     array("failures");
+  }
+  if (type === "DoubleTddOutput") {
+    for (const key of [
+      "acceptance_full_command",
+      "unit_full_command",
+      "focused_outer_command",
+      "focused_inner_command",
+      "inventory",
+    ])
+      array(key);
+    for (const key of [
+      "acceptance_full_command",
+      "unit_full_command",
+      "focused_outer_command",
+      "focused_inner_command",
+    ])
+      if (
+        value[key] !== undefined &&
+        (value[key].length === 0 || value[key].some((part: unknown) => typeof part !== "string"))
+      )
+        throw new Error(`DoubleTddOutput.${key} must contain non-empty string argv parts`);
+    if (
+      value.failure_kind !== undefined &&
+      !["plumbing", "missing_behavior"].includes(value.failure_kind)
+    )
+      throw new Error("DoubleTddOutput.failure_kind must be plumbing or missing_behavior");
+    if (value.handled !== undefined && typeof value.handled !== "boolean")
+      throw new Error("DoubleTddOutput.handled must be boolean");
+    if (value.acceptance_gap !== undefined && typeof value.acceptance_gap !== "boolean")
+      throw new Error("DoubleTddOutput.acceptance_gap must be boolean");
   }
   return value as EnvelopeBase;
 }

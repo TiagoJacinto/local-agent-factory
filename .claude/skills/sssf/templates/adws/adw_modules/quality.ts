@@ -17,7 +17,12 @@ function runOne(s: any, run: any): QualityCheckResult {
       encoding: "utf8",
       timeout: (s.timeoutSeconds || 120) * 1000,
     }),
-    code = r.error?.code === "ETIMEDOUT" ? 124 : r.error?.code ? 127 : (r.status ?? 127),
+    code =
+      (r.error as any)?.code === "ETIMEDOUT"
+        ? 124
+        : (r.error as any)?.code
+          ? 127
+          : (r.status ?? 127),
     out = String(r.stdout || ""),
     err = String(r.stderr || ""),
     path = `${dir}/command.log`;
@@ -80,6 +85,16 @@ function result(checks: QualityCheckResult[]): QualityResult {
     failures,
     artifacts: checks.map((x) => x.output_artifact),
   };
+}
+export function runCommand(
+  run: any,
+  name: string,
+  argv: string[],
+  area = "backend",
+  operation = "build",
+  timeoutSeconds = 600,
+) {
+  return result([runOne({ name, area, operation, argv, timeoutSeconds }, run)]);
 }
 export function runTests(run: any) {
   return result([test(run)]);
