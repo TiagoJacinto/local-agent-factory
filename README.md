@@ -101,6 +101,17 @@ bun run package:skill
 
 This creates `dist/sssf.tar.gz` and its checksum for a GitHub Release asset.
 
+Releases are published automatically when a tag matches the package version:
+
+```bash
+# package.json version must be 0.2.0
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The release workflow runs formatting, lint, typecheck, and tests. It then uploads
+`sssf.tar.gz` and `sssf.tar.gz.sha256` to the GitHub Release.
+
 ### Manual install
 
 If you prefer not to run a remote script:
