@@ -10,6 +10,10 @@ const sourceDirectory = fileURLToPath(new URL(".", import.meta.url));
 test("installs a self-contained Pi workflow runtime", () => {
   const repositoryRoot = resolve(sourceDirectory, "..");
   const target = mkdtempSync(join(tmpdir(), "sssf-install-"));
+  execFileSync("bun", [join(repositoryRoot, "src/scripts/build_skill.ts")], {
+    cwd: repositoryRoot,
+    stdio: "pipe",
+  });
   const installer = join(repositoryRoot, ".pi/skills/sssf/scripts/install.ts");
 
   execFileSync("bun", [installer, "--version", "v0.2.0"], { cwd: target, stdio: "pipe" });

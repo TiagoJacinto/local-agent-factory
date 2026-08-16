@@ -42,6 +42,9 @@ jobs:
             exit 1
           fi
 
+      - name: Build the skill package
+        run: bun run build:skill
+
       - name: Check formatting
         run: bun run format:check
 
