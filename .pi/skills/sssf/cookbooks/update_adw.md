@@ -16,7 +16,7 @@ Phase `name` must be unique within the run — that is what the UI keys blocks o
 
 `description` is **required**, and `PhaseParams` rejects both a blank one and one that merely restates the name. It is the single line of intent the trace, the console, and the UI phase block show, so write what the phase does and why — `"Land the code only now: green suite, approved review"`, not `"Commit build"`.
 
-A code phase does its work in the block body and logs what it did. The commit phase that closes `adw_plan_build.ts` and `adw_plan_build_test.ts` is the pattern:
+A code phase does its work in the block body and logs what it did. A commit phase in a supported workflow is the pattern:
 
 ```typescript
     await run.phase(PhaseParams(name="commit", kind="code", owner="git",
@@ -25,7 +25,7 @@ A code phase does its work in the block body and logs what it did. The commit ph
         ph.log(sha=git_helper.commit_all(message), message=message)
 ```
 
-`commit_message` is a field on `PlanOutput`, `BuildOutput`, and `DocumentOutput` that the agent fills in **for its own work product**, so always pair it with a fallback — it defaults to empty. `commit_all` raises if the cwd is not a git repo or nothing changed, which fails the phase rather than committing nothing. A chain that commits more than once (`adw_simple_sdlc.ts`) commits each product with its own author's message.
+`commit_message` is a field on `PlanOutput`, `BuildOutput`, and `DocumentOutput` that the agent fills in **for its own work product**, so always pair it with a fallback — it defaults to empty. `commit_all` raises if the cwd is not a git repo or nothing changed, which fails the phase rather than committing nothing. Each commit phase must describe and commit its own product. See `docs/adw-examples/` in the factory repository for documented compositions.
 
 ## Remove a phase
 
@@ -52,7 +52,7 @@ Gate claims, not guesses: declared artifacts exist and are non-empty, declared J
 
 ## Add a bounded fix loop
 
-The pattern from `adw_build_test.ts` — always bounded by a module-level constant. The runner is a **code** phase, because the command is known; only repairing it needs an agent:
+The bounded fix-loop pattern — always bounded by a module-level constant. The runner is a **code** phase, because the command is known; only repairing it needs an agent:
 
 ```typescript
 MAX_FIX_LOOPS = 3

@@ -126,7 +126,7 @@ The skill package lives in `.pi/skills/sssf/`. It contains the hard rules, cookb
 | What lands in your repo                 | Where it comes from              | Tracked                               |
 | --------------------------------------- | -------------------------------- | ------------------------------------- |
 | `adws/adw_sssf_config/sssf.config.yaml` | `templates/sssf.config.yaml`     | yes, it is your agent roster          |
-| `adws/adw_*.ts`                         | `templates/adws/`                | yes, twelve starter workflows         |
+| `adws/adw_*.ts`                         | `templates/adws/`                | yes, eight starter workflows          |
 | `adws/adw_modules/`                     | `templates/adws/adw_modules/`    | yes, all low-level logic              |
 | `adws/adw_data/prompt_engineering/`     | `templates/prompt_engineering/`  | yes, **your prompts live here**       |
 | `adws/adw_data/harness_engineering/`    | `templates/harness_engineering/` | yes, pi extensions                    |
@@ -294,7 +294,7 @@ super-simple-software-factory/          # the deployable factory, and nothing el
         ├── prompt_engineering/{agent}/ # system.md + user.md per agent
         ├── harness_engineering/        # pi extensions
         └── adws/
-            ├── adw_*.ts                # the twelve starter workflows
+            ├── adw_*.ts                # the eight starter workflows
             └── adw_modules/            # ALL low-level logic, ADW scripts stay thin
 ```
 
@@ -302,7 +302,7 @@ The skill is also what an agent reads to _operate_ the factory. `SKILL.md` is th
 
 ---
 
-## The twelve starter workflows
+## The eight starter workflows
 
 Every ADW takes the same shape:
 
@@ -310,28 +310,24 @@ Every ADW takes the same shape:
 bun adws/adw_*.ts "<prompt or path/to/prompt.md>" [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
 ```
 
-| ADW                           | Chain                                  | Reach for it when                                            |
-| ----------------------------- | -------------------------------------- | ------------------------------------------------------------ |
-| `adw_prompt`                  | engineer to \<agent\>                  | one agent, one prompt, `--agent NAME` picks who              |
-| `adw_scout`                   | engineer to scout                      | read-only recon, nothing changes                             |
-| `adw_plan`                    | engineer to planner                    | you want the spec before any code                            |
-| `adw_build`                   | engineer to builder                    | the plan already exists                                      |
-| `adw_quality`                 | engineer to code(quality)              | lint, typecheck, build, no agents at all                     |
-| `adw_plan_build`              | planner, builder, git(commit)          | small, well-understood work                                  |
-| `adw_build_test`              | builder, code(test), bounded fix loop  | there is a suite to satisfy                                  |
-| `adw_build_review`            | builder, reviewer, bounded revise loop | "is this what was asked for" matters more than "does it run" |
-| `adw_plan_build_test`         | plan, build, code(test), git(commit)   | the standard chain                                           |
-| `adw_plan_build_test_quality` | same, plus lint/typecheck/build gates  | the repo has quality commands worth enforcing                |
-| `adw_document`                | code(git diff), documenter             | write up what just shipped                                   |
-| `adw_simple_sdlc`             | plan, build, test, review, document    | the work is real and its shape is not obvious                |
+| ADW                | Chain                                  | Reach for it when                                            |
+| ------------------ | -------------------------------------- | ------------------------------------------------------------ |
+| `adw_prompt`       | engineer to \<agent\>                  | one agent, one prompt, `--agent NAME` picks who              |
+| `adw_scout`        | engineer to scout                      | read-only recon, nothing changes                             |
+| `adw_plan`         | engineer to planner                    | you want the spec before any code                            |
+| `adw_build`        | engineer to builder                    | the plan already exists                                      |
+| `adw_quality`      | engineer to code(quality)              | lint, typecheck, build, no agents at all                     |
+| `adw_build_review` | builder, reviewer, bounded revise loop | "is this what was asked for" matters more than "does it run" |
+| `adw_double_tdd`   | outer and inner TDD loops              | drive implementation from acceptance scenarios               |
+| `adw_document`     | code(git diff), documenter             | write up what just shipped                                   |
 
-`adw_simple_sdlc` lands three commits from three authors. The plan, the code, and the write-up each get their own, and each message is the words of the agent that produced it.
+The repository-only composition examples are documented in [`docs/adw-examples/`](docs/adw-examples/). They are not installed into target repositories.
 
 `--adw-id` is optional everywhere. Omit it and a fresh id is minted and printed. Supply it and the run joins that session: same dirs, same `context_handoff/`, and each agent **resumes its existing context window** through `agent_map.json` instead of starting cold. That is how you chain workflows.
 
 ```bash
 bun adws/adw_plan.ts "add a /health endpoint"              # prints adw_id a1b2c3d4
-bun adws/adw_build_test.ts "implement the plan" --adw-id a1b2c3d4
+bun adws/adw_build.ts "implement the plan" --adw-id a1b2c3d4
 ```
 
 Watch a run with the trace db directly:
@@ -350,19 +346,19 @@ Reads never block a running workflow, the db is WAL. `install.ts` stamps a `just
 
 Honest edges, because knowing them is cheaper than discovering them.
 
-| Failure                                         | What actually happens                                                                                                                     | What to do                                                                                                                                                    |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The test phase reports green on a fresh install | `quality.ts` ships placeholder commands that exit 0. Three ADWs run them as their test phase                                              | Wire your real commands into `quality.ts` before trusting `adw_build_test`, `adw_plan_build_test`, or `adw_simple_sdlc`. This is the first thing to customize |
-| A bare model pattern                            | The same model sits under several providers, so `gemini-3.6-flash` matches three catalog entries and `agents.validate()` refuses to spawn | Always write `provider/model-id`                                                                                                                              |
-| `just` is not installed                         | The stamped `justfile` is a convenience wrapper, nothing depends on it                                                                    | Every recipe is a one-line `bun` or `sqlite3` command. Open the justfile and run the line yourself                                                            |
-| The source directory is not a Git repository    | Agent-only workflows use a disposable directory copy, without Git integrity or commit guarantees                                          | Use `adw_prompt`, `adw_scout`, `adw_plan`, `adw_build`, or `adw_quality`; initialise Git for diff, change-capture, and commit workflows                       |
-| A coding agent hangs silently                   | No events, no tokens, an empty `raw_output.jsonl`. The trace goes quiet rather than red                                                   | Query `processes` for what is alive and kill it children-first. A killed run finalizes its own trace to `fail`                                                |
-| The synced triad drifts                         | Type, `## Report` example, and `output_type=` disagree, so every call burns correction rounds                                             | Grep the type name and fix all three in one edit                                                                                                              |
-| Gates pass, output is bad                       | Gates check what a predicate can check, not plan quality or code taste                                                                    | Run the `reviewer`, or read it yourself                                                                                                                       |
-| An agent edits something it should not          | Detected and rolled back after the call, and the phase fails                                                                              | Expected. Widen that agent's `writes` if the change was legitimate                                                                                            |
-| Commit phase has nothing to commit              | `commit_all` raises if the cwd is not a git repo or nothing changed                                                                       | `git init` with one commit first. A no-op build fails the phase rather than committing nothing                                                                |
-| `install.ts --force`                            | Overwrites **all** stamped files, config and prompts included                                                                             | Commit before you force                                                                                                                                       |
-| `coding_agent: pi`                             | Supported coding agent                                                                                                                     | Use Pi                                                                                                                                                         |
+| Failure                                         | What actually happens                                                                                                                     | What to do                                                                                                                               |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| The test phase reports green on a fresh install | `quality.ts` ships placeholder commands that exit 0. Three ADWs run them as their test phase                                              | Wire your real commands into `quality.ts` before trusting the repository-only composition examples. This is the first thing to customize |
+| A bare model pattern                            | The same model sits under several providers, so `gemini-3.6-flash` matches three catalog entries and `agents.validate()` refuses to spawn | Always write `provider/model-id`                                                                                                         |
+| `just` is not installed                         | The stamped `justfile` is a convenience wrapper, nothing depends on it                                                                    | Every recipe is a one-line `bun` or `sqlite3` command. Open the justfile and run the line yourself                                       |
+| The source directory is not a Git repository    | Agent-only workflows use a disposable directory copy, without Git integrity or commit guarantees                                          | Use `adw_prompt`, `adw_scout`, `adw_plan`, `adw_build`, or `adw_quality`; initialise Git for diff, change-capture, and commit workflows  |
+| A coding agent hangs silently                   | No events, no tokens, an empty `raw_output.jsonl`. The trace goes quiet rather than red                                                   | Query `processes` for what is alive and kill it children-first. A killed run finalizes its own trace to `fail`                           |
+| The synced triad drifts                         | Type, `## Report` example, and `output_type=` disagree, so every call burns correction rounds                                             | Grep the type name and fix all three in one edit                                                                                         |
+| Gates pass, output is bad                       | Gates check what a predicate can check, not plan quality or code taste                                                                    | Run the `reviewer`, or read it yourself                                                                                                  |
+| An agent edits something it should not          | Detected and rolled back after the call, and the phase fails                                                                              | Expected. Widen that agent's `writes` if the change was legitimate                                                                       |
+| Commit phase has nothing to commit              | `commit_all` raises if the cwd is not a git repo or nothing changed                                                                       | `git init` with one commit first. A no-op build fails the phase rather than committing nothing                                           |
+| `install.ts --force`                            | Overwrites **all** stamped files, config and prompts included                                                                             | Commit before you force                                                                                                                  |
+| `coding_agent: pi`                              | Supported coding agent                                                                                                                    | Use Pi                                                                                                                                   |
 
 The runtime uses Git when available: it requires a clean source commit, creates a disposable clone, rechecks the source after completion, and stops at a manual review result. A non-Git directory is also supported for agent-only workflows. It is copied to a disposable workspace, but there is no source integrity check, Git diff/change capture, or commit phase; use `adw_prompt`, `adw_scout`, `adw_plan`, `adw_build`, and `adw_quality`. Git-dependent workflows such as `adw_document` and change-capture steps still require Git. The factory never merges, pushes, deploys, or integrates the workspace automatically.
 

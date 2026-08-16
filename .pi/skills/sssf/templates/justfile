@@ -35,6 +35,8 @@ demo:
 
 # ── run a workflow ──────────────────────────────────────────────────────────
 # Args pass straight through: "<prompt or path/to/prompt.md>" [--adw-id X]
+# Composition examples are documented in the factory repository and are not
+# stamped into target repositories.
 
 # one agent, one prompt: just prompt "summarize this repo"
 prompt *ARGS:
@@ -47,18 +49,6 @@ scout *ARGS:
 # plan only: just plan "add a /health endpoint"
 plan *ARGS:
     bun adws/adw_plan.ts --config {{config}} "$@"
-
-# planner, builder, commit: just plan-build "add a /health endpoint"
-plan-build *ARGS:
-    bun adws/adw_plan_build.ts --config {{config}} "$@"
-
-# plan, build, test, commit: just sdlc "add a /health endpoint"
-sdlc *ARGS:
-    bun adws/adw_plan_build_test.ts --config {{config}} "$@"
-
-# the full chain, plus review and docs: just simple-sdlc "add a /health endpoint"
-simple-sdlc *ARGS:
-    bun adws/adw_simple_sdlc.ts --config {{config}} "$@"
 
 # ── watch it ────────────────────────────────────────────────────────────────
 # Reads never block a running workflow, the db is WAL. Poll as hard as you like.

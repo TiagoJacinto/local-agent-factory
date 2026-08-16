@@ -15,26 +15,13 @@ adws/
 ├── adw_sssf_config/
 │   └── sssf.config.yaml         the agent roster — one agent, one prompt, one purpose
 ├── adw_prompt.ts                smallest ADW: one agent, one prompt, traced end-to-end
-├── adw_plan.ts, adw_scout.ts, adw_build.ts, adw_plan_build.ts, adw_build_test.ts, adw_plan_build_test.ts
-├── adw_build_review.ts          build → review: is this what was asked for? (not testing)
+├── adw_plan.ts                  planner only — write the plan before code
+├── adw_scout.ts                 read-only recon
+├── adw_build.ts                 implement an existing plan
+├── adw_build_review.ts          build → review: is this what was asked for?
+├── adw_quality.ts               deterministic lint, typecheck, and build checks
 ├── adw_document.ts              write up the work just done, from git diff vs main
-├── adw_simple_sdlc.ts           plan → build → test → review → document; commits each product
-├── adw_modules/                 ALL low-level logic — ADW scripts stay thin
-│   ├── data_types.ts            AgentCall, PhaseParams, Phase, Envelope + one output type per agent call
-│   ├── agents.ts                load_config, validate, resolve entry → interface + model + thinking
-│   ├── runner.ts                the Run object: run.phase(PhaseParams) → ph.call(AgentCall)
-│   ├── agent_pi.ts              Pi interface
-│   ├── gates.ts                 gate(envelope, run) -> GateReport — one check per item verified
-│   ├── changes.ts               git diff vs a resolved base → ChangeSet → envelope for the documenter
-│   ├── prompts.ts, session.ts, tracer.ts, console.ts, git_helper.ts, utils.ts
-└── adw_data/
-    ├── prompt_engineering/{agent}/{system.md,user.md}   tracked — edit prompts HERE, never in the skill
-    │                                planner · builder · scout · reviewer · documenter
-    ├── sessions/{adw_id}/                               gitignored runtime
-    │   ├── agent_map.json       agent → coding-agent session_id + model
-    │   ├── context_handoff/     the one place agents write files for the agents that follow
-    │   └── {agent}/{prompts/, raw_output.jsonl, envelope.json}
-    └── sssf.db                  gitignored SQLite trace db the visualizer polls
+└── adw_modules/                 ALL low-level logic — ADW scripts stay thin
 ```
 
 **The factory runs Pi only.** `coding_agent: pi` is the supported setting.
@@ -59,12 +46,14 @@ Agents have exactly two output channels: reference files written into `context_h
 
 ```bash
 bun adws/adw_plan.ts "add a /health endpoint"
-bun adws/adw_plan_build.ts requests/health.md --adw-id a1b2c3d4
+bun adws/adw_plan.ts requests/health.md --adw-id a1b2c3d4
 ```
 
 The prompt is inline text or a file path. `--adw-id` is optional on every ADW: given one, the run joins that session (same dirs, same `context_handoff/`, agents resume their existing context windows); omitted, a fresh id is minted and printed.
 
-## When you have finished reading this
+## Composition examples live in `docs/adw-examples/` in the factory repository. They are documentation only and are not stamped into target repositories.
+
+When you have finished reading this
 
 You are done with startup. List the ADWs (`ls adws/adw_*.ts`, plus each `Phases:` docstring line) as a table, and **wait for the engineer's request.**
 

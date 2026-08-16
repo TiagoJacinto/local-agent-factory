@@ -30,7 +30,7 @@ export type EventType =
 
 export interface Session {
   adw_id: string;
-  /** ADW script(s) that ran this session, e.g. "adw_plan + adw_build_test". */
+  /** ADW script(s) that ran this session, e.g. "adw_plan + adw_build". */
   adw_name: string | null;
   request: string | null;
   status: SessionStatus | null;

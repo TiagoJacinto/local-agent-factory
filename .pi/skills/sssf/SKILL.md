@@ -20,7 +20,7 @@ Three steps. Then stop. In Pi, invoke this skill with `/skill:sssf`.
 | ADW | Chain | Use when |
 |---|---|---|
 | adw_scout | engineer → scout | read-only recon; nothing changes |
-| adw_simple_sdlc | plan → build → test → review → document, 3 commits | the work is real and its shape is not obvious |
+| composition examples | plan/build/test/review/document chains | read `docs/adw-examples/` in the factory repository; they are not installed |
 ```
 
 **Nothing else.** No trace-db queries, no reading the config or the ADW scripts' bodies, no repo inventory, no last-runs summary, no diagnosing an old failure, no "current state" dashboard. None of it was asked for, and it is not free:
