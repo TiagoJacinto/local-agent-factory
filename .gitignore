@@ -32,3 +32,5 @@ adws/adw_data/sssf.db*
 adws/adw_data/runs/
 
 .pi-subagents
+# Generated project runtime (created by the skill installer)
+adws/

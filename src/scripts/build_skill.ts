@@ -23,7 +23,6 @@ const sourceRoot = join(repositoryRoot, "src");
 const skillSource = join(sourceRoot, "skill");
 const legacySkill = join(repositoryRoot, ".pi/skills/sssf");
 const outputRoot = join(repositoryRoot, ".pi/skills/sssf");
-const demoRoot = join(repositoryRoot, "adws");
 const checkOnly = process.argv.includes("--check");
 const keepOutput = process.argv.includes("--keep-output");
 
@@ -83,22 +82,6 @@ function copySkillContents(): void {
   }
 }
 
-function copyDemo(): void {
-  copyTree(join(sourceRoot, "adws"), demoRoot);
-  copyIfExists(
-    join(sourceRoot, "harness_engineering"),
-    join(demoRoot, "adw_data/harness_engineering"),
-  );
-  copyIfExists(
-    join(skillSource, "templates/prompt_engineering"),
-    join(demoRoot, "adw_data/prompt_engineering"),
-  );
-  copyIfExists(
-    join(skillSource, "templates/sssf.config.yaml"),
-    join(demoRoot, "adw_sssf_config/sssf.config.yaml"),
-  );
-}
-
 function files(root: string, result: string[] = []): string[] {
   if (!existsSync(root)) return result;
   for (const entry of readdirSync(root, { withFileTypes: true })) {
@@ -137,7 +120,6 @@ if (checkOnly) {
   }
   copySkillContents();
   copyRuntime();
-  copyDemo();
   let version = "0.0.0";
   try {
     const packageJson = JSON.parse(readFileSync(join(repositoryRoot, "package.json"), "utf8")) as {
