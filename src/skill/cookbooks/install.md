@@ -4,9 +4,25 @@
 
 ## Run it
 
+New installs use the latest stable release:
+
 ```bash
-bun .pi/skills/sssf/scripts/install.ts
+curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash
 ```
+
+Choose an exact release when you need repeatability:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash -s -- --version v0.2.0
+```
+
+For a skill already installed locally:
+
+```bash
+bun .pi/skills/sssf/scripts/install.ts --update --version v0.2.0
+```
+
+The resolved version is recorded in `adws/adw_sssf_config/sssf.lock.yaml`. Existing installs keep their locked version unless `--update`, `--version`, or `--latest` is selected.
 
 Run from the **target repo root** — the cwd is where everything lands. If the skill lives in your user scope, the path is `~/.pi/skills/sssf/scripts/install.ts`.
 
@@ -23,6 +39,7 @@ Run from the **target repo root** — the cwd is where everything lands. If the 
 | `adws/adw_data/prompt_engineering/{planner,builder,scout,reviewer,documenter}/` | `templates/prompt_engineering/`  | yes — **the user-owned home for prompts**                                      |
 | `adws/adw_data/harness_engineering/`                                            | `templates/harness_engineering/` | yes — **the user-owned home for pi extensions**                                |
 | `justfile`                                                                      | `templates/justfile`             | yes — starter recipes: `just demo`, the workflows, the trace reads, `just obs` |
+| `adws/adw_sssf_config/sssf.lock.yaml`                                           | resolved release version         | yes — team installation lock                                                   |
 | `adws/adw_data/sessions/`, `adws/adw_data/sssf.db`                              | created at runtime               | no — gitignored                                                                |
 
 The two `*_engineering` dirs mirror the two config keys of the same name: `prompt_engineering` is what an agent is told, `harness_engineering` is what its harness can do. Both are yours the moment they are stamped. Edit them in `adws/adw_data/`, never back inside the skill.
@@ -38,7 +55,7 @@ Re-running is safe. `install.ts` skips **every** file that already exists — yo
 1. **Env** — `cp .env.sample .env`, then authenticate the configured `opencode-go/mimo-v2.5` model in Pi with `/login opencode-go`. No OpenRouter API key is required.
 2. **Pi is installed and on PATH** — `pi --version`. Set `PI_PATH` in `.env` if it is not.
 3. **The model resolves** — `opencode-go/mimo-v2.5` must be a registered id in `~/.pi/agent/models.json`. Check with `pi --list-models` or read the file directly; see `references/config.md` for model resolution.
-4. **Gitignore** — `install.ts` appends `adws/adw_data/sessions/`, `adws/adw_data/sssf.db*`, and `.env` for you; confirm they landed. All three are runtime or secrets and must never be committed.
+4. **Gitignore** — `install.ts` appends `adws/adw_data/sessions/`, `adws/adw_data/runs/`, `adws/adw_data/sssf.db*`, `.pi/skills/sssf/`, and `.env` for you; confirm they landed. These are runtime, installed package, or secrets and must never be committed.
 5. **Git repo** — ADWs that end in a commit phase call `git_helper.commit_all`, which raises if the cwd is not a git repository. Run `git init` and make a first commit before using commit-capable workflows. The composition examples in `docs/adw-examples/` are documentation only and are not stamped. `adw_document.ts` needs one too: it measures the change with `git diff` against a base ref (`main` by default, `--base` to override).
 6. **Smoke test** — `just demo` runs two cheap read-only workflows back to back, or run the smallest ADW directly:
 

@@ -7,6 +7,7 @@ import * as git from "./git_helper";
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { tmpdir } from "node:os";
+
 export class PhaseHandle {
   constructor(
     public run: Run,
@@ -39,6 +40,7 @@ export class PhaseHandle {
     return this.run.executeAgentCall(this.phase, c);
   }
 }
+
 export class Run {
   phases: Phase[] = [];
   tokens = 0;
@@ -47,8 +49,8 @@ export class Run {
   repoRoot: string;
   sourceRoot: string;
   sourceRevision = "";
-  workspacePath = "";
   gitEnabled = false;
+  workspacePath = "";
   sessionDir: string;
   contextHandoffDir: string;
   runEvidenceDir: string;
@@ -61,6 +63,7 @@ export class Run {
   get signal() {
     return this.abortController.signal;
   }
+
   constructor(
     public cfg: SSSFConfig,
     public adwId: string,
@@ -86,6 +89,7 @@ export class Run {
         this.agentMap = {};
       }
   }
+
   prepareWorkspace(expectedRevision?: string) {
     this.gitEnabled = git.isRepo(this.sourceRoot);
     ensureDir(this.contextHandoffDir);
@@ -93,7 +97,6 @@ export class Run {
     const workspace = resolve(tmpdir(), "local-agent-factory", this.adwId);
     ensureDir(resolve(tmpdir(), "local-agent-factory"));
     if (existsSync(workspace)) rmSync(workspace, { recursive: true, force: true });
-
     if (this.gitEnabled) {
       const before = git.inspectSource(this.sourceRoot);
       if (before.workingTree !== "Clean")
@@ -117,8 +120,6 @@ export class Run {
         workspace,
       });
     } else {
-      // Non-Git mode is intentionally limited: work happens in a disposable copy,
-      // with no dirty-tree or commit guarantees.
       cpSync(this.sourceRoot, workspace, { recursive: true });
       this.writeEvidence("source.json", {
         path: this.sourceRoot,
@@ -131,10 +132,12 @@ export class Run {
     this.repoRoot = workspace;
     this.writeEvidence("workspace.txt", `${workspace}\n`);
   }
+
   writeEvidence(name: string, value: unknown) {
     const content = typeof value === "string" ? value : JSON.stringify(value, null, 2);
     return atomicWrite(resolve(this.runEvidenceDir, name), redactSecrets(content));
   }
+
   saveAgentMap(agent: string, entry: any) {
     this.agentMap[agent] = entry;
     writeFileSync(`${this.sessionDir}/agent_map.json`, JSON.stringify(this.agentMap, null, 2));
@@ -175,8 +178,8 @@ export class Run {
     if (this.finalized) return !reason && ok;
     this.finalized = true;
     clearTimeout(this.timeoutTimer);
-    const finalSource = this.sourceRevision ? this.finalSourceState() : undefined;
-    const integrityError = this.sourceRevision ? this.sourceIntegrityError(finalSource) : undefined;
+    const finalSource = this.gitEnabled ? this.finalSourceState() : undefined;
+    const integrityError = this.gitEnabled ? this.sourceIntegrityError(finalSource) : undefined;
     const finalReason = integrityError || this.abortReason || reason;
     const accepted =
       statusOverride === "awaiting_review"
@@ -242,6 +245,7 @@ export class Run {
     );
     return accepted ? 0 : 1;
   }
+
   async phase(params: PhaseParams, body: (ph: PhaseHandle) => Promise<void> | void) {
     if (this.signal.aborted) throw new Error(this.abortReason || "workflow canceled");
     if (
@@ -314,6 +318,7 @@ export class Run {
       throw error;
     }
   }
+
   finish(accepted = true, reason = "") {
     const phasesOk = this.phases.every((phase) => phase.status === "success");
     const ok = this.finalize(

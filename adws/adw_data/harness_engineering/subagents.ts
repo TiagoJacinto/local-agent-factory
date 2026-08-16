@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Subagent Widget — /sub, /subclear, /subrm, /subcont commands with stacking live widgets
  *

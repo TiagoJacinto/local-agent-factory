@@ -10,7 +10,7 @@ export function loadConfig(path = "adws/adw_sssf_config/sssf.config.yaml"): SSSF
   const d = raw.defaults || {};
   const defaults = {
     coding_agent: d.coding_agent || "pi",
-    model: d.model || "opencode-go/mimo-v2.5",
+    model: d.model || "openrouter/google/gemini-3.6-flash",
     thinking: d.thinking || "medium",
     color: d.color || "",
     harness_engineering: d.harness_engineering || [],

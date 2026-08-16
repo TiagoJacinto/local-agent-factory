@@ -164,6 +164,7 @@ async function classifyFailure(run: any, state: any, phaseName: string, failure:
     throw new Error(`${phaseName} classification must set failure_kind`);
   return output;
 }
+
 async function repairPlumbing(run: any, state: any, phaseName: string, failure: any) {
   state.LATEST_RESULTS[`${phaseName}_failure`] = failure;
   return callAgent(
@@ -214,6 +215,7 @@ export async function run(x: any) {
   const run = ensure(cfg, x.adwId);
   let state = loadState(run);
   let transitions = 0;
+
   await run.phase(
     {
       name: "request",
@@ -227,6 +229,7 @@ export async function run(x: any) {
   while (state.STATE !== "DONE") {
     if (++transitions > 100) return run.finish(false, "double-TDD exceeded 100 state transitions");
     saveState(run, state);
+
     if (state.STATE === "S0_SCOPE") {
       const scoped = validateOutputForState(
         state.STATE,
@@ -262,7 +265,9 @@ export async function run(x: any) {
       state.STATE = "S1_SELECT_OUTER";
       continue;
     }
+
     if (state.STATE === "S1_SELECT_OUTER") {
+      const selectionBefore = permissions.snapshot(run);
       const selected = validateOutputForState(
         state.STATE,
         await callAgent(
@@ -274,11 +279,18 @@ export async function run(x: any) {
           isTestPath,
         ),
       );
+      const selectionChanges = permissions.changedPaths(selectionBefore, permissions.snapshot(run));
+      if (selected.acceptance_gap ? selectionChanges.length !== 1 : selectionChanges.length !== 0)
+        throw new Error(
+          "S1_SELECT_OUTER must change exactly one acceptance artifact only when a gap exists",
+        );
       Object.assign(state, selected, { SELECTED_EXAMPLE: selected.selected_example });
       state.STATE = "S2_WRITE_OUTER";
       continue;
     }
+
     if (state.STATE === "S2_WRITE_OUTER") {
+      const outerTestBefore = permissions.snapshot(run);
       const written = validateOutputForState(
         state.STATE,
         await callAgent(
@@ -290,12 +302,15 @@ export async function run(x: any) {
           isTestPath,
         ),
       );
+      if (permissions.changedPaths(outerTestBefore, permissions.snapshot(run)).length !== 1)
+        throw new Error("S2_WRITE_OUTER must write exactly one high-value test file");
       Object.assign(state, written, {
         FOCUSED_OUTER_COMMAND: written.focused_outer_command,
         STATE: "S3_FOCUSED_OUTER",
       });
       continue;
     }
+
     if (state.STATE === "S3_FOCUSED_OUTER") {
       const result = await runCommand(
         run,
@@ -318,6 +333,7 @@ export async function run(x: any) {
       state.STATE = "S4_SELECT_INNER";
       continue;
     }
+
     if (state.STATE === "S4_SELECT_INNER") {
       const selected = validateOutputForState(
         state.STATE,
@@ -334,7 +350,9 @@ export async function run(x: any) {
       state.STATE = "S5_INNER_RED";
       continue;
     }
+
     if (state.STATE === "S5_INNER_RED") {
+      const innerTestBefore = permissions.snapshot(run);
       const written = validateOutputForState(
         state.STATE,
         await callAgent(
@@ -346,6 +364,8 @@ export async function run(x: any) {
           isTestPath,
         ),
       );
+      if (permissions.changedPaths(innerTestBefore, permissions.snapshot(run)).length !== 1)
+        throw new Error("S5_INNER_RED must write exactly one typical unit test file");
       Object.assign(state, written, {
         INNER_TEST: written.inner_test,
         FOCUSED_INNER_COMMAND: written.focused_inner_command,
@@ -373,6 +393,7 @@ export async function run(x: any) {
       state.STATE = "S6_INNER_GREEN";
       continue;
     }
+
     if (state.STATE === "S6_INNER_GREEN") {
       const before = permissions.snapshot(run);
       await callAgent(
@@ -394,6 +415,7 @@ export async function run(x: any) {
       if (result.passed) state.STATE = "S7_UNIT_SUITE";
       continue;
     }
+
     if (state.STATE === "S7_UNIT_SUITE") {
       const result = await runCommand(
         run,
@@ -410,6 +432,7 @@ export async function run(x: any) {
       } else state.STATE = "S6_INNER_GREEN";
       continue;
     }
+
     if (state.STATE === "S9_FULL_ACCEPTANCE") {
       const result = await runCommand(
         run,
@@ -432,6 +455,7 @@ export async function run(x: any) {
       state.STATE = "S4_SELECT_INNER";
       continue;
     }
+
     if (state.STATE === "S10_COVERAGE") {
       const checked = validateOutputForState(
         state.STATE,
@@ -448,8 +472,10 @@ export async function run(x: any) {
       state.STATE = checked.handled ? "DONE" : "S1_SELECT_OUTER";
       continue;
     }
+
     return run.finish(false, `unknown double-TDD state: ${state.STATE}`);
   }
+
   saveState(run, state);
   return run.finish(true);
 }

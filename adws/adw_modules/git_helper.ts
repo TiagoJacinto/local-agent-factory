@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { operatorEnv } from "./utils";
 
 const GIT_TIMEOUT_MS = 30_000;
+
 function git(args: string[], cwd = process.cwd()) {
   const result = spawnSync("git", args, {
     cwd,
@@ -16,11 +17,13 @@ function git(args: string[], cwd = process.cwd()) {
   }
   return (result.stdout || "").trim();
 }
+
 export interface SourceState {
   path: string;
   revision: string;
   workingTree: "Clean" | "Dirty";
 }
+
 export function isRepo(cwd = process.cwd()) {
   return (
     spawnSync("git", ["rev-parse", "--git-dir"], {
@@ -31,18 +34,22 @@ export function isRepo(cwd = process.cwd()) {
     }).status === 0
   );
 }
+
 export function repoRoot(cwd = process.cwd()) {
   return isRepo(cwd) ? resolve(git(["rev-parse", "--show-toplevel"], cwd)) : resolve(cwd);
 }
+
 export function inspectSource(path: string): SourceState {
   const revision = git(["rev-parse", "HEAD"], path);
   const workingTree = git(["status", "--porcelain"], path) ? "Dirty" : "Clean";
   return { path, revision, workingTree };
 }
+
 export function cloneRepository(source: string, destination: string) {
   git(["clone", "--quiet", "--no-hardlinks", source, destination]);
   return destination;
 }
+
 export function currentBranch(cwd = process.cwd()) {
   return git(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
 }
@@ -97,9 +104,7 @@ export function changedFiles(cwd = process.cwd()) {
     .map((x) => x.slice(3));
 }
 export function commitAll(message: string, cwd = process.cwd()) {
-  // Non-Git runs can execute agent phases, but they cannot create commits.
-  // Return a visible marker so commit phases remain observable without failing.
-  if (!isRepo(cwd)) return "skipped (not a git repository)";
+  if (!isRepo(cwd)) throw new Error("not a git repository — a commit phase needs one");
   git(["add", "-A"], cwd);
   if (!git(["status", "--porcelain"], cwd))
     throw new Error("nothing to commit — preceding phases changed no files");

@@ -69,6 +69,38 @@ just sessions
 
 In Pi, the installed skill is available as `/skill:sssf`. Ask it to run a scout, plan work, or execute a complete workflow.
 
+### Release versions
+
+The skill package is built from `src/` and published as a GitHub Release. The generated `.pi/skills/sssf/` tree is local build output and is not a source directory.
+
+New installs use the latest stable release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash
+```
+
+Choose an exact release when you need repeatability:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash -s -- --version v0.2.0
+```
+
+The installer records the resolved version in `adws/adw_sssf_config/sssf.lock.yaml`. Existing installs keep that version until you explicitly run the installer with `--version` or `--latest`.
+
+On this migration branch, run the one-time source migration first:
+
+```bash
+bun run migrate:skill -- --force
+```
+
+Then maintainers build the package with:
+
+```bash
+bun run package:skill
+```
+
+This creates `dist/sssf.tar.gz` and its checksum for a GitHub Release asset.
+
 ### Manual install
 
 If you prefer not to run a remote script:

@@ -1,6 +1,7 @@
 import * as git from "./git_helper";
 import { writeFileSync } from "node:fs";
 import { ChangeCapture, ChangeSet, ChangesOutput, BaseRef } from "./data_types";
+
 export function resolveBase(ref = "main", cwd = process.cwd()): BaseRef {
   if (!git.isRepo(cwd)) throw new Error("not a git repository — change capture needs one");
   if (!git.refExists(ref, cwd)) throw new Error(`base ref ${ref} does not exist`);
@@ -17,6 +18,7 @@ export function resolveBase(ref = "main", cwd = process.cwd()): BaseRef {
   } else reason = `HEAD is on ${label} with a clean tree and no parent commit`;
   return { ref, commit: baseCommit, reason, label };
 }
+
 export function capture(run: any, p: ChangeCapture = {}): ChangeSet {
   const base = resolveBase(p.base || "main", run.repoRoot);
   const files = git.diffFiles(base.commit, run.repoRoot);
@@ -45,6 +47,7 @@ export function capture(run: any, p: ChangeCapture = {}): ChangeSet {
     truncated,
   };
 }
+
 export function asEnvelope(c: ChangeSet, notes = ""): ChangesOutput {
   return {
     status: "success",

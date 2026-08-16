@@ -34,6 +34,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build the skill package
+        run: bun run build:skill
+
       - name: Check formatting
         run: bun run format:check
 

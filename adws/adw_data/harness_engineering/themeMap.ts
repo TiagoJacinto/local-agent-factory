@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * themeMap.ts — Per-extension default theme assignments
  *

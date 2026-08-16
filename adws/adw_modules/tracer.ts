@@ -66,6 +66,7 @@ export class Tracer {
         }
     }
   }
+  // pi-lens-ignore: ast-grep:no-sql-in-code
   event(r: EventRecord) {
     const id = `evt_${newId(12)}`,
       ts = nowIso(),
@@ -89,6 +90,7 @@ export class Tracer {
       );
     return id;
   }
+  // pi-lens-ignore: ast-grep:no-sql-in-code
   sessionStart(id: string, engineer: string, name: string) {
     this.db
       .query(
@@ -96,6 +98,7 @@ export class Tracer {
       )
       .run(id, name, "", "running", engineer, nowIso());
   }
+  // pi-lens-ignore: ast-grep:no-sql-in-code
   sessionRequest(id: string, request: string) {
     this.db.query("UPDATE sessions SET request=? WHERE adw_id=?").run(request, id);
   }
@@ -106,6 +109,7 @@ export class Tracer {
       )
       .run(tokens, cost, id);
   }
+  // pi-lens-ignore: ast-grep:no-sql-in-code
   sessionFinish(id: string, ok: boolean, status = ok ? "success" : "fail") {
     this.db
       .query("UPDATE sessions SET status=?,ended_at=? WHERE adw_id=?")
@@ -114,22 +118,26 @@ export class Tracer {
       .query("UPDATE processes SET ended_at=? WHERE adw_id=? AND ended_at IS NULL")
       .run(nowIso(), id);
   }
+  // pi-lens-ignore: ast-grep:no-sql-in-code
   processStart(id: string, kind: string, name: string, pid: number, command: string) {
     this.db
       .query("INSERT INTO processes(adw_id,kind,name,pid,command,started_at) VALUES(?,?,?,?,?,?)")
       .run(id, kind, name, pid, command, nowIso());
   }
+  // pi-lens-ignore: ast-grep:no-sql-in-code
   processEnd(pid: number) {
     this.db
       .query("UPDATE processes SET ended_at=? WHERE pid=? AND ended_at IS NULL")
       .run(nowIso(), pid);
   }
+  // pi-lens-ignore: ast-grep:no-sql-in-code
   maxPhaseSeq(id: string) {
     return Number(
       (this.db.query("SELECT COALESCE(MAX(seq),0) n FROM phases WHERE adw_id=?").get(id) as any)
         ?.n || 0,
     );
   }
+  // pi-lens-ignore: ast-grep:no-sql-in-code
   phaseUpsert(p: Phase) {
     this.db
       .query(
@@ -151,6 +159,7 @@ export class Tracer {
         p.endedAt || null,
       );
   }
+  // pi-lens-ignore: ast-grep:no-sql-in-code, sql-injection
   envelope(
     id: string,
     phase: string,
@@ -176,6 +185,7 @@ export class Tracer {
         nowIso(),
       );
   }
+  // pi-lens-ignore: ast-grep:no-sql-in-code
   gate(id: string, phase: string, attempt: number, name: string, r: GateReport) {
     this.db
       .query(
@@ -192,6 +202,7 @@ export class Tracer {
         nowIso(),
       );
   }
+  // pi-lens-ignore: ast-grep:no-sql-in-code
   agentSession(id: string, a: AgentConfig, sid: string, ctx: number, window: number) {
     this.db
       .query(

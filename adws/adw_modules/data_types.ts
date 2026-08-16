@@ -13,7 +13,6 @@ export interface PhaseParams {
   owner: string;
   description: string;
   retries?: number;
-  allowed_writes?: string[];
 }
 export interface Phase {
   phaseId: string;

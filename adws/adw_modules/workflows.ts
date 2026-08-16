@@ -1,11 +1,10 @@
-// @ts-nocheck
-// @ts-nocheck
 import * as agents from "./agents";
 import * as gates from "./gates";
 import * as quality from "./quality";
 import * as changes from "./changes";
 import * as session from "./session";
 import { AgentCall } from "./data_types";
+import { PhaseHandle } from "./runner";
 const req = (run: any, prompt: string) =>
   run.phase(
     {
@@ -14,7 +13,9 @@ const req = (run: any, prompt: string) =>
       owner: run.engineer,
       description: "Capture the incoming ask",
     },
-    async (ph) => ph.log({ input: prompt }),
+    async (ph: PhaseHandle) => {
+      ph.log({ input: prompt });
+    },
   );
 function setup(config: string, id: string | undefined, names: string[]) {
   const cfg = agents.loadConfig(config);
@@ -31,7 +32,9 @@ export async function prompt(x: any) {
       owner: x.agent,
       description: `Send the request straight to ${x.agent} and parse its envelope`,
     },
-    (ph) => ph.call(new AgentCall("GenericOutput", x.prompt)),
+    async (ph: PhaseHandle) => {
+      await ph.call(new AgentCall("GenericOutput", x.prompt));
+    },
   );
   return run.finish();
 }
@@ -45,7 +48,9 @@ export async function scout(x: any) {
       owner: "scout",
       description: "Find and report where things live — change nothing",
     },
-    (ph) => ph.call(new AgentCall("ScoutOutput", x.prompt, undefined, [gates.artifactsExist])),
+    async (ph: PhaseHandle) => {
+      await ph.call(new AgentCall("ScoutOutput", x.prompt, undefined, [gates.artifactsExist]));
+    },
   );
   return run.finish();
 }
@@ -59,13 +64,14 @@ export async function plan(x: any) {
       owner: "planner",
       description: "Turn the request into an implementable plan",
     },
-    (ph) =>
-      ph.call(
+    async (ph: PhaseHandle) => {
+      await ph.call(
         new AgentCall("PlanOutput", x.prompt, undefined, [
           gates.artifactsExist,
           gates.filesNonEmpty,
         ]),
-      ),
+      );
+    },
   );
   return run.finish();
 }
@@ -80,11 +86,13 @@ export async function build(x: any) {
       retries: 1,
       description: "Implement the request",
     },
-    (ph) => ph.call(new AgentCall("BuildOutput", x.prompt, undefined, [gates.diffMatchesClaims])),
+    async (ph: PhaseHandle) => {
+      await ph.call(new AgentCall("BuildOutput", x.prompt, undefined, [gates.diffMatchesClaims]));
+    },
   );
-  return run.finish();
+  return run.awaitReview();
 }
-export async function testLoop(run: any, prompt: string, previous: any, _planMode = false) {
+export async function testLoop(run: any, prompt: string, previous: any) {
   let test: any;
   for (let i = 1; i <= 3; i++) {
     await run.phase(
@@ -95,7 +103,7 @@ export async function testLoop(run: any, prompt: string, previous: any, _planMod
         description:
           "Run the suite — a known command, so code runs it and no agent has to rediscover it",
       },
-      async (ph) => {
+      async (ph: PhaseHandle) => {
         test = await quality.runTests(run);
         ph.log({
           passed: test.passed,
@@ -113,12 +121,13 @@ export async function testLoop(run: any, prompt: string, previous: any, _planMod
         retries: 1,
         description: "Repair what the suite reported, from its verbatim output",
       },
-      async (ph) =>
-        (previous = await ph.call(
+      async (ph: PhaseHandle) => {
+        previous = await ph.call(
           new AgentCall("BuildOutput", prompt, quality.asEnvelope(test, "tests"), [
             gates.diffMatchesClaims,
           ]),
-        )),
+        );
+      },
     );
   }
   return { test, previous };
@@ -134,10 +143,11 @@ export async function buildReview(x: any) {
       owner: "builder",
       description: "Implement the request",
     },
-    async (ph) =>
-      (prev = await ph.call(
+    async (ph: PhaseHandle) => {
+      prev = await ph.call(
         new AgentCall("BuildOutput", x.prompt, undefined, [gates.diffMatchesClaims]),
-      )),
+      );
+    },
   );
   let review: any;
   for (let i = 1; i <= 3; i++) {
@@ -148,13 +158,14 @@ export async function buildReview(x: any) {
         owner: "reviewer",
         description: "Rule on every requirement in the spec, against the code on disk",
       },
-      async (ph) =>
-        (review = await ph.call(
+      async (ph: PhaseHandle) => {
+        review = await ph.call(
           new AgentCall("ReviewOutput", x.prompt, prev, [
             gates.artifactsExist,
             gates.verdictConsistent,
           ]),
-        )),
+        );
+      },
     );
     if (review.approved || i === 3) break;
     await run.phase(
@@ -165,10 +176,11 @@ export async function buildReview(x: any) {
         retries: 1,
         description: "Close every blocking finding the reviewer named",
       },
-      async (ph) =>
-        (prev = await ph.call(
+      async (ph: PhaseHandle) => {
+        prev = await ph.call(
           new AgentCall("BuildOutput", x.prompt, review, [gates.diffMatchesClaims]),
-        )),
+        );
+      },
     );
   }
   return review?.approved
@@ -222,15 +234,16 @@ export async function document(x: any) {
       retries: 1,
       description: "Turn the captured diff into a write-up an engineer can read",
     },
-    (ph) =>
-      ph.call(
+    async (ph: PhaseHandle) => {
+      await ph.call(
         new AgentCall(
           "DocumentOutput",
           x.prompt,
           changes.asEnvelope(c, "Read diff_path in full before writing."),
           [gates.artifactsExist, gates.filesNonEmpty],
         ),
-      ),
+      );
+    },
   );
   return run.awaitReview();
 }

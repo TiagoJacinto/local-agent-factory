@@ -10,6 +10,7 @@ dist/
 build/
 coverage/
 .vite/
+.pi/skills/sssf/
 
 # Runtime
 .env

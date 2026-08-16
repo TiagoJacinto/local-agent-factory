@@ -4,7 +4,7 @@ import { Tracer } from "./tracer";
 import { atomicWrite, ensureDir, nowIso, redactSecrets } from "./utils";
 import * as agents from "./agents";
 import * as git from "./git_helper";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -49,6 +49,7 @@ export class Run {
   repoRoot: string;
   sourceRoot: string;
   sourceRevision = "";
+  gitEnabled = false;
   workspacePath = "";
   sessionDir: string;
   contextHandoffDir: string;
@@ -90,36 +91,46 @@ export class Run {
   }
 
   prepareWorkspace(expectedRevision?: string) {
-    const before = git.inspectSource(this.sourceRoot);
-    if (before.workingTree !== "Clean")
-      throw new Error("source preflight failed: working tree is dirty");
-    if (expectedRevision && before.revision !== expectedRevision)
-      throw new Error(
-        `source preflight failed: expected ${expectedRevision}, found ${before.revision}`,
-      );
-    this.sourceRevision = before.revision;
+    this.gitEnabled = git.isRepo(this.sourceRoot);
     ensureDir(this.contextHandoffDir);
     ensureDir(this.runEvidenceDir);
     const workspace = resolve(tmpdir(), "local-agent-factory", this.adwId);
     ensureDir(resolve(tmpdir(), "local-agent-factory"));
-    if (existsSync(workspace) && !git.isRepo(workspace))
-      rmSync(workspace, { recursive: true, force: true });
-    if (!existsSync(workspace)) git.cloneRepository(this.sourceRoot, workspace);
-    const after = git.inspectSource(this.sourceRoot);
-    if (after.workingTree !== "Clean" || after.revision !== this.sourceRevision)
-      throw new Error("source preflight failed: source changed during workspace creation");
+    if (existsSync(workspace)) rmSync(workspace, { recursive: true, force: true });
+    if (this.gitEnabled) {
+      const before = git.inspectSource(this.sourceRoot);
+      if (before.workingTree !== "Clean")
+        throw new Error("source preflight failed: working tree is dirty");
+      if (expectedRevision && before.revision !== expectedRevision)
+        throw new Error(
+          `source preflight failed: expected ${expectedRevision}, found ${before.revision}`,
+        );
+      this.sourceRevision = before.revision;
+      git.cloneRepository(this.sourceRoot, workspace);
+      const after = git.inspectSource(this.sourceRoot);
+      if (after.workingTree !== "Clean" || after.revision !== this.sourceRevision)
+        throw new Error("source preflight failed: source changed during workspace creation");
+      this.writeEvidence("source.json", {
+        path: this.sourceRoot,
+        before_revision: before.revision,
+        before_working_tree: before.workingTree,
+        expected_revision: this.sourceRevision,
+        after_clone_revision: after.revision,
+        after_clone_working_tree: after.workingTree,
+        workspace,
+      });
+    } else {
+      cpSync(this.sourceRoot, workspace, { recursive: true });
+      this.writeEvidence("source.json", {
+        path: this.sourceRoot,
+        git: false,
+        workspace,
+        limitations: ["no source integrity check", "no commits", "no Git diff/change capture"],
+      });
+    }
     this.workspacePath = workspace;
     this.repoRoot = workspace;
     this.writeEvidence("workspace.txt", `${workspace}\n`);
-    this.writeEvidence("source.json", {
-      path: this.sourceRoot,
-      before_revision: before.revision,
-      before_working_tree: before.workingTree,
-      expected_revision: this.sourceRevision,
-      after_clone_revision: after.revision,
-      after_clone_working_tree: after.workingTree,
-      workspace: workspace,
-    });
   }
 
   writeEvidence(name: string, value: unknown) {
@@ -167,8 +178,8 @@ export class Run {
     if (this.finalized) return !reason && ok;
     this.finalized = true;
     clearTimeout(this.timeoutTimer);
-    const finalSource = this.sourceRevision ? this.finalSourceState() : undefined;
-    const integrityError = this.sourceRevision ? this.sourceIntegrityError(finalSource) : undefined;
+    const finalSource = this.gitEnabled ? this.finalSourceState() : undefined;
+    const integrityError = this.gitEnabled ? this.sourceIntegrityError(finalSource) : undefined;
     const finalReason = integrityError || this.abortReason || reason;
     const accepted =
       statusOverride === "awaiting_review"

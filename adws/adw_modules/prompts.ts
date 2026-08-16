@@ -1,5 +1,4 @@
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 export function render(path: string, vars: Record<string, string>) {
   let text = readFileSync(path, "utf8");
   for (const [k, v] of Object.entries(vars)) text = text.split(`{{${k}}}`).join(v);

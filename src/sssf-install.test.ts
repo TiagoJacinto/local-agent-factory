@@ -12,7 +12,14 @@ test("installs a self-contained Pi workflow runtime", () => {
   const target = mkdtempSync(join(tmpdir(), "sssf-install-"));
   const installer = join(repositoryRoot, ".pi/skills/sssf/scripts/install.ts");
 
+  execFileSync("bun", [installer, "--version", "v0.2.0"], { cwd: target, stdio: "pipe" });
+
+  const lock = join(target, "adws/adw_sssf_config/sssf.lock.yaml");
+  expect(readFileSync(lock, "utf8")).toContain("version: v0.2.0");
+
   execFileSync("bun", [installer], { cwd: target, stdio: "pipe" });
+  expect(readFileSync(lock, "utf8")).toContain("version: v0.2.0");
+  expect(readFileSync(join(target, ".gitignore"), "utf8")).toContain(".pi/skills/sssf/");
 
   const runner = join(target, "adws/adw_modules/runner.ts");
   expect(readFileSync(runner, "utf8")).not.toContain("src/workflow");

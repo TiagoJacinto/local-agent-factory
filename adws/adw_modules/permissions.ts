@@ -1,10 +1,10 @@
-// @ts-nocheck
 import { spawnSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { AgentConfig } from "./data_types";
 import { operatorEnv } from "./utils";
+
 export class PermissionBreach extends Error {}
-const GIT_TIMEOUT_MS = 30000;
+const GIT_TIMEOUT_MS = 30_000;
 function git(args: string[], cwd: string) {
   return spawnSync("git", args, {
     cwd,
@@ -76,25 +76,25 @@ export function enforce(
   agent: AgentConfig,
   _envelope: any,
 ) {
-  const after = snapshot(run),
-    paths = changedPaths(before, after),
-    allowed = agent.writes,
-    protectedFiles = run.cfg.defaults.protected_files || [],
-    bad = paths.filter((path) => {
-      if (alwaysWritable(run, path)) return false;
-      if (
-        allowed !== null &&
-        allowed !== undefined &&
-        !allowed.some((pattern: string) => matches(path, pattern))
-      )
-        return true;
-      if (
-        protectedFiles.some((pattern: string) => matches(path, pattern)) &&
-        !(allowed || []).some((pattern: string) => matches(path, pattern))
-      )
-        return true;
-      return false;
-    });
+  const after = snapshot(run);
+  const paths = changedPaths(before, after);
+  const allowed = agent.writes;
+  const protectedFiles = run.cfg.defaults.protected_files || [];
+  const bad = paths.filter((path) => {
+    if (alwaysWritable(run, path)) return false;
+    if (
+      allowed !== null &&
+      allowed !== undefined &&
+      !allowed.some((pattern: string) => matches(path, pattern))
+    )
+      return true;
+    if (
+      protectedFiles.some((pattern: string) => matches(path, pattern)) &&
+      !(allowed || []).some((pattern: string) => matches(path, pattern))
+    )
+      return true;
+    return false;
+  });
   if (bad.length) {
     for (const path of bad) if (!before[path]) rollbackPath(run, path);
     throw new PermissionBreach(`agent ${agent.name} changed unauthorized paths: ${bad.join(", ")}`);

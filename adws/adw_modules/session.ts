@@ -4,6 +4,7 @@ import { Tracer } from "./tracer";
 import { Run } from "./runner";
 import { engineerName, newId, redactSecrets } from "./utils";
 import { basename } from "node:path";
+
 export function ensure(cfg: SSSFConfig, adwId?: string, expectedSourceRevision?: string) {
   const id = adwId || newId(8);
   const dataDir = resolve(cfg.defaults.data_dir);

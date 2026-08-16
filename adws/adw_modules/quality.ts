@@ -2,10 +2,12 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { commandString, nowIso, redactSecrets } from "./utils";
 import { QualityResult, QualityCheckResult, VerifyOutput } from "./data_types";
 import { runProcess } from "./process";
+
 const placeholder = (name: string) => [
   "echo",
   `PLACEHOLDER ${name}: edit adws/adw_modules/quality.ts and replace this echo with the real ${name} command`,
 ];
+
 async function runOne(s: any, run: any): Promise<QualityCheckResult> {
   const phase = run.phases.at(-1);
   const dir = `${run.contextHandoffDir}/quality/${String(phase.seq).padStart(2, "0")}_${s.name}`;
@@ -68,6 +70,7 @@ async function runOne(s: any, run: any): Promise<QualityCheckResult> {
     truncated: result.truncated,
   };
 }
+
 const spec = (name: string, operation: string, timeoutSeconds = 120) => ({
   name,
   area: "backend",
@@ -79,6 +82,7 @@ export const test = (run: any) => runOne(spec("test", "build", 600), run);
 export const lint = (run: any) => runOne(spec("lint", "lint"), run);
 export const typecheck = (run: any) => runOne(spec("typecheck", "typecheck"), run);
 export const build = (run: any) => runOne(spec("build", "build"), run);
+
 function result(checks: QualityCheckResult[]): QualityResult {
   const failures = checks
     .filter((x) => !x.passed)
@@ -104,7 +108,6 @@ export async function runCommand(
 ) {
   return result([await runOne({ name, area, operation, argv, timeoutSeconds }, run)]);
 }
-
 export async function runTests(run: any) {
   return result([await test(run)]);
 }

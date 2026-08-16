@@ -122,6 +122,75 @@ export interface PrimitiveAdapters {
   readonly gate?: PrimitiveAdapter;
 }
 
+export type Agent = (prompt: string) => Promise<unknown> | unknown;
+export type AgentFix = (error: Error, attempt: number) => Promise<void> | void;
+
+export interface ExecuteWithAgentFixOptions<T> {
+  /** Maximum number of times to execute the operation, including the first attempt. */
+  readonly maxAttempts?: number;
+  /** Treat a returned value as a failure when it does not throw. */
+  readonly isFailure?: (result: T) => boolean;
+  /** Convert a returned failure into the error sent to the agent. */
+  readonly formatFailure?: (result: T) => string;
+  /** The default agent used when no custom repair callback is supplied. */
+  readonly agent?: Agent;
+}
+
+/**
+ * Execute an operation and ask the agent to repair each failure before retrying.
+ *
+ * A custom repair callback is optional. When it is omitted, `options.agent` receives
+ * a standard repair prompt. The latest execution error is thrown when all attempts
+ * are exhausted.
+ */
+export async function executeWithAgentFix<T>(
+  execute: () => Promise<T> | T,
+  agentFixOrOptions?: AgentFix | ExecuteWithAgentFixOptions<T>,
+  options: ExecuteWithAgentFixOptions<T> = {},
+): Promise<T> {
+  const agentFix = typeof agentFixOrOptions === "function" ? agentFixOrOptions : undefined;
+  const resolvedOptions =
+    typeof agentFixOrOptions === "function" ? options : (agentFixOrOptions ?? options);
+  const repair = agentFix
+    ? agentFix
+    : async (error: Error, attempt: number) => {
+        if (!resolvedOptions.agent) {
+          throw new Error("No agent configured for the default repair path");
+        }
+        await resolvedOptions.agent(`Fix attempt ${attempt}: ${error.message}`);
+      };
+
+  const maxAttempts = resolvedOptions.maxAttempts ?? 3;
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+    throw new Error("maxAttempts must be a positive integer");
+  }
+
+  let lastError: Error | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    lastError = undefined;
+    let result!: T;
+    try {
+      result = await execute();
+    } catch (error) {
+      lastError = asError(error);
+    }
+
+    if (!lastError) {
+      if (!resolvedOptions.isFailure || !resolvedOptions.isFailure(result)) return result;
+      lastError = new Error(resolvedOptions.formatFailure?.(result) ?? "operation failed");
+    }
+
+    if (attempt === maxAttempts) throw lastError;
+    await repair(lastError, attempt);
+  }
+
+  throw new Error("execution repair loop failed");
+}
+
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 const deterministicAdapter: PrimitiveAdapter = () => undefined;
 
 export class WorkflowExecutor {

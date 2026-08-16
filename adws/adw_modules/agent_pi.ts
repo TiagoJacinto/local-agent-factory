@@ -55,12 +55,13 @@ export function catalog() {
 }
 
 export function resolveModel(pattern: string) {
-  const all = catalog();
+  // A fully-qualified model is an explicit operator choice. Do not make it
+  // depend on a live catalog request, which can be slow or temporarily stale.
   if (pattern.includes("/")) {
     const [p, ...rest] = pattern.split("/");
-    const id = rest.join("/");
-    if (all.some((x) => x[0] === p && x[1] === id)) return [p, id] as const;
+    return [p, rest.join("/")] as const;
   }
+  const all = catalog();
   const matches = all.filter((x) => pattern === x[1] || x[1].includes(pattern));
   const exact = matches.filter((x) => x[1] === pattern || x[1].endsWith(`/${pattern}`));
   const resolved = exact.length === 1 ? exact : exact.length ? exact : matches;
@@ -161,6 +162,12 @@ export async function run(
     context_window: contextWindow(provider, id),
   };
   let buffer = "";
+  let completed = false;
+  let terminalFailure = "";
+  const processController = new AbortController();
+  const abortForSignal = () => processController.abort();
+  if (req.signal?.aborted) processController.abort();
+  else req.signal?.addEventListener("abort", abortForSignal, { once: true });
   const handleLine = (raw: string) => {
     appendCapped(req.rawOutputPath, `${raw}\n`, rawState, req.maxOutputBytes);
     let event: any;
@@ -181,13 +188,23 @@ export async function run(
         result.context_tokens = turn;
     }
     onEvent?.(event);
+    if (event.type === "agent_end") {
+      const message = event.messages?.at(-1);
+      if (message?.stopReason === "error") {
+        terminalFailure = message.errorMessage || "provider returned an error";
+        processController.abort();
+      } else if (event.willRetry !== true) {
+        completed = true;
+        processController.abort();
+      }
+    }
   };
   const process = await runProcess(PI_PATH, args, {
     cwd: req.cwd,
     allowedEnv: [...req.allowedEnv, CREDENTIALS[provider]].filter(Boolean) as string[],
     timeoutMs: req.timeoutMs,
     maxOutputBytes: req.maxOutputBytes,
-    signal: req.signal,
+    signal: processController.signal,
     onSpawn,
     onExit,
     onStdoutChunk: (chunk) => {
@@ -199,7 +216,9 @@ export async function run(
     onStderrChunk: (chunk) => appendCapped(req.stderrPath, chunk, stderrState, req.maxOutputBytes),
   });
   if (buffer.trim()) handleLine(buffer);
-  if (process.failure || process.exitCode !== 0) {
+  req.signal?.removeEventListener("abort", abortForSignal);
+  if (terminalFailure) throw new Error(`pi provider error: ${terminalFailure}`);
+  if (!completed && (process.failure || process.exitCode !== 0)) {
     const reason = process.failure || `exit ${process.exitCode}`;
     throw new Error(`pi ${reason}: ${clip(process.stderr, 2000)}`.trim());
   }

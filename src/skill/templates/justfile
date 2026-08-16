@@ -55,18 +55,22 @@ plan *ARGS:
 
 # the last 10 runs
 sessions:
+    @command -v sqlite3 >/dev/null 2>&1 || { echo 'Error: sqlite3 is required for session monitoring. Install it with: sudo apt update && sudo apt install sqlite3' >&2; exit 127; }
     @sqlite3 {{db}} "select adw_id, status, substr(request,1,50), total_tokens, round(total_cost,4) from sessions order by started_at desc limit 10;"
 
 # phase status in sequence: just phases <adw_id>
 phases ADW_ID:
+    @command -v sqlite3 >/dev/null 2>&1 || { echo 'Error: sqlite3 is required for phase monitoring. Install it with: sudo apt update && sudo apt install sqlite3' >&2; exit 127; }
     @sqlite3 {{db}} "select seq, name, kind, owner, status, attempt from phases where adw_id='{{ADW_ID}}' order by seq;"
 
 # the live event tail: just tail <adw_id>
 tail ADW_ID:
+    @command -v sqlite3 >/dev/null 2>&1 || { echo 'Error: sqlite3 is required for event monitoring. Install it with: sudo apt update && sudo apt install sqlite3' >&2; exit 127; }
     @sqlite3 {{db}} "select rowid, type, name, started_at from events where adw_id='{{ADW_ID}}' order by rowid desc limit 25;"
 
 # what a run has alive right now, with pids: just procs <adw_id>
 procs ADW_ID:
+    @command -v sqlite3 >/dev/null 2>&1 || { echo 'Error: sqlite3 is required for process monitoring. Install it with: sudo apt update && sudo apt install sqlite3' >&2; exit 127; }
     @sqlite3 {{db}} "select kind, name, pid, command, started_at from processes where adw_id='{{ADW_ID}}' and ended_at is null order by id;"
 
 # ── observability UI ────────────────────────────────────────────────────────
@@ -76,4 +80,8 @@ procs ADW_ID:
 
 # boot the trace UI, http://localhost:4601 (api on :4600)
 obs:
-    cd .claude/skills/sssf/apps/visualizer && bun install && (SSSF_DB={{justfile_directory()}}/{{db}} bun run server/index.ts &) && bunx vite
+    cd .pi/skills/sssf/apps/visualizer && bun install && (SSSF_DB={{justfile_directory()}}/{{db}} bun run server/index.ts &) && bunx vite
+
+# expose the trace UI to other devices on the local network
+obs-host:
+    cd .pi/skills/sssf/apps/visualizer && bun install && (SSSF_DB={{justfile_directory()}}/{{db}} bun run server/index.ts &) && bunx vite --host 0.0.0.0
