@@ -3,13 +3,59 @@ import { appendFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { EventRecord, Phase, AgentConfig, GateReport } from "./data_types";
 import { ensureDir, newId, nowIso } from "./utils";
-const SCHEMA = `CREATE TABLE IF NOT EXISTS sessions(adw_id TEXT PRIMARY KEY,adw_name TEXT,request TEXT,status TEXT,engineer TEXT,started_at TEXT,ended_at TEXT,total_tokens INTEGER DEFAULT 0,total_cost REAL DEFAULT 0,archived INTEGER DEFAULT 0);
+export const SCHEMA = `CREATE TABLE IF NOT EXISTS sessions(adw_id TEXT PRIMARY KEY,adw_name TEXT,request TEXT,status TEXT,engineer TEXT,started_at TEXT,ended_at TEXT,total_tokens INTEGER DEFAULT 0,total_cost REAL DEFAULT 0,archived INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS phases(phase_id TEXT PRIMARY KEY,adw_id TEXT,seq INTEGER,name TEXT,kind TEXT,owner TEXT,description TEXT,status TEXT DEFAULT 'fail',attempt INTEGER DEFAULT 0,retries INTEGER DEFAULT 0,error TEXT,started_at TEXT,ended_at TEXT);
 CREATE TABLE IF NOT EXISTS events(event_id TEXT PRIMARY KEY,adw_id TEXT,phase_id TEXT,parent_id TEXT,type TEXT,name TEXT,payload_json TEXT,tokens INTEGER,started_at TEXT,ended_at TEXT);
 CREATE TABLE IF NOT EXISTS envelopes(envelope_id TEXT PRIMARY KEY,adw_id TEXT,phase_id TEXT,agent TEXT,output_type TEXT,payload_json TEXT,valid INTEGER,attempt INTEGER,created_at TEXT);
 CREATE TABLE IF NOT EXISTS gate_results(id INTEGER PRIMARY KEY AUTOINCREMENT,adw_id TEXT,phase_id TEXT,attempt INTEGER,gate TEXT,passed INTEGER,violations_json TEXT,checks_json TEXT,created_at TEXT);
 CREATE TABLE IF NOT EXISTS processes(id INTEGER PRIMARY KEY AUTOINCREMENT,adw_id TEXT,kind TEXT,name TEXT,pid INTEGER,command TEXT,started_at TEXT,ended_at TEXT);
 CREATE TABLE IF NOT EXISTS agent_sessions(adw_id TEXT,agent TEXT,coding_agent TEXT,model TEXT,color TEXT,session_id TEXT,context_tokens INTEGER,context_window INTEGER,created_at TEXT,last_used_at TEXT,PRIMARY KEY(adw_id,agent));`;
+export function initializeSchema(db: Database): void {
+  db.run(SCHEMA);
+  const migrations = {
+    "agent_sessions.color": [
+      "PRAGMA table_info(agent_sessions)",
+      "ALTER TABLE agent_sessions ADD COLUMN color TEXT",
+      "color",
+    ],
+    "gate_results.checks_json": [
+      "PRAGMA table_info(gate_results)",
+      "ALTER TABLE gate_results ADD COLUMN checks_json TEXT",
+      "checks_json",
+    ],
+    "sessions.adw_name": [
+      "PRAGMA table_info(sessions)",
+      "ALTER TABLE sessions ADD COLUMN adw_name TEXT",
+      "adw_name",
+    ],
+    "agent_sessions.context_tokens": [
+      "PRAGMA table_info(agent_sessions)",
+      "ALTER TABLE agent_sessions ADD COLUMN context_tokens INTEGER",
+      "context_tokens",
+    ],
+    "agent_sessions.context_window": [
+      "PRAGMA table_info(agent_sessions)",
+      "ALTER TABLE agent_sessions ADD COLUMN context_window INTEGER",
+      "context_window",
+    ],
+    "sessions.archived": [
+      "PRAGMA table_info(sessions)",
+      "ALTER TABLE sessions ADD COLUMN archived INTEGER DEFAULT 0",
+      "archived",
+    ],
+  } as const;
+  for (const [info, alter, column] of Object.values(migrations)) {
+    const cols = db.query(info).all() as any[];
+    if (!cols.some((x) => x.name === column))
+      try {
+        db.run(alter);
+      } catch (error) {
+        if (process.env.SSSF_DEBUG)
+          console.error(`trace schema migration skipped: ${String(error)}`);
+      }
+  }
+}
+
 export class Tracer {
   db: Database;
   constructor(
@@ -22,49 +68,7 @@ export class Tracer {
     this.db.run("PRAGMA journal_mode=WAL");
     this.db.run("PRAGMA synchronous=NORMAL");
     this.db.run("PRAGMA busy_timeout=5000");
-    this.db.run(SCHEMA);
-    const migrations = {
-      "agent_sessions.color": [
-        "PRAGMA table_info(agent_sessions)",
-        "ALTER TABLE agent_sessions ADD COLUMN color TEXT",
-        "color",
-      ],
-      "gate_results.checks_json": [
-        "PRAGMA table_info(gate_results)",
-        "ALTER TABLE gate_results ADD COLUMN checks_json TEXT",
-        "checks_json",
-      ],
-      "sessions.adw_name": [
-        "PRAGMA table_info(sessions)",
-        "ALTER TABLE sessions ADD COLUMN adw_name TEXT",
-        "adw_name",
-      ],
-      "agent_sessions.context_tokens": [
-        "PRAGMA table_info(agent_sessions)",
-        "ALTER TABLE agent_sessions ADD COLUMN context_tokens INTEGER",
-        "context_tokens",
-      ],
-      "agent_sessions.context_window": [
-        "PRAGMA table_info(agent_sessions)",
-        "ALTER TABLE agent_sessions ADD COLUMN context_window INTEGER",
-        "context_window",
-      ],
-      "sessions.archived": [
-        "PRAGMA table_info(sessions)",
-        "ALTER TABLE sessions ADD COLUMN archived INTEGER DEFAULT 0",
-        "archived",
-      ],
-    } as const;
-    for (const [info, alter, column] of Object.values(migrations)) {
-      const cols = this.db.query(info).all() as any[];
-      if (!cols.some((x) => x.name === column))
-        try {
-          this.db.run(alter);
-        } catch (error) {
-          if (process.env.SSSF_DEBUG)
-            console.error(`trace schema migration skipped: ${String(error)}`);
-        }
-    }
+    initializeSchema(this.db);
   }
   // pi-lens-ignore: ast-grep:no-sql-in-code
   event(r: EventRecord) {

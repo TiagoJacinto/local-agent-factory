@@ -42,4 +42,16 @@ test("installs a self-contained Pi workflow runtime", () => {
     cwd: target,
     stdio: "pipe",
   });
+
+  const sessionsOutput = execFileSync("just", ["sessions"], {
+    cwd: target,
+    encoding: "utf8",
+  });
+  expect(sessionsOutput).toBe("");
+
+  const tables = execFileSync("sqlite3", [join(target, "adws/adw_data/sssf.db"), ".tables"], {
+    cwd: target,
+    encoding: "utf8",
+  });
+  expect(tables).toContain("sessions");
 });
