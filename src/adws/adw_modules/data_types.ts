@@ -13,6 +13,7 @@ export interface PhaseParams {
   owner: string;
   description: string;
   retries?: number;
+  allowed_writes?: string[];
 }
 export interface Phase {
   phaseId: string;
@@ -372,37 +373,6 @@ export function envelope(type: OutputType, value: any): EnvelopeBase {
   if (type === "VerifyOutput") {
     if (typeof value.passed !== "boolean") throw new Error("VerifyOutput.passed must be boolean");
     array("failures");
-  }
-  if (type === "DoubleTddOutput") {
-    for (const key of [
-      "acceptance_full_command",
-      "unit_full_command",
-      "focused_outer_command",
-      "focused_inner_command",
-      "inventory",
-    ])
-      array(key);
-    for (const key of [
-      "acceptance_full_command",
-      "unit_full_command",
-      "focused_outer_command",
-      "focused_inner_command",
-    ]) {
-      if (
-        value[key] !== undefined &&
-        (value[key].length === 0 || value[key].some((part: unknown) => typeof part !== "string"))
-      )
-        throw new Error(`DoubleTddOutput.${key} must contain non-empty string argv parts`);
-    }
-    if (
-      value.failure_kind !== undefined &&
-      !["plumbing", "missing_behavior"].includes(value.failure_kind)
-    )
-      throw new Error("DoubleTddOutput.failure_kind must be plumbing or missing_behavior");
-    if (value.handled !== undefined && typeof value.handled !== "boolean")
-      throw new Error("DoubleTddOutput.handled must be boolean");
-    if (value.acceptance_gap !== undefined && typeof value.acceptance_gap !== "boolean")
-      throw new Error("DoubleTddOutput.acceptance_gap must be boolean");
   }
   return value as EnvelopeBase;
 }

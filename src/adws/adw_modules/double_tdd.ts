@@ -1,13 +1,14 @@
-// @ts-nocheck
 import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import * as agents from "./agents";
-import * as permissions from "./permissions";
-import * as quality from "./quality";
-import { AgentCall, type DoubleTddStateName } from "./data_types";
+import { loadConfig, validate } from "./agents";
+import { changedPaths, snapshot } from "./permissions";
+import { runCommand } from "./quality";
+import { AgentCall, type DoubleTddOutput, type DoubleTddState, type DoubleTddStateName, type EnvelopeBase, type QualityResult } from "./data_types";
+import { PhaseHandle, Run } from "./runner";
+import { z } from "zod";
 
-const INITIAL = {
-  STATE: "S0_SCOPE" as DoubleTddStateName,
+const INITIAL: DoubleTddState = {
+  STATE: "S0_SCOPE",
   ACCEPTANCE_FULL_COMMAND: null,
   UNIT_FULL_COMMAND: null,
   FOCUSED_OUTER_COMMAND: null,
@@ -47,69 +48,141 @@ function isPlumbingPath(path: string) {
   return isTestPath(path) || PLUMBING_PATH.test(path);
 }
 
-function statePath(run: any) {
+function statePath(run: Run) {
   const dir = resolve(run.contextHandoffDir, "double_tdd");
   mkdirSync(dir, { recursive: true });
   return resolve(dir, "state.json");
 }
-function cloneInitial() {
-  return { ...INITIAL, INVENTORY: [], LATEST_RESULTS: {} };
-}
-function loadState(run: any) {
+const argvSchema = z.array(z.string().trim().min(1)).min(1);
+const inventoryEntrySchema = z.object({
+  example: z.string(),
+  criterion: z.string(),
+  high_value_test: z.string().optional(),
+  status: z.enum(["handled", "unhandled", "gap"]),
+});
+const stateNameSchema = z.enum([
+  "S0_SCOPE",
+  "S1_SELECT_OUTER",
+  "S2_WRITE_OUTER",
+  "S3_FOCUSED_OUTER",
+  "S4_SELECT_INNER",
+  "S5_INNER_RED",
+  "S6_INNER_GREEN",
+  "S7_UNIT_SUITE",
+  "S9_FULL_ACCEPTANCE",
+  "S10_COVERAGE",
+  "DONE",
+]);
+const doubleTddStateSchema = z.object({
+  STATE: stateNameSchema,
+  ACCEPTANCE_FULL_COMMAND: argvSchema.nullable(),
+  UNIT_FULL_COMMAND: argvSchema.nullable(),
+  FOCUSED_OUTER_COMMAND: argvSchema.nullable(),
+  FOCUSED_INNER_COMMAND: argvSchema.nullable(),
+  INVENTORY: z.array(inventoryEntrySchema),
+  SELECTED_EXAMPLE: z.string().nullable(),
+  OUTER_RED_PROOF: z.unknown(),
+  INNER_RESPONSIBILITY: z.string().nullable(),
+  INNER_TEST: z.string().nullable(),
+  INNER_RED_PROOF: z.unknown(),
+  LATEST_RESULTS: z.record(z.string(), z.unknown()),
+});
+const doubleTddOutputSchema = z.object({
+  status: z.enum(["success", "fail"]),
+  summary: z.string().optional(), artifacts: z.array(z.string()).optional(),
+  notes_for_next_agent: z.string().optional(), state: stateNameSchema.optional(),
+  acceptance_full_command: argvSchema.optional(), unit_full_command: argvSchema.optional(),
+  focused_outer_command: argvSchema.optional(), focused_inner_command: argvSchema.optional(),
+  inventory: z.array(inventoryEntrySchema).optional(), selected_example: z.string().trim().min(1).optional(),
+  criterion: z.string().trim().min(1).optional(), oracle: z.string().trim().min(1).optional(),
+  high_value_test: z.string().trim().min(1).optional(), inner_responsibility: z.string().trim().min(1).optional(),
+  inner_test: z.string().trim().min(1).optional(), red_proof: z.string().optional(),
+  failure_kind: z.enum(["plumbing", "missing_behavior"]).optional(), handled: z.boolean().optional(),
+  acceptance_gap: z.boolean().optional(),
+}).passthrough();
+const qualityCheckSchema = z.object({
+  name: z.string(),
+  area: z.string(),
+  operation: z.string(),
+  command: z.string(),
+  returncode: z.number(),
+  passed: z.boolean(),
+  duration_seconds: z.number(),
+  output_artifact: z.string(),
+  stdout_artifact: z.string().optional(),
+  stderr_artifact: z.string().optional(),
+  output_tail: z.string().optional(),
+  failure: z.string().optional(),
+  truncated: z.boolean().optional(),
+});
+const qualityResultSchema = z.object({
+  passed: z.boolean(),
+  checks: z.array(qualityCheckSchema),
+  failures: z.array(z.string()),
+  artifacts: z.array(z.string()),
+});
+const requestSchema = z.object({
+  config: z.string().trim().min(1),
+  adwId: z.string().trim().min(1).optional(),
+  prompt: z.string().trim().min(1),
+});
+
+function requireCommand(value: unknown, label: string): string[] {
   try {
-    const saved = JSON.parse(readFileSync(statePath(run), "utf8"));
-    return { ...cloneInitial(), ...saved };
+    return argvSchema.parse(value);
+  } catch {
+    throw new Error(`${label} must be a non-empty argv array`);
+  }
+}
+
+function cloneInitial(): DoubleTddState {
+  return doubleTddStateSchema.parse({ ...INITIAL, INVENTORY: [], LATEST_RESULTS: {} });
+}
+function parseState(value: unknown): DoubleTddState {
+  return doubleTddStateSchema.parse(value);
+}
+function loadState(run: Run): DoubleTddState {
+  try {
+    return parseState(JSON.parse(readFileSync(statePath(run), "utf8")));
   } catch {
     return cloneInitial();
   }
 }
-function saveState(run: any, state: any) {
-  run.writeEvidence("double_tdd_state.json", state);
-  Bun.write(statePath(run), JSON.stringify(state, null, 2));
+function saveState(run: Run, state: DoubleTddState) {
+  const validState = parseState(state);
+  run.writeEvidence("double_tdd_state.json", validState);
+  Bun.write(statePath(run), JSON.stringify(validState, null, 2));
 }
 
-function requireString(value: unknown, label: string) {
-  if (typeof value !== "string" || !value.trim()) throw new Error(`${label} is required`);
-  return value;
-}
-function requireCommand(value: unknown, label: string) {
-  if (
-    !Array.isArray(value) ||
-    value.length === 0 ||
-    value.some((part) => typeof part !== "string" || !part.trim())
-  )
-    throw new Error(`${label} must be a non-empty argv array`);
-  return value;
-}
-function previous(state: any) {
-  return { status: "success", summary: `Double-TDD state ${state.STATE}`, ...state };
+function previous(state: DoubleTddState): EnvelopeBase & DoubleTddState {
+  return { status: "success", summary: `Double-TDD state ${state.STATE}`, ...parseState(state) };
 }
 
 export function assertOnlyPermittedPaths(
-  run: any,
+  run: Run,
   before: Record<string, string>,
   permitted: (path: string) => boolean,
   label: string,
 ) {
-  const changed = permissions.changedPaths(before, permissions.snapshot(run));
+  const changed = changedPaths(before, snapshot(run));
   const bad = changed.filter((path) => !permitted(path));
   if (bad.length) throw new Error(`${label} changed unauthorized paths: ${bad.join(", ")}`);
   return changed;
 }
-export function assertProductionOnly(run: any, before: Record<string, string>) {
+export function assertProductionOnly(run: Run, before: Record<string, string>) {
   return assertOnlyPermittedPaths(run, before, (path) => !isPlumbingPath(path), "S6_INNER_GREEN");
 }
 
 async function callAgent(
-  run: any,
+  run: Run,
   phaseName: string,
   instruction: string,
-  state: any,
+  state: DoubleTddState,
   allowedWrites: string[] | undefined,
   permitted: ((path: string) => boolean) | undefined,
 ) {
-  const before = permissions.snapshot(run);
-  let output: any;
+  const before = snapshot(run);
+  let output: EnvelopeBase | undefined;
   await run.phase(
     {
       name: phaseName,
@@ -119,16 +192,18 @@ async function callAgent(
       description: instruction,
       allowed_writes: allowedWrites,
     },
-    async (ph) => {
+    async (ph: PhaseHandle) => {
       output = await ph.call(new AgentCall("DoubleTddOutput", instruction, previous(state)));
     },
   );
   if (permitted) assertOnlyPermittedPaths(run, before, permitted, phaseName);
+  if (!output) throw new Error(`${phaseName} did not return an output`);
   return output;
 }
 
-async function runCommand(run: any, state: any, phaseName: string, argv: string[]) {
-  let result: any;
+async function runWorkflowCommand(run: Run, state: DoubleTddState, phaseName: string, argv: string[]): Promise<QualityResult> {
+  const validArgv = argvSchema.parse(argv);
+  let result: QualityResult | undefined;
   await run.phase(
     {
       name: phaseName,
@@ -136,8 +211,8 @@ async function runCommand(run: any, state: any, phaseName: string, argv: string[
       owner: "quality",
       description: `Run ${phaseName} and record its evidence before the next state transition`,
     },
-    async (ph) => {
-      result = await quality.runCommand(run, phaseName, argv);
+    async (ph: PhaseHandle) => {
+      result = qualityResultSchema.parse(await runCommand(run, phaseName, validArgv));
       state.LATEST_RESULTS[phaseName] = result;
       saveState(run, state);
       ph.log({
@@ -147,10 +222,11 @@ async function runCommand(run: any, state: any, phaseName: string, argv: string[
       });
     },
   );
+  if (!result) throw new Error(`${phaseName} did not return a quality result`);
   return result;
 }
 
-async function classifyFailure(run: any, state: any, phaseName: string, failure: any) {
+async function classifyFailure(run: Run, state: DoubleTddState, phaseName: string, failure: unknown) {
   state.LATEST_RESULTS[`${phaseName}_failure`] = failure;
   const output = await callAgent(
     run,
@@ -160,12 +236,12 @@ async function classifyFailure(run: any, state: any, phaseName: string, failure:
     [],
     () => false,
   );
-  if (!["plumbing", "missing_behavior"].includes(output.failure_kind))
+  if (output.failure_kind !== "plumbing" && output.failure_kind !== "missing_behavior")
     throw new Error(`${phaseName} classification must set failure_kind`);
   return output;
 }
 
-async function repairPlumbing(run: any, state: any, phaseName: string, failure: any) {
+async function repairPlumbing(run: Run, state: DoubleTddState, phaseName: string, failure: unknown) {
   state.LATEST_RESULTS[`${phaseName}_failure`] = failure;
   return callAgent(
     run,
@@ -177,42 +253,44 @@ async function repairPlumbing(run: any, state: any, phaseName: string, failure: 
   );
 }
 
-export function validateOutputForState(state: DoubleTddStateName, output: any) {
-  if (!output || output.status !== "success") throw new Error(`${state} requires a success output`);
-  if (state === "S0_SCOPE") {
-    requireCommand(output.acceptance_full_command, "acceptance_full_command");
-    requireCommand(output.unit_full_command, "unit_full_command");
-    requireCommand(output.focused_outer_command, "focused_outer_command");
-    requireCommand(output.focused_inner_command, "focused_inner_command");
-    if (!Array.isArray(output.inventory)) throw new Error("inventory is required");
+export function validateOutputForState(state: DoubleTddStateName, output: unknown): DoubleTddOutput {
+  const validState = stateNameSchema.parse(state);
+  const parsed = doubleTddOutputSchema.parse(output);
+  if (parsed.status !== "success") throw new Error(`${validState} requires a success output`);
+  const require = (field: string, schema: z.ZodType) => {
+    const value = parsed[field as keyof typeof parsed];
+    if (value === undefined) throw new Error(`${field} is required`);
+    schema.parse(value);
+  };
+  if (validState === "S0_SCOPE") {
+    for (const field of ["acceptance_full_command", "unit_full_command", "focused_outer_command", "focused_inner_command"])
+      require(field, argvSchema);
+    require("inventory", z.array(inventoryEntrySchema));
   }
-  if (state === "S1_SELECT_OUTER") {
-    requireString(output.selected_example, "selected_example");
-    requireString(output.criterion, "criterion");
-    requireString(output.oracle, "oracle");
-    if (output.acceptance_gap === true && !Array.isArray(output.artifacts))
-      throw new Error("an acceptance gap must name its written artifact");
+  if (validState === "S1_SELECT_OUTER") {
+    for (const field of ["selected_example", "criterion", "oracle"])
+      require(field, z.string().trim().min(1));
+    if (parsed.acceptance_gap === true) require("artifacts", z.array(z.string()).min(1));
   }
-  if (state === "S2_WRITE_OUTER") {
-    requireString(output.high_value_test, "high_value_test");
-    requireCommand(output.focused_outer_command, "focused_outer_command");
+  if (validState === "S2_WRITE_OUTER") {
+    require("high_value_test", z.string().trim().min(1));
+    require("focused_outer_command", argvSchema);
   }
-  if (state === "S4_SELECT_INNER")
-    requireString(output.inner_responsibility, "inner_responsibility");
-  if (state === "S5_INNER_RED") {
-    requireString(output.inner_test, "inner_test");
-    requireCommand(output.focused_inner_command, "focused_inner_command");
+  if (validState === "S4_SELECT_INNER") require("inner_responsibility", z.string().trim().min(1));
+  if (validState === "S5_INNER_RED") {
+    require("inner_test", z.string().trim().min(1));
+    require("focused_inner_command", argvSchema);
   }
-  if (state === "S10_COVERAGE" && typeof output.handled !== "boolean")
-    throw new Error("handled is required");
-  return output;
+  if (validState === "S10_COVERAGE") require("handled", z.boolean());
+  return parsed as DoubleTddOutput;
 }
 
-export async function run(x: any) {
-  const cfg = agents.loadConfig(x.config);
-  agents.validate(cfg, ["double_tdd"]);
+export async function run(x: unknown) {
+  const request = requestSchema.parse(x);
+  const cfg = loadConfig(request.config);
+  validate(cfg, ["double_tdd"]);
   const { ensure } = await import("./session");
-  const run = ensure(cfg, x.adwId);
+  const run = ensure(cfg, request.adwId);
   let state = loadState(run);
   let transitions = 0;
 
@@ -223,7 +301,7 @@ export async function run(x: any) {
       owner: run.engineer,
       description: "Capture the double-TDD request and its acceptance target",
     },
-    (ph) => ph.log({ input: x.prompt }),
+    (ph) => ph.log({ input: request.prompt }),
   );
 
   while (state.STATE !== "DONE") {
@@ -250,24 +328,24 @@ export async function run(x: any) {
         INVENTORY: scoped.inventory,
         STATE: "S0_SCOPE",
       });
-      state.LATEST_RESULTS.baseline_acceptance = await runCommand(
+      state.LATEST_RESULTS.baseline_acceptance = await runWorkflowCommand(
         run,
         state,
         `baseline_acceptance_${transitions}`,
-        state.ACCEPTANCE_FULL_COMMAND,
+        requireCommand(state.ACCEPTANCE_FULL_COMMAND, "acceptance_full_command"),
       );
-      state.LATEST_RESULTS.baseline_unit = await runCommand(
+      state.LATEST_RESULTS.baseline_unit = await runWorkflowCommand(
         run,
         state,
         `baseline_unit_${transitions}`,
-        state.UNIT_FULL_COMMAND,
+        requireCommand(state.UNIT_FULL_COMMAND, "unit_full_command"),
       );
       state.STATE = "S1_SELECT_OUTER";
       continue;
     }
 
     if (state.STATE === "S1_SELECT_OUTER") {
-      const selectionBefore = permissions.snapshot(run);
+      const selectionBefore = snapshot(run);
       const selected = validateOutputForState(
         state.STATE,
         await callAgent(
@@ -279,7 +357,7 @@ export async function run(x: any) {
           isTestPath,
         ),
       );
-      const selectionChanges = permissions.changedPaths(selectionBefore, permissions.snapshot(run));
+      const selectionChanges = changedPaths(selectionBefore, snapshot(run));
       if (selected.acceptance_gap ? selectionChanges.length !== 1 : selectionChanges.length !== 0)
         throw new Error(
           "S1_SELECT_OUTER must change exactly one acceptance artifact only when a gap exists",
@@ -290,7 +368,7 @@ export async function run(x: any) {
     }
 
     if (state.STATE === "S2_WRITE_OUTER") {
-      const outerTestBefore = permissions.snapshot(run);
+      const outerTestBefore = snapshot(run);
       const written = validateOutputForState(
         state.STATE,
         await callAgent(
@@ -302,7 +380,7 @@ export async function run(x: any) {
           isTestPath,
         ),
       );
-      if (permissions.changedPaths(outerTestBefore, permissions.snapshot(run)).length !== 1)
+      if (changedPaths(outerTestBefore, snapshot(run)).length !== 1)
         throw new Error("S2_WRITE_OUTER must write exactly one high-value test file");
       Object.assign(state, written, {
         FOCUSED_OUTER_COMMAND: written.focused_outer_command,
@@ -312,7 +390,7 @@ export async function run(x: any) {
     }
 
     if (state.STATE === "S3_FOCUSED_OUTER") {
-      const result = await runCommand(
+      const result = await runWorkflowCommand(
         run,
         state,
         `s3_focused_outer_${transitions}`,
@@ -352,7 +430,7 @@ export async function run(x: any) {
     }
 
     if (state.STATE === "S5_INNER_RED") {
-      const innerTestBefore = permissions.snapshot(run);
+      const innerTestBefore = snapshot(run);
       const written = validateOutputForState(
         state.STATE,
         await callAgent(
@@ -364,17 +442,17 @@ export async function run(x: any) {
           isTestPath,
         ),
       );
-      if (permissions.changedPaths(innerTestBefore, permissions.snapshot(run)).length !== 1)
+      if (changedPaths(innerTestBefore, snapshot(run)).length !== 1)
         throw new Error("S5_INNER_RED must write exactly one typical unit test file");
       Object.assign(state, written, {
         INNER_TEST: written.inner_test,
         FOCUSED_INNER_COMMAND: written.focused_inner_command,
       });
-      const result = await runCommand(
+      const result = await runWorkflowCommand(
         run,
         state,
         `s5_focused_inner_${transitions}`,
-        state.FOCUSED_INNER_COMMAND,
+        requireCommand(state.FOCUSED_INNER_COMMAND, "focused_inner_command"),
       );
       state.LATEST_RESULTS.focused_inner = result;
       if (result.passed) {
@@ -395,7 +473,7 @@ export async function run(x: any) {
     }
 
     if (state.STATE === "S6_INNER_GREEN") {
-      const before = permissions.snapshot(run);
+      const before = snapshot(run);
       await callAgent(
         run,
         `s6_inner_green_${transitions}`,
@@ -405,7 +483,7 @@ export async function run(x: any) {
         undefined,
       );
       assertProductionOnly(run, before);
-      const result = await runCommand(
+      const result = await runWorkflowCommand(
         run,
         state,
         `s6_focused_inner_${transitions}`,
@@ -417,7 +495,7 @@ export async function run(x: any) {
     }
 
     if (state.STATE === "S7_UNIT_SUITE") {
-      const result = await runCommand(
+      const result = await runWorkflowCommand(
         run,
         state,
         `s7_unit_suite_${transitions}`,
@@ -434,7 +512,7 @@ export async function run(x: any) {
     }
 
     if (state.STATE === "S9_FULL_ACCEPTANCE") {
-      const result = await runCommand(
+      const result = await runWorkflowCommand(
         run,
         state,
         `s9_full_acceptance_${transitions}`,
@@ -451,7 +529,7 @@ export async function run(x: any) {
         continue;
       }
       state.OUTER_RED_PROOF = result.failures;
-      if (diagnosis.selected_example) state.SELECTED_EXAMPLE = diagnosis.selected_example;
+      if (typeof diagnosis.selected_example === "string") state.SELECTED_EXAMPLE = diagnosis.selected_example;
       state.STATE = "S4_SELECT_INNER";
       continue;
     }
