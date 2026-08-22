@@ -34,3 +34,4 @@ adws/adw_data/runs/
 .pi-subagents
 # Generated project runtime (created by the skill installer)
 adws/
+.personal-factory/
