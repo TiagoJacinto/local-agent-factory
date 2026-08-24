@@ -18,6 +18,9 @@ test("installs a self-contained Pi workflow runtime", () => {
   expect(existsSync(join(distributionSkills, "sssf/SKILL.md"))).toBe(true);
   expect(existsSync(join(distributionSkills, "rpi-create-research/SKILL.md"))).toBe(true);
   expect(existsSync(join(distributionSkills, "rpi-create-research-questions/SKILL.md"))).toBe(true);
+  expect(
+    readFileSync(join(distributionSkills, "rpi-create-research/SKILL.md"), "utf8"),
+  ).not.toContain("@if target=");
   const installer = join(distributionSkills, "sssf/scripts/install.ts");
 
   execFileSync("bun", [installer, "--version", "v0.2.0"], { cwd: target, stdio: "pipe" });
@@ -31,6 +34,9 @@ test("installs a self-contained Pi workflow runtime", () => {
 
   const runner = join(target, "adws/adw_modules/runner.ts");
   expect(existsSync(join(target, "adws/adw_research.ts"))).toBe(true);
+  expect(
+    existsSync(join(target, "adws/adw_data/workflow_skills/rpi-create-research/SKILL.md")),
+  ).toBe(true);
   expect(readFileSync(runner, "utf8")).not.toContain("src/workflow");
 
   for (const example of [

@@ -93,6 +93,7 @@ function writeLock(version: string): void {
 stamp(join(templates, "adws"), join(root, "adws"));
 stamp(join(templates, "prompt_engineering"), join(root, "adws/adw_data/prompt_engineering"));
 stamp(join(templates, "harness_engineering"), join(root, "adws/adw_data/harness_engineering"));
+stamp(join(templates, "workflow_skills"), join(root, "adws/adw_data/workflow_skills"));
 stamp(join(templates, "sssf.config.yaml"), join(root, "adws/adw_sssf_config/sssf.config.yaml"));
 stamp(join(templates, "env.sample"), join(root, ".env.sample"));
 stamp(join(templates, "justfile"), join(root, "justfile"));

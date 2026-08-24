@@ -1,10 +1,19 @@
+import { compileWorkflowSkill } from "./project_skills";
 import * as agents from "./agents";
 import * as gates from "./gates";
 import * as quality from "./quality";
 import * as changes from "./changes";
 import * as session from "./session";
-import { AgentCall } from "./data_types";
+import { AgentCall, EnvelopeBase } from "./data_types";
 import { PhaseHandle } from "./runner";
+
+interface WorkflowInput {
+  config: string;
+  adwId?: string;
+  prompt: string;
+  agent?: string;
+  base?: string;
+}
 const req = (run: any, prompt: string) =>
   run.phase(
     {
@@ -22,6 +31,7 @@ function setup(config: string, id: string | undefined, names: string[]) {
   agents.validate(cfg, names);
   return session.ensure(cfg, id);
 }
+
 export async function prompt(x: any) {
   const run = setup(x.config, x.adwId, [x.agent]);
   await req(run, x.prompt);
@@ -248,10 +258,15 @@ export async function document(x: any) {
   return run.awaitReview();
 }
 
-export async function research(x: any) {
+export async function research(x: WorkflowInput) {
   const run = setup(x.config, x.adwId, ["research_questions", "research"]);
+  const researchQuestionsSkill = compileWorkflowSkill(
+    "rpi-create-research-questions",
+    {},
+    run.repoRoot,
+  );
   await req(run, x.prompt);
-  let questions: any;
+  let questions: EnvelopeBase | undefined;
   await run.phase(
     {
       name: "research_questions",
@@ -260,9 +275,26 @@ export async function research(x: any) {
       description: "Turn the request into evidence-backed questions that scope the research",
     },
     async (ph: PhaseHandle) => {
-      questions = await ph.call(new AgentCall("GenericOutput", x.prompt, undefined, [gates.artifactsExist]));
+      questions = await ph.call(
+        new AgentCall(
+          "GenericOutput",
+          x.prompt,
+          undefined,
+          [gates.artifactsExist],
+          researchQuestionsSkill,
+        ),
+      );
     },
   );
+
+  const researchQuestionsArtifact = questions?.artifacts?.[0];
+  if (!researchQuestionsArtifact) throw new Error("research questions agent did not declare an artifact");
+  const researchSkill = compileWorkflowSkill(
+    "rpi-create-research",
+    { researchQuestionsArtifact },
+    run.repoRoot,
+  );
+
   await run.phase(
     {
       name: "research",
@@ -271,7 +303,15 @@ export async function research(x: any) {
       description: "Answer the generated questions with a read-only codebase research document",
     },
     async (ph: PhaseHandle) => {
-      await ph.call(new AgentCall("GenericOutput", x.prompt, questions, [gates.artifactsExist]));
+      await ph.call(
+        new AgentCall(
+          "GenericOutput",
+          x.prompt,
+          questions,
+          [gates.artifactsExist],
+          researchSkill,
+        ),
+      );
     },
   );
   return run.finish();

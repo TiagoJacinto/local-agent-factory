@@ -132,6 +132,7 @@ export class AgentCall {
     public prompt: string,
     public previous?: EnvelopeBase,
     public gates: Gate[] = [],
+    public systemPromptAppendix = "",
   ) {}
 }
 

@@ -106,7 +106,12 @@ export async function execute(run: any, phase: Phase, call: AgentCall): Promise<
     previous_envelope: call.previous ? JSON.stringify(call.previous, null, 2) : "(none)",
     context_handoff_dir: run.contextHandoffDir,
   };
-  const system = prompts.render(agent.prompt_engineering.system, vars);
+  const system = [
+    prompts.render(agent.prompt_engineering.system, vars),
+    call.systemPromptAppendix,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const user = prompts.render(agent.prompt_engineering.user, vars);
   prompts.save(`${dir}/prompts`, "system.md", system);
   prompts.save(`${dir}/prompts`, "user.md", user);

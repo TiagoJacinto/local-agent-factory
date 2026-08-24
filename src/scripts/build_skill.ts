@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { compileSkill } from "../adws/adw_modules/skill_compiler";
 
 const repositoryRoot = resolve(import.meta.dir, "../..");
 const sourceRoot = join(repositoryRoot, "src");
@@ -68,11 +69,16 @@ function files(root: string, result: string[] = []): string[] {
   return result.sort();
 }
 
-function staleFiles(source: string, destination: string): string[] {
+function staleFiles(source: string, destination: string, projectSkill = false): string[] {
   return files(source).filter((path) => {
     if (path === join(sssfSource, "VERSION")) return false;
     const output = join(destination, relative(source, path));
-    return !existsSync(output) || readFileSync(path).toString() !== readFileSync(output).toString();
+    const sourceText = readFileSync(path, "utf8");
+    const expected =
+      projectSkill && path.endsWith("/SKILL.md")
+        ? compileSkill(sourceText, { target: "project" })
+        : sourceText;
+    return !existsSync(output) || expected !== readFileSync(output, "utf8");
   });
 }
 
@@ -80,9 +86,10 @@ function check(): void {
   const stale = [
     ...staleFiles(sssfSource, outputRoot),
     ...staleFiles(join(sourceRoot, "adws"), join(outputRoot, "templates/adws")),
-    ...additionalSkillNames().flatMap((name) =>
-      staleFiles(join(skillsSource, name), join(outputSkillsRoot, name)),
-    ),
+    ...additionalSkillNames().flatMap((name) => [
+      ...staleFiles(join(skillsSource, name), join(outputSkillsRoot, name), true),
+      ...staleFiles(join(skillsSource, name), join(outputRoot, "templates/workflow_skills", name)),
+    ]),
   ];
   if (stale.length) {
     throw new Error(
@@ -100,7 +107,14 @@ if (checkOnly) {
   copyTree(sssfSource, outputRoot);
   copyRuntime();
   for (const name of additionalSkillNames()) {
-    copyTree(join(skillsSource, name), join(outputSkillsRoot, name));
+    const source = join(skillsSource, name);
+    const projectDestination = join(outputSkillsRoot, name);
+    copyTree(source, projectDestination);
+    writeFileSync(
+      join(projectDestination, "SKILL.md"),
+      compileSkill(readFileSync(join(source, "SKILL.md"), "utf8"), { target: "project" }),
+    );
+    copyTree(source, join(outputRoot, "templates/workflow_skills", name));
   }
   let version = "0.0.0";
   try {

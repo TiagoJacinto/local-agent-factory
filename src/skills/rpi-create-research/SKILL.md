@@ -17,6 +17,8 @@ You are tasked with conducting comprehensive research across the codebase to ans
 - ONLY describe what exists, where it exists, how it works, and how components interact
 - You are creating a technical map/documentation of the existing system
 
+<!-- @if target=project -->
+
 ## Initial Setup
 
 When this command is invoked, check the task artifact directory from your system prompt for documents like `*research-questions*.md` with `ls -La` (the directory may be a symlink - do NOT use regular `ls` or grep/glob tools). If you find one, read it and proceed with the contents as the research query.
@@ -32,6 +34,14 @@ I'm ready to research the codebase. Please provide your research question or are
 **IMPORTANT**: You may NEVER read `problem.md` files or other files from the artifact directory which do not match the `research-questions` pattern above unless such a file is explicitly asked for by the user.
 
 Then wait for the user's research query.
+<!-- @endif -->
+
+<!-- @if target=workflow -->
+
+## Research Questions Artifact
+
+Read `{{researchQuestionsArtifact}}` in full before starting research. It is the complete, unambiguous research query for this workflow run.
+<!-- @endif -->
 
 ## Steps to follow after receiving the research query
 
