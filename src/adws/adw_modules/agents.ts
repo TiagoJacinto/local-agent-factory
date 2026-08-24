@@ -1,9 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
+import { resolve as resolvePath } from "node:path";
 import { AgentCall, AgentConfig, EnvelopeBase, Phase, PiRequest, SSSFConfig } from "./data_types";
 import * as pi from "./agent_pi";
 import * as prompts from "./prompts";
 import { newId } from "./utils";
 import { snapshot, enforce } from "./permissions";
+
+export function resolveRuntimePath(value: string) {
+  return resolvePath(process.cwd(), value);
+}
 
 export function loadConfig(path = "adws/adw_sssf_config/sssf.config.yaml"): SSSFConfig {
   const raw: any = Bun.YAML.parse(readFileSync(path, "utf8")) || {};
@@ -13,7 +18,7 @@ export function loadConfig(path = "adws/adw_sssf_config/sssf.config.yaml"): SSSF
     model: d.model || "openrouter/google/gemini-3.6-flash",
     thinking: d.thinking || "medium",
     color: d.color || "",
-    harness_engineering: d.harness_engineering || [],
+    harness_engineering: (d.harness_engineering || []).map(resolveRuntimePath),
     tools: d.tools ?? null,
     protected_files: d.protected_files || [
       "adws/adw_modules/",
@@ -28,12 +33,18 @@ export function loadConfig(path = "adws/adw_sssf_config/sssf.config.yaml"): SSSF
   };
   const agents = (raw.agents || []).map((a: any) => ({
     ...a,
+    prompt_engineering: {
+      system: resolveRuntimePath(a.prompt_engineering.system),
+      user: resolveRuntimePath(a.prompt_engineering.user),
+    },
     coding_agent: a.coding_agent ?? defaults.coding_agent,
     model: a.model ?? defaults.model,
     thinking: a.thinking ?? defaults.thinking,
     color: a.color ?? defaults.color,
     tools: a.tools ?? defaults.tools,
-    harness_engineering: a.harness_engineering ?? defaults.harness_engineering,
+    harness_engineering: (a.harness_engineering ?? defaults.harness_engineering).map(
+      resolveRuntimePath,
+    ),
     writes: a.writes === undefined ? null : a.writes,
     allowed_env: a.allowed_env ?? defaults.allowed_env,
   }));
