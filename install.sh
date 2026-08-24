@@ -74,16 +74,16 @@ RELEASE_SHA256="$(awk '{print $1}' "$ARCHIVE.sha256")"
 
 mkdir -p "$TMP_DIR/package"
 tar -xzf "$ARCHIVE" -C "$TMP_DIR/package"
-PACKAGE="$TMP_DIR/package/sssf"
-[[ -d "$PACKAGE" ]] || {
-  echo "Error: release archive must contain an sssf/ directory." >&2
+PACKAGE="$TMP_DIR/package/.pi/skills"
+[[ -d "$PACKAGE/sssf" ]] || {
+  echo "Error: release archive must contain .pi/skills/sssf/." >&2
   exit 1
 }
 
 EXISTING_SKILL=0
 [[ -d "$ROOT/.pi/skills/sssf" ]] && EXISTING_SKILL=1
-mkdir -p "$ROOT/.pi/skills/sssf"
-cp -R "$PACKAGE/." "$ROOT/.pi/skills/sssf/"
+mkdir -p "$ROOT/.pi/skills"
+cp -R "$PACKAGE/." "$ROOT/.pi/skills/"
 
 INSTALL_ARGS=()
 [[ "$EXISTING_SKILL" -eq 1 ]] && INSTALL_ARGS+=(--update)

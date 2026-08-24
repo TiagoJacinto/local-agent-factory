@@ -159,3 +159,21 @@ agents:
       - bash
       - write
       - edit
+
+  - name: research_questions
+    color: "#38bdf8"
+    purpose: Create evidence-backed questions that direct a subsequent codebase-research pass.
+    writes:
+      - .rpi/problems/
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/research_questions/system.md
+      user: adws/adw_data/prompt_engineering/research_questions/user.md
+
+  - name: research
+    color: "#22c55e"
+    purpose: Document the current codebase by answering the research questions created for the request.
+    writes:
+      - .rpi/problems/
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/research/system.md
+      user: adws/adw_data/prompt_engineering/research/user.md

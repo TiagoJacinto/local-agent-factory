@@ -1,12 +1,5 @@
 #!/usr/bin/env bun
-/**
- * Build the distributable Pi skill from repository sources.
- *
- * `src/skill` is the long-term source for static skill files. Runtime files
- * remain under `src/adws` and `src/harness_engineering` because they are also
- * compiled and tested as part of this repository. The legacy skill tree is
- * used only as a migration fallback until its static files have moved.
- */
+/** Build the distributable project-skill tree from repository sources. */
 import {
   cpSync,
   existsSync,
@@ -20,33 +13,33 @@ import { dirname, join, relative, resolve } from "node:path";
 
 const repositoryRoot = resolve(import.meta.dir, "../..");
 const sourceRoot = join(repositoryRoot, "src");
-const skillSource = join(sourceRoot, "skill");
-const legacySkill = join(repositoryRoot, ".pi/skills/sssf");
-const outputRoot = join(repositoryRoot, ".pi/skills/sssf");
+const skillsSource = join(sourceRoot, "skills");
+const sssfSource = join(skillsSource, "sssf");
+const outputSkillsRoot = join(repositoryRoot, "dist/.pi/skills");
+const outputRoot = join(outputSkillsRoot, "sssf");
 const checkOnly = process.argv.includes("--check");
 const keepOutput = process.argv.includes("--keep-output");
 
-const hasMigratedSkillSource =
-  existsSync(join(skillSource, "SKILL.md")) &&
-  existsSync(join(skillSource, "cookbooks")) &&
-  existsSync(join(skillSource, "references")) &&
-  existsSync(join(skillSource, "templates"));
-
 function copyTree(from: string, to: string): void {
-  if (!existsSync(from)) throw new Error(`Missing skill source: ${from}`);
+  if (!existsSync(from)) throw new Error(`Missing source: ${from}`);
   mkdirSync(dirname(to), { recursive: true });
   cpSync(from, to, { recursive: true, force: true });
 }
 
-function copyIfExists(from: string, to: string): void {
-  if (existsSync(from)) copyTree(from, to);
+function removeGeneratedSkills(): void {
+  if (!existsSync(outputSkillsRoot)) return;
+  for (const entry of readdirSync(outputSkillsRoot, { withFileTypes: true })) {
+    if (entry.name !== ".gitkeep")
+      rmSync(join(outputSkillsRoot, entry.name), { recursive: true, force: true });
+  }
 }
 
-function removeGeneratedFiles(): void {
-  for (const file of readdirSync(outputRoot, { withFileTypes: true })) {
-    if (file.name === ".gitkeep") continue;
-    rmSync(join(outputRoot, file.name), { recursive: true, force: true });
-  }
+function additionalSkillNames(): string[] {
+  if (!existsSync(skillsSource)) throw new Error(`Missing skills source: ${skillsSource}`);
+  return readdirSync(skillsSource, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== "sssf")
+    .map((entry) => entry.name)
+    .sort();
 }
 
 function copyRuntime(): void {
@@ -61,25 +54,8 @@ function copyRuntime(): void {
   copyIfExists(join(sourceRoot, "scripts/install.ts"), join(outputRoot, "scripts/install.ts"));
 }
 
-function copySkillContents(): void {
-  if (!hasMigratedSkillSource && !existsSync(legacySkill)) {
-    throw new Error("Skill static sources are missing; run bun run migrate:skill -- --force");
-  }
-  const roots = hasMigratedSkillSource
-    ? [legacySkill, skillSource].filter((root) => existsSync(root))
-    : [];
-  for (const root of roots) {
-    for (const entry of readdirSync(root, { withFileTypes: true })) {
-      if (entry.name === "templates" || entry.name === "scripts") continue;
-      copyTree(join(root, entry.name), join(outputRoot, entry.name));
-    }
-    for (const file of ["prompt_engineering", "sssf.config.yaml", "env.sample", "justfile"]) {
-      copyIfExists(join(root, `templates/${file}`), join(outputRoot, `templates/${file}`));
-    }
-    for (const file of ["install.ts", "make_adw.ts", "make_config.ts"]) {
-      copyIfExists(join(root, `scripts/${file}`), join(outputRoot, `scripts/${file}`));
-    }
-  }
+function copyIfExists(from: string, to: string): void {
+  if (existsSync(from)) copyTree(from, to);
 }
 
 function files(root: string, result: string[] = []): string[] {
@@ -94,7 +70,7 @@ function files(root: string, result: string[] = []): string[] {
 
 function staleFiles(source: string, destination: string): string[] {
   return files(source).filter((path) => {
-    if (path === join(skillSource, "VERSION")) return false;
+    if (path === join(sssfSource, "VERSION")) return false;
     const output = join(destination, relative(source, path));
     return !existsSync(output) || readFileSync(path).toString() !== readFileSync(output).toString();
   });
@@ -102,11 +78,16 @@ function staleFiles(source: string, destination: string): string[] {
 
 function check(): void {
   const stale = [
+    ...staleFiles(sssfSource, outputRoot),
     ...staleFiles(join(sourceRoot, "adws"), join(outputRoot, "templates/adws")),
-    ...(hasMigratedSkillSource ? staleFiles(skillSource, outputRoot) : []),
+    ...additionalSkillNames().flatMap((name) =>
+      staleFiles(join(skillsSource, name), join(outputSkillsRoot, name)),
+    ),
   ];
   if (stale.length) {
-    throw new Error(`Generated skill is stale (${stale.length} file(s)); run bun run build:skill`);
+    throw new Error(
+      `Generated skills are stale (${stale.length} file(s)); run bun run build:skill`,
+    );
   }
 }
 
@@ -114,12 +95,13 @@ if (checkOnly) {
   check();
   console.log("skill output is current");
 } else {
-  if (!keepOutput && hasMigratedSkillSource) {
-    mkdirSync(outputRoot, { recursive: true });
-    removeGeneratedFiles();
-  }
-  copySkillContents();
+  mkdirSync(outputSkillsRoot, { recursive: true });
+  if (!keepOutput) removeGeneratedSkills();
+  copyTree(sssfSource, outputRoot);
   copyRuntime();
+  for (const name of additionalSkillNames()) {
+    copyTree(join(skillsSource, name), join(outputSkillsRoot, name));
+  }
   let version = "0.0.0";
   try {
     const packageJson = JSON.parse(readFileSync(join(repositoryRoot, "package.json"), "utf8")) as {
@@ -131,9 +113,6 @@ if (checkOnly) {
   }
   const releaseVersion = version.startsWith("v") ? version : `v${version}`;
   writeFileSync(join(outputRoot, "VERSION"), `${releaseVersion}\n`);
-  writeFileSync(
-    join(outputRoot, ".build-source"),
-    `${hasMigratedSkillSource ? "Generated from src/skill and src/" : "Generated from the migration fallback and src/"}\n`,
-  );
-  console.log(`built ${outputRoot}`);
+  writeFileSync(join(outputRoot, ".build-source"), "Generated from src/skills and src/.\n");
+  console.log(`built ${outputSkillsRoot}`);
 }

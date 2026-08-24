@@ -26,7 +26,6 @@
     "build:skill": "bun run src/scripts/build_skill.ts",
     "check:skill": "bun run src/scripts/build_skill.ts --check",
     "package:skill": "bun run build:skill && bun run src/scripts/package_skill.ts",
-    "migrate:skill": "bun run src/scripts/migrate_skill.ts",
     "start": "bun run src/cli.ts greet",
     "dev": "bun --watch run src/cli.ts greet",
     "typecheck:factory": "bun run typecheck.ts",

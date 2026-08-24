@@ -46,6 +46,10 @@ prompt *ARGS:
 scout *ARGS:
     bun adws/adw_scout.ts --config {{config}} "$@"
 
+# research questions then codebase research
+research *ARGS:
+    bun adws/adw_research.ts --config {{config}} "$@"
+
 # plan only: just plan "add a /health endpoint"
 plan *ARGS:
     bun adws/adw_plan.ts --config {{config}} "$@"

@@ -247,3 +247,32 @@ export async function document(x: any) {
   );
   return run.awaitReview();
 }
+
+export async function research(x: any) {
+  const run = setup(x.config, x.adwId, ["research_questions", "research"]);
+  await req(run, x.prompt);
+  let questions: any;
+  await run.phase(
+    {
+      name: "research_questions",
+      kind: "agent",
+      owner: "research_questions",
+      description: "Turn the request into evidence-backed questions that scope the research",
+    },
+    async (ph: PhaseHandle) => {
+      questions = await ph.call(new AgentCall("GenericOutput", x.prompt, undefined, [gates.artifactsExist]));
+    },
+  );
+  await run.phase(
+    {
+      name: "research",
+      kind: "agent",
+      owner: "research",
+      description: "Answer the generated questions with a read-only codebase research document",
+    },
+    async (ph: PhaseHandle) => {
+      await ph.call(new AgentCall("GenericOutput", x.prompt, questions, [gates.artifactsExist]));
+    },
+  );
+  return run.finish();
+}

@@ -14,7 +14,11 @@ test("installs a self-contained Pi workflow runtime", () => {
     cwd: repositoryRoot,
     stdio: "pipe",
   });
-  const installer = join(repositoryRoot, ".pi/skills/sssf/scripts/install.ts");
+  const distributionSkills = join(repositoryRoot, "dist/.pi/skills");
+  expect(existsSync(join(distributionSkills, "sssf/SKILL.md"))).toBe(true);
+  expect(existsSync(join(distributionSkills, "rpi-create-research/SKILL.md"))).toBe(true);
+  expect(existsSync(join(distributionSkills, "rpi-create-research-questions/SKILL.md"))).toBe(true);
+  const installer = join(distributionSkills, "sssf/scripts/install.ts");
 
   execFileSync("bun", [installer, "--version", "v0.2.0"], { cwd: target, stdio: "pipe" });
 
@@ -26,6 +30,7 @@ test("installs a self-contained Pi workflow runtime", () => {
   expect(readFileSync(join(target, ".gitignore"), "utf8")).toContain(".pi/skills/sssf/");
 
   const runner = join(target, "adws/adw_modules/runner.ts");
+  expect(existsSync(join(target, "adws/adw_research.ts"))).toBe(true);
   expect(readFileSync(runner, "utf8")).not.toContain("src/workflow");
 
   for (const example of [

@@ -8,7 +8,7 @@ const output = join(root, "dist");
 const archive = join(output, "sssf.tar.gz");
 mkdirSync(output, { recursive: true });
 
-const result = Bun.spawnSync(["tar", "-czf", archive, "-C", join(root, ".pi/skills"), "sssf"], {
+const result = Bun.spawnSync(["tar", "-czf", archive, "-C", join(root, "dist"), ".pi"], {
   cwd: root,
   stdout: "pipe",
   stderr: "pipe",
@@ -19,5 +19,5 @@ if (!result.success) {
 
 const digest = createHash("sha256").update(readFileSync(archive)).digest("hex");
 writeFileSync(`${archive}.sha256`, `${digest}  sssf.tar.gz\n`);
-const version = readFileSync(join(root, ".pi/skills/sssf/VERSION"), "utf8").trim();
+const version = readFileSync(join(root, "dist/.pi/skills/sssf/VERSION"), "utf8").trim();
 console.log(`packaged sssf ${version}: ${archive}`);
