@@ -316,3 +316,40 @@ export async function research(x: WorkflowInput) {
   );
   return run.finish();
 }
+
+export async function prdOrientedDesign(x: WorkflowInput) {
+  const run = setup(x.config, x.adwId, ["prd", "tdd"]);
+  const prdSkill = compileWorkflowSkill("rpi-create-prd", {}, run.repoRoot);
+  await req(run, x.prompt);
+
+  let prd: EnvelopeBase | undefined;
+  await run.phase(
+    {
+      name: "prd",
+      kind: "agent",
+      owner: "prd",
+      description: "Turn the request into a product requirements document before technical design",
+    },
+    async (ph: PhaseHandle) => {
+      prd = await ph.call(
+        new AgentCall("GenericOutput", x.prompt, undefined, [gates.artifactsExist], prdSkill),
+      );
+    },
+  );
+
+  const tddSkill = compileWorkflowSkill("rpi-create-tdd", {}, run.repoRoot);
+  await run.phase(
+    {
+      name: "tdd",
+      kind: "agent",
+      owner: "tdd",
+      description: "Turn the product requirements into a technical design document",
+    },
+    async (ph: PhaseHandle) => {
+      await ph.call(
+        new AgentCall("GenericOutput", x.prompt, prd, [gates.artifactsExist], tddSkill),
+      );
+    },
+  );
+  return run.finish();
+}

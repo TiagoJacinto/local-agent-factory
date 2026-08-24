@@ -14,9 +14,19 @@ test("installs a self-contained Pi workflow runtime", () => {
     cwd: repositoryRoot,
     stdio: "pipe",
   });
+  execFileSync("bun", [join(repositoryRoot, "src/scripts/package_skill.ts")], {
+    cwd: repositoryRoot,
+    stdio: "pipe",
+  });
+  const archiveEntries = execFileSync("tar", ["-tzf", join(repositoryRoot, "dist/sssf.tar.gz")], {
+    encoding: "utf8",
+  });
+  expect(archiveEntries.split("\n")).toContain(".pi/skills/sssf/");
   const distributionSkills = join(repositoryRoot, "dist/.pi/skills");
   expect(existsSync(join(distributionSkills, "sssf/SKILL.md"))).toBe(true);
   expect(existsSync(join(distributionSkills, "rpi-create-research/SKILL.md"))).toBe(true);
+  expect(existsSync(join(distributionSkills, "rpi-create-prd/SKILL.md"))).toBe(true);
+  expect(existsSync(join(distributionSkills, "rpi-create-tdd/SKILL.md"))).toBe(true);
   expect(existsSync(join(distributionSkills, "rpi-create-research-questions/SKILL.md"))).toBe(true);
   expect(
     readFileSync(join(distributionSkills, "rpi-create-research/SKILL.md"), "utf8"),
@@ -34,6 +44,7 @@ test("installs a self-contained Pi workflow runtime", () => {
 
   const runner = join(target, "adws/adw_modules/runner.ts");
   expect(existsSync(join(target, "adws/adw_research.ts"))).toBe(true);
+  expect(existsSync(join(target, "adws/adw_prd_oriented_design.ts"))).toBe(true);
   expect(
     existsSync(join(target, "adws/adw_data/workflow_skills/rpi-create-research/SKILL.md")),
   ).toBe(true);

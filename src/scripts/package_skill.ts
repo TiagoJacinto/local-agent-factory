@@ -16,6 +16,12 @@ const result = Bun.spawnSync(["tar", "-czf", archive, "-C", join(root, "dist"), 
 if (!result.success) {
   throw new Error(new TextDecoder().decode(result.stderr) || "tar failed");
 }
+const archiveEntries = new TextDecoder().decode(
+  Bun.spawnSync(["tar", "-tzf", archive], { stdout: "pipe", stderr: "pipe" }).stdout,
+);
+if (!archiveEntries.split("\n").includes(".pi/skills/sssf/")) {
+  throw new Error("release archive must contain .pi/skills/sssf/");
+}
 
 const digest = createHash("sha256").update(readFileSync(archive)).digest("hex");
 writeFileSync(`${archive}.sha256`, `${digest}  sssf.tar.gz\n`);

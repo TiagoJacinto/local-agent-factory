@@ -160,6 +160,24 @@ agents:
       - write
       - edit
 
+  - name: prd
+    color: "#f97316"
+    purpose: Create a product requirements document from the incoming request.
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/prd/system.md
+      user: adws/adw_data/prompt_engineering/prd/user.md
+    writes:
+      - .rpi/problems/
+
+  - name: tdd
+    color: "#14b8a6"
+    purpose: Create a technical design document from the request and PRD artifact.
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/tdd/system.md
+      user: adws/adw_data/prompt_engineering/tdd/user.md
+    writes:
+      - .rpi/problems/
+
   - name: research_questions
     color: "#38bdf8"
     purpose: Create evidence-backed questions that direct a subsequent codebase-research pass.
