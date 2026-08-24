@@ -1,93 +1,77 @@
-import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { promisify } from "node:util";
 import { expect, test } from "@playwright/test";
+import { verifyDefaultCommand } from "./quick-start/commands/default";
+import { verifyDemoCommand } from "./quick-start/commands/demo";
+import { verifyInitDbCommand } from "./quick-start/commands/init-db";
+import { verifyListCommand } from "./quick-start/commands/list";
+import { verifyObsCommand, verifyObsHostCommand } from "./quick-start/commands/obs";
+import { stopProcessTree } from "./quick-start/commands/shared";
+import { verifySessionsCommand } from "./quick-start/commands/sessions";
 
 const execFileAsync = promisify(execFile);
 const installerCommand =
   "curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash";
 
-function stopProcessTree(child: ChildProcess) {
-  if (!child.pid) return;
-
-  try {
-    globalThis.process.kill(-child.pid, "SIGTERM");
-  } catch {
-    child.kill("SIGTERM");
-  }
+async function createFakePi(directory: string) {
+  const path = `${directory}/fake-pi`;
+  await writeFile(
+    path,
+    `#!/usr/bin/env bun
+const envelope = JSON.stringify({
+  status: "success",
+  summary: "Quick-start fake agent completed.",
+  artifacts: [],
+});
+console.log(JSON.stringify({
+  type: "message_end",
+  message: { role: "assistant", content: [{ type: "text", text: envelope }] },
+}));
+console.log(JSON.stringify({ type: "agent_end", messages: [{ stopReason: "stop" }] }));
+`,
+  );
+  await chmod(path, 0o755);
+  return path;
 }
 
-async function startObservabilityHost(directory: string) {
-  const server = spawn("just", ["obs-host"], {
-    cwd: directory,
-    detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
-  let output = "";
-  const readOutput = (chunk: Buffer) => {
-    output += chunk.toString();
-  };
-  server.stdout?.on("data", readOutput);
-  server.stderr?.on("data", readOutput);
-
-  const url = await new Promise<string>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      stopProcessTree(server);
-      reject(new Error(`obs-host did not report a URL. Output:\n${output}`));
-    }, 120_000);
-
-    const check = () => {
-      const match = output.match(/Local:\s+(https?:\/\/localhost:\d+\/?)/);
-      if (!match) return;
-      clearTimeout(timer);
-      resolve(match[1]);
-    };
-
-    server.stdout?.on("data", check);
-    server.stderr?.on("data", check);
-    server.once("error", (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    server.once("exit", (code) => {
-      if (code !== null) {
-        clearTimeout(timer);
-        reject(new Error(`obs-host exited with code ${code}. Output:\n${output}`));
-      }
-    });
-  });
-
-  return { server, url };
-}
-
-test("personal quick start installs and opens the sessions UI", async ({ page }) => {
-  test.setTimeout(5 * 60_000);
-  const directory = await mkdtemp(join(tmpdir(), "sssf-quick-start-"));
-  let host: ChildProcess | undefined;
+test("personal quick start supports every default command", async ({ page }) => {
+  test.setTimeout(10 * 60_000);
+  const directory = await mkdtemp(`${tmpdir()}/sssf-quick-start-`);
+  const context = { directory };
+  const visualizerProcesses = [];
+  const previousPiPath = process.env.PI_PATH;
 
   try {
+    process.env.PI_PATH = await createFakePi(directory);
     await execFileAsync("bash", ["-lc", installerCommand], {
       cwd: directory,
       maxBuffer: 10 * 1024 * 1024,
     });
 
-    const { stdout: sessionsOutput } = await execFileAsync("just", ["sessions"], {
-      cwd: directory,
-    });
-    expect(sessionsOutput.trim()).toBe("");
+    await verifyDefaultCommand(context);
+    await verifyListCommand(context);
+    await verifyInitDbCommand(context);
+    await verifyDemoCommand(context);
+    await verifySessionsCommand(context);
 
-    const started = await startObservabilityHost(directory);
-    host = started.server;
-    await page.goto(started.url, { waitUntil: "domcontentloaded" });
+    const obs = await verifyObsCommand(context);
+    visualizerProcesses.push(obs.server);
+    await page.goto(obs.url, { waitUntil: "domcontentloaded" });
     await expect(page).toHaveTitle("Super Simple Software Factory");
-    await expect(page.getByText("no sessions yet — run an ADW to see it here")).toBeVisible({
-      timeout: 30_000,
-    });
+    await expect(page.getByText("Super Simple Software Factory")).toBeVisible();
+    stopProcessTree(obs.server);
+    visualizerProcesses.pop();
+
+    const obsHost = await verifyObsHostCommand(context);
+    visualizerProcesses.push(obsHost.server);
+    await page.goto(obsHost.url, { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveTitle("Super Simple Software Factory");
   } finally {
-    if (host) stopProcessTree(host);
+    if (previousPiPath === undefined) delete process.env.PI_PATH;
+    else process.env.PI_PATH = previousPiPath;
+    for (const process of visualizerProcesses) stopProcessTree(process);
     await rm(directory, { recursive: true, force: true });
   }
 });
