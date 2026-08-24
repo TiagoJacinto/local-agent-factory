@@ -371,7 +371,7 @@ The skill is also what an agent reads to _operate_ the factory. `SKILL.md` is th
 
 ---
 
-## The eight starter workflows
+## The nine starter workflows
 
 Every ADW takes the same shape:
 
@@ -379,16 +379,17 @@ Every ADW takes the same shape:
 bun adws/adw_*.ts "<prompt or path/to/prompt.md>" [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
 ```
 
-| ADW                | Chain                                  | Reach for it when                                            |
-| ------------------ | -------------------------------------- | ------------------------------------------------------------ |
-| `adw_prompt`       | engineer to \<agent\>                  | one agent, one prompt, `--agent NAME` picks who              |
-| `adw_scout`        | engineer to scout                      | read-only recon, nothing changes                             |
-| `adw_plan`         | engineer to planner                    | you want the spec before any code                            |
-| `adw_build`        | engineer to builder                    | the plan already exists                                      |
-| `adw_quality`      | engineer to code(quality)              | lint, typecheck, build, no agents at all                     |
-| `adw_build_review` | builder, reviewer, bounded revise loop | "is this what was asked for" matters more than "does it run" |
-| `adw_double_tdd`   | outer and inner TDD loops              | drive implementation from acceptance scenarios               |
-| `adw_document`     | code(git diff), documenter             | write up what just shipped                                   |
+| ADW                          | Chain                                  | Reach for it when                                            |
+| ---------------------------- | -------------------------------------- | ------------------------------------------------------------ |
+| `adw_prompt`                 | engineer to \<agent\>                  | one agent, one prompt, `--agent NAME` picks who              |
+| `adw_scout`                  | engineer to scout                      | read-only recon, nothing changes                             |
+| `adw_plan`                   | engineer to planner                    | you want the spec before any code                            |
+| `adw_build`                  | engineer to builder                    | the plan already exists                                      |
+| `adw_quality`                | engineer to code(quality)              | lint, typecheck, build, no agents at all                     |
+| `adw_build_review`           | builder, reviewer, bounded revise loop | "is this what was asked for" matters more than "does it run" |
+| `adw_double_tdd`             | outer and inner TDD loops              | drive implementation from acceptance scenarios               |
+| `adw_document`               | code(git diff), documenter             | write up what just shipped                                   |
+| `adw_prd_oriented_discovery` | research, PRD, technical design        | discover and design from evidence                            |
 
 The repository-only composition examples are documented in [`docs/adw-examples/`](docs/adw-examples/). They are not installed into target repositories.
 

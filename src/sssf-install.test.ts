@@ -45,6 +45,7 @@ test("installs a self-contained Pi workflow runtime", () => {
   const runner = join(target, "adws/adw_modules/runner.ts");
   expect(existsSync(join(target, "adws/adw_research.ts"))).toBe(true);
   expect(existsSync(join(target, "adws/adw_prd_oriented_design.ts"))).toBe(true);
+  expect(existsSync(join(target, "adws/adw_prd_oriented_discovery.ts"))).toBe(true);
   expect(
     existsSync(join(target, "adws/adw_data/workflow_skills/rpi-create-research/SKILL.md")),
   ).toBe(true);

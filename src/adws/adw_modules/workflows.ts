@@ -258,14 +258,12 @@ export async function document(x: any) {
   return run.awaitReview();
 }
 
-export async function research(x: WorkflowInput) {
-  const run = setup(x.config, x.adwId, ["research_questions", "research"]);
+async function researchPhases(run: any, x: WorkflowInput) {
   const researchQuestionsSkill = compileWorkflowSkill(
     "rpi-create-research-questions",
     {},
     run.repoRoot,
   );
-  await req(run, x.prompt);
   let questions: EnvelopeBase | undefined;
   await run.phase(
     {
@@ -295,6 +293,7 @@ export async function research(x: WorkflowInput) {
     run.repoRoot,
   );
 
+  let research: EnvelopeBase | undefined;
   await run.phase(
     {
       name: "research",
@@ -303,7 +302,7 @@ export async function research(x: WorkflowInput) {
       description: "Answer the generated questions with a read-only codebase research document",
     },
     async (ph: PhaseHandle) => {
-      await ph.call(
+      research = await ph.call(
         new AgentCall(
           "GenericOutput",
           x.prompt,
@@ -314,25 +313,26 @@ export async function research(x: WorkflowInput) {
       );
     },
   );
-  return run.finish();
+  return research;
 }
 
-export async function prdOrientedDesign(x: WorkflowInput) {
-  const run = setup(x.config, x.adwId, ["prd", "tdd"]);
+async function prdOrientedDesignPhases(
+  run: any,
+  x: WorkflowInput,
+  research?: EnvelopeBase,
+) {
   const prdSkill = compileWorkflowSkill("rpi-create-prd", {}, run.repoRoot);
-  await req(run, x.prompt);
-
   let prd: EnvelopeBase | undefined;
   await run.phase(
     {
       name: "prd",
       kind: "agent",
       owner: "prd",
-      description: "Turn the request into a product requirements document before technical design",
+      description: "Turn the request and research findings into a product requirements document",
     },
     async (ph: PhaseHandle) => {
       prd = await ph.call(
-        new AgentCall("GenericOutput", x.prompt, undefined, [gates.artifactsExist], prdSkill),
+        new AgentCall("GenericOutput", x.prompt, research, [gates.artifactsExist], prdSkill),
       );
     },
   );
@@ -351,5 +351,26 @@ export async function prdOrientedDesign(x: WorkflowInput) {
       );
     },
   );
+}
+
+export async function research(x: WorkflowInput) {
+  const run = setup(x.config, x.adwId, ["research_questions", "research"]);
+  await req(run, x.prompt);
+  await researchPhases(run, x);
+  return run.finish();
+}
+
+export async function prdOrientedDesign(x: WorkflowInput) {
+  const run = setup(x.config, x.adwId, ["prd", "tdd"]);
+  await req(run, x.prompt);
+  await prdOrientedDesignPhases(run, x);
+  return run.finish();
+}
+
+export async function prdOrientedDiscovery(x: WorkflowInput) {
+  const run = setup(x.config, x.adwId, ["research_questions", "research", "prd", "tdd"]);
+  await req(run, x.prompt);
+  const research = await researchPhases(run, x);
+  await prdOrientedDesignPhases(run, x, research);
   return run.finish();
 }
