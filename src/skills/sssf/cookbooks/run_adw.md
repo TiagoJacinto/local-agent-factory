@@ -23,6 +23,12 @@ bun adws/<recon-chain>.ts "where is auth handled" --config path/to/other.config.
 
 The prompt is inline text or a file path. Launch in the background so you can poll while it works; the `adw_id` is printed on startup — capture it, everything else keys off it.
 
+RPI workflows (`adw_research.ts`, `adw_prd_oriented_design.ts`, and `adw_prd_oriented_discovery.ts`) require the problem directory explicitly:
+
+```bash
+bun adws/adw_research.ts "research this request" --problem-folder .rpi/problems/<slug>
+```
+
 ### Listen for the roster
 
 The chain says _what runs_; the config says _who runs it_. **If the engineer references a roster, a config, or a model tier, pass it — do not fall through to the default.**

@@ -13,6 +13,7 @@ interface WorkflowInput {
   prompt: string;
   agent?: string;
   base?: string;
+  problemFolder?: string;
 }
 const req = (run: any, prompt: string) =>
   run.phase(
@@ -258,10 +259,17 @@ export async function document(x: any) {
   return run.awaitReview();
 }
 
+function requireProblemFolder(x: WorkflowInput): string {
+  const folder = x.problemFolder?.trim();
+  if (!folder) throw new Error("--problem-folder is required for RPI workflows");
+  return folder;
+}
+
 async function researchPhases(run: any, x: WorkflowInput) {
+  const problemFolder = requireProblemFolder(x);
   const researchQuestionsSkill = compileWorkflowSkill(
     "rpi-create-research-questions",
-    {},
+    { problemFolder },
     run.repoRoot,
   );
   let questions: EnvelopeBase | undefined;
@@ -289,7 +297,7 @@ async function researchPhases(run: any, x: WorkflowInput) {
   if (!researchQuestionsArtifact) throw new Error("research questions agent did not declare an artifact");
   const researchSkill = compileWorkflowSkill(
     "rpi-create-research",
-    { researchQuestionsArtifact },
+    { researchQuestionsArtifact, problemFolder },
     run.repoRoot,
   );
 
@@ -321,7 +329,8 @@ async function prdOrientedDesignPhases(
   x: WorkflowInput,
   research?: EnvelopeBase,
 ) {
-  const prdSkill = compileWorkflowSkill("rpi-create-prd", {}, run.repoRoot);
+  const problemFolder = requireProblemFolder(x);
+  const prdSkill = compileWorkflowSkill("rpi-create-prd", { problemFolder }, run.repoRoot);
   let prd: EnvelopeBase | undefined;
   await run.phase(
     {
@@ -337,7 +346,7 @@ async function prdOrientedDesignPhases(
     },
   );
 
-  const tddSkill = compileWorkflowSkill("rpi-create-tdd", {}, run.repoRoot);
+  const tddSkill = compileWorkflowSkill("rpi-create-tdd", { problemFolder }, run.repoRoot);
   await run.phase(
     {
       name: "tdd",
@@ -354,6 +363,7 @@ async function prdOrientedDesignPhases(
 }
 
 export async function research(x: WorkflowInput) {
+  requireProblemFolder(x);
   const run = setup(x.config, x.adwId, ["research_questions", "research"]);
   await req(run, x.prompt);
   await researchPhases(run, x);
@@ -361,6 +371,7 @@ export async function research(x: WorkflowInput) {
 }
 
 export async function prdOrientedDesign(x: WorkflowInput) {
+  requireProblemFolder(x);
   const run = setup(x.config, x.adwId, ["prd", "tdd"]);
   await req(run, x.prompt);
   await prdOrientedDesignPhases(run, x);
@@ -368,6 +379,7 @@ export async function prdOrientedDesign(x: WorkflowInput) {
 }
 
 export async function prdOrientedDiscovery(x: WorkflowInput) {
+  requireProblemFolder(x);
   const run = setup(x.config, x.adwId, ["research_questions", "research", "prd", "tdd"]);
   await req(run, x.prompt);
   const research = await researchPhases(run, x);

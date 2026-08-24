@@ -34,7 +34,7 @@ demo:
     @echo "\nboth done. now run:  just sessions    (or: just obs)"
 
 # ── run a workflow ──────────────────────────────────────────────────────────
-# Args pass straight through: "<prompt or path/to/prompt.md>" [--adw-id X]
+# Args pass straight through: "<prompt or path/to/prompt.md>" [--adw-id X] [--problem-folder .rpi/problems/<slug>]
 # Composition examples are documented in the factory repository and are not
 # stamped into target repositories.
 
@@ -46,7 +46,7 @@ prompt *ARGS:
 scout *ARGS:
     bun adws/adw_scout.ts --config {{config}} "$@"
 
-# research questions then codebase research
+# research questions then codebase research (requires --problem-folder)
 research *ARGS:
     bun adws/adw_research.ts --config {{config}} "$@"
 

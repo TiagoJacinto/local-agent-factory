@@ -20,6 +20,7 @@ export function input() {
     adwId: a.options["adw-id"] ? String(a.options["adw-id"]) : undefined,
     agent: a.options.agent ? String(a.options.agent) : "builder",
     base: a.options.base ? String(a.options.base) : "main",
+    problemFolder: a.options["problem-folder"] ? String(a.options["problem-folder"]) : undefined,
   };
 }
 export async function main(fn: (x: ReturnType<typeof input>) => Promise<number>) {

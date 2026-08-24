@@ -7,6 +7,13 @@ description: Only use when the user explicitly invokes this skill by name.
 
 You are tasked with conducting comprehensive research across the codebase to answer user questions by spawning parallel sub-agents and synthesizing their findings.
 
+<!-- @if target=workflow -->
+
+## RPI problem folder
+
+Use `{{problemFolder}}` as the task artifact directory for this workflow run. Do not infer a different task directory.
+<!-- @endif -->
+
 ## CRITICAL: YOUR ONLY JOB IS TO DOCUMENT AND EXPLAIN THE CODEBASE AS IT EXISTS TODAY
 
 - DO NOT suggest improvements or changes unless the user explicitly asks for them

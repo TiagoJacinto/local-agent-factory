@@ -28,9 +28,13 @@ test("installs a self-contained Pi workflow runtime", () => {
   expect(existsSync(join(distributionSkills, "rpi-create-prd/SKILL.md"))).toBe(true);
   expect(existsSync(join(distributionSkills, "rpi-create-tdd/SKILL.md"))).toBe(true);
   expect(existsSync(join(distributionSkills, "rpi-create-research-questions/SKILL.md"))).toBe(true);
+  expect(existsSync(join(distributionSkills, "rpi-problem/SKILL.md"))).toBe(true);
   expect(
     readFileSync(join(distributionSkills, "rpi-create-research/SKILL.md"), "utf8"),
   ).not.toContain("@if target=");
+  expect(
+    readFileSync(join(distributionSkills, "rpi-create-research/SKILL.md"), "utf8"),
+  ).not.toContain("{{problemFolder}}");
   const installer = join(distributionSkills, "sssf/scripts/install.ts");
 
   execFileSync("bun", [installer, "--version", "v0.2.0"], { cwd: target, stdio: "pipe" });
