@@ -1,33 +1,63 @@
+import { Command } from "commander";
 import { resolvePrompt } from "./utils";
-export function args() {
-  const positional: string[] = [];
-  const options: Record<string, string | boolean> = {};
-  for (let i = 2; i < process.argv.length; i++) {
-    const x = process.argv[i];
-    if (x.startsWith("--")) {
-      const k = x.slice(2);
-      options[k] = process.argv[i + 1]?.startsWith("--") ? true : (process.argv[++i] ?? true);
-    } else positional.push(x);
-  }
-  return { positional, options };
-}
-export function input() {
-  const a = args();
-  if (!a.positional[0]) throw new Error("prompt is required");
+
+export type ConfigureCli = (program: Command) => void;
+export type ParseCliInput<T> = (program: Command) => T;
+
+export function args(
+  configure: ConfigureCli = () => {},
+  argv: readonly string[] = process.argv.slice(2),
+) {
+  const program = new Command();
+
+  program
+    .name("adw")
+    .argument("[prompt]")
+    .option("--config <path>", "configuration file")
+    .option("--adw-id <id>", "ADW session identifier")
+    .allowExcessArguments(false)
+    .exitOverride();
+  configure(program);
+  program.parse(["node", "adw", ...argv]);
+
   return {
-    prompt: resolvePrompt(a.positional[0]),
-    config: String(a.options.config || "adws/adw_sssf_config/sssf.config.yaml"),
-    adwId: a.options["adw-id"] ? String(a.options["adw-id"]) : undefined,
-    agent: a.options.agent ? String(a.options.agent) : "builder",
-    base: a.options.base ? String(a.options.base) : "main",
-    problemFolder: a.options["problem-folder"] ? String(a.options["problem-folder"]) : undefined,
+    program,
+    positional: program.args as string[],
+    options: program.opts() as Record<string, string | boolean>,
   };
 }
-export async function main(fn: (x: ReturnType<typeof input>) => Promise<number>) {
+
+export function input(program: Command) {
+  const prompt = program.args[0];
+  if (!prompt) throw new Error("prompt is required");
+
+  const options = program.opts<{ config?: string; adwId?: string }>();
+  return {
+    prompt: resolvePrompt(prompt),
+    config: options.config || "adws/adw_sssf_config/sssf.config.yaml",
+    adwId: options.adwId,
+  };
+}
+
+export async function main<T>(
+  configure: ConfigureCli,
+  parse: ParseCliInput<T>,
+  fn: (value: T) => Promise<number>,
+) {
   try {
-    process.exitCode = await fn(input());
-  } catch (e) {
-    console.error(e instanceof Error ? e.stack : e);
+    const parsed = args(configure);
+    process.exitCode = await fn(parse(parsed.program));
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "commander.helpDisplayed"
+    ) {
+      process.exitCode = 0;
+      return;
+    }
+    console.error(error instanceof Error ? error.stack : error);
     process.exitCode = 1;
   }
 }

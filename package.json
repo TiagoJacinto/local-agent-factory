@@ -1,6 +1,6 @@
 {
   "name": "local-agent-factory",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "bin": {
     "local-agent-factory": "./src/cli.ts"
