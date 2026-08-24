@@ -1,3 +1,4 @@
+/// <reference types="bun" />
 import { execFile } from "node:child_process";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -41,10 +42,10 @@ test("personal quick start supports every default command", async ({ page }) => 
   const directory = await mkdtemp(`${tmpdir()}/sssf-quick-start-`);
   const context = { directory };
   const visualizerProcesses = [];
-  const previousPiPath = process.env.PI_PATH;
+  const previousPiPath = Bun.env.PI_PATH;
 
   try {
-    process.env.PI_PATH = await createFakePi(directory);
+    Bun.env.PI_PATH = await createFakePi(directory);
     await execFileAsync("bash", ["-lc", installerCommand], {
       cwd: directory,
       maxBuffer: 10 * 1024 * 1024,
@@ -69,8 +70,8 @@ test("personal quick start supports every default command", async ({ page }) => 
     await page.goto(obsHost.url, { waitUntil: "domcontentloaded" });
     await expect(page).toHaveTitle("Super Simple Software Factory");
   } finally {
-    if (previousPiPath === undefined) delete process.env.PI_PATH;
-    else process.env.PI_PATH = previousPiPath;
+    if (previousPiPath === undefined) delete Bun.env.PI_PATH;
+    else Bun.env.PI_PATH = previousPiPath;
     for (const process of visualizerProcesses) stopProcessTree(process);
     await rm(directory, { recursive: true, force: true });
   }

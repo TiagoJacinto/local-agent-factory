@@ -9,6 +9,6 @@
     "skipLibCheck": true,
     "types": ["bun"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
   "exclude": [".pi/skills/sssf/apps/visualizer/node_modules", "src/skills/sssf/apps/visualizer"]
 }
