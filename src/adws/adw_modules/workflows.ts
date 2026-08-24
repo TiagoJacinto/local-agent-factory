@@ -362,6 +362,44 @@ async function prdOrientedDesignPhases(
   );
 }
 
+export async function ship(x: WorkflowInput) {
+  const run = setup(x.config, x.adwId, ["builder"]);
+  await req(run, x.prompt);
+
+  const implementationSkill = compileWorkflowSkill("rpi-implement-outline", {}, run.repoRoot);
+  let implementation: EnvelopeBase | undefined;
+  await run.phase(
+    {
+      name: "implement_outline",
+      kind: "agent",
+      owner: "builder",
+      retries: 1,
+      description: "Implement the current structure-outline phase and verify the resulting changes",
+    },
+    async (ph: PhaseHandle) => {
+      implementation = await ph.call(
+        new AgentCall("GenericOutput", x.prompt, undefined, [], implementationSkill),
+      );
+    },
+  );
+
+  const describePrSkill = compileWorkflowSkill("rpi-describe-pr", {}, run.repoRoot);
+  await run.phase(
+    {
+      name: "describe_pr",
+      kind: "agent",
+      owner: "builder",
+      retries: 1,
+      description: "Create or update the pull request from the completed implementation",
+    },
+    async (ph: PhaseHandle) => {
+      await ph.call(new AgentCall("GenericOutput", x.prompt, implementation, [], describePrSkill));
+    },
+  );
+
+  return run.finish();
+}
+
 export async function research(x: WorkflowInput) {
   requireProblemFolder(x);
   const run = setup(x.config, x.adwId, ["research_questions", "research"]);

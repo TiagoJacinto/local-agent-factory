@@ -50,6 +50,10 @@ scout *ARGS:
 research *ARGS:
     bun adws/adw_research.ts --config {{config}} "$@"
 
+# implement the current outline, then create or update its pull request
+ship *ARGS:
+    bun adws/adw_ship.ts --config {{config}} "$@"
+
 # plan only: just plan "add a /health endpoint"
 plan *ARGS:
     bun adws/adw_plan.ts --config {{config}} "$@"
