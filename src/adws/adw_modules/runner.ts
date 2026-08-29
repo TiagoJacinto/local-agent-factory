@@ -1,6 +1,6 @@
 import { AgentCall, EnvelopeBase, Phase, PhaseParams, SSSFConfig } from "./data_types";
 import { Console } from "./console";
-import { Tracer } from "./tracer";
+import type { Tracer } from "./tracer";
 import { atomicWrite, ensureDir, nowIso, redactSecrets } from "./utils";
 import * as agents from "./agents";
 import * as git from "./git_helper";
@@ -20,12 +20,43 @@ export interface WorkspaceAdapter {
   copyRepository(source: string, destination: string): void;
 }
 
+export interface RunFileSystem {
+  ensureDir(path: string): string;
+  exists(path: string): boolean;
+  remove(path: string): void;
+  readFile(path: string): string;
+  writeFile(path: string, content: string): void;
+  atomicWrite(path: string, content: string): string;
+}
+
+export interface RunConsole {
+  note(message: string): void;
+  phaseStarted(phase: Phase): void;
+  phaseEnded(phase: Phase, seconds: number): void;
+  sessionFinished(ok: boolean, tokens: number, cost: number, db: string, status?: string): void;
+}
+
 export interface RunDependencies {
   sourceRoot?: string;
   workspaceRoot?: string;
   workspaceAdapter?: WorkspaceAdapter;
+  fileSystem?: RunFileSystem;
+  console?: RunConsole;
+  nowIso?: () => string;
+  nowMs?: () => number;
+  setTimeout?: (handler: () => void, timeoutMs: number) => ReturnType<typeof setTimeout>;
+  clearTimeout?: (timer: ReturnType<typeof setTimeout>) => void;
   executeAgentCall?: (run: Run, phase: Phase, call: AgentCall) => Promise<EnvelopeBase>;
 }
+
+const productionFileSystem: RunFileSystem = {
+  ensureDir,
+  exists: existsSync,
+  remove: (path) => rmSync(path, { recursive: true, force: true }),
+  readFile: (path) => readFileSync(path, "utf8"),
+  writeFile: (path, content) => writeFileSync(path, content),
+  atomicWrite,
+};
 
 const productionWorkspaceAdapter: WorkspaceAdapter = {
   isRepository: (path) => git.isRepo(path),
@@ -57,7 +88,7 @@ export class PhaseHandle {
       this.run.writeEvidence("request.json", {
         adw_id: this.run.adwId,
         request: String(payload.input),
-        created_at: nowIso(),
+        created_at: this.run.currentIso(),
       });
     }
   }
@@ -81,11 +112,18 @@ export class Run {
   contextHandoffDir: string;
   runEvidenceDir: string;
   agentMap: Record<string, any>;
-  console: Console;
+  console: RunConsole;
   private readonly abortController = new AbortController();
   private readonly timeoutTimer: ReturnType<typeof setTimeout>;
+  readonly nowIso: () => string;
+  private readonly nowMs: () => number;
+  private readonly clearTimer: (timer: ReturnType<typeof setTimeout>) => void;
   private abortReason = "";
   private finalized = false;
+  currentIso() {
+    return this.nowIso();
+  }
+
   get signal() {
     return this.abortController.signal;
   }
@@ -97,7 +135,10 @@ export class Run {
     public engineer: string,
     private readonly dependencies: RunDependencies = {},
   ) {
-    this.console = new Console(tracer, adwId);
+    this.nowIso = this.dependencies.nowIso || nowIso;
+    this.nowMs = this.dependencies.nowMs || Date.now;
+    this.clearTimer = this.dependencies.clearTimeout || clearTimeout;
+    this.console = this.dependencies.console || new Console(tracer, adwId);
     this.seq = tracer.maxPhaseSeq(adwId);
     this.sourceRoot = this.dependencies.sourceRoot || git.repoRoot();
     this.repoRoot = this.sourceRoot;
@@ -105,13 +146,18 @@ export class Run {
     this.contextHandoffDir = resolve(this.sessionDir, "context_handoff");
     this.runEvidenceDir = resolve(cfg.defaults.data_dir, "runs", adwId);
     const timeoutMs = Math.max(0, cfg.defaults.run_timeout_seconds * 1000);
-    this.timeoutTimer = setTimeout(() => this.abort("whole-run timeout"), timeoutMs);
-    this.timeoutTimer.unref();
+    this.timeoutTimer = (this.dependencies.setTimeout || setTimeout)(
+      () => this.abort("whole-run timeout"),
+      timeoutMs,
+    );
+    const timer = this.timeoutTimer as ReturnType<typeof setTimeout> & { unref?: () => void };
+    timer.unref?.();
     const p = `${this.sessionDir}/agent_map.json`;
     this.agentMap = {};
-    if (existsSync(p))
+    const fileSystem = this.dependencies.fileSystem || productionFileSystem;
+    if (fileSystem.exists(p))
       try {
-        this.agentMap = JSON.parse(readFileSync(p, "utf8")) || {};
+        this.agentMap = JSON.parse(fileSystem.readFile(p)) || {};
       } catch {
         this.agentMap = {};
       }
@@ -119,16 +165,19 @@ export class Run {
 
   prepareWorkspace(expectedRevision?: string) {
     const workspaceAdapter = this.dependencies.workspaceAdapter || productionWorkspaceAdapter;
+    const fileSystem = this.dependencies.fileSystem || productionFileSystem;
     this.gitEnabled = workspaceAdapter.isRepository(this.sourceRoot);
-    ensureDir(this.contextHandoffDir);
-    ensureDir(this.runEvidenceDir);
+    fileSystem.ensureDir(this.contextHandoffDir);
+    fileSystem.ensureDir(this.runEvidenceDir);
     const workspace = resolve(
       this.dependencies.workspaceRoot || resolve(tmpdir(), "local-agent-factory"),
       this.adwId,
-    );    ensureDir(resolve(tmpdir(), "local-agent-factory"));
-    if (existsSync(workspace)) rmSync(workspace, { recursive: true, force: true });
+    );
+    fileSystem.ensureDir(this.dependencies.workspaceRoot || resolve(tmpdir(), "local-agent-factory"));
+    if (fileSystem.exists(workspace)) fileSystem.remove(workspace);
     if (this.gitEnabled) {
-      const before = workspaceAdapter.inspectSource(this.sourceRoot);      if (before.workingTree !== "Clean")
+      const before = workspaceAdapter.inspectSource(this.sourceRoot);
+      if (before.workingTree !== "Clean")
         throw new Error("source preflight failed: working tree is dirty");
       if (expectedRevision && before.revision !== expectedRevision)
         throw new Error(
@@ -136,7 +185,8 @@ export class Run {
         );
       this.sourceRevision = before.revision;
       workspaceAdapter.cloneRepository(this.sourceRoot, workspace);
-      const after = workspaceAdapter.inspectSource(this.sourceRoot);      if (after.workingTree !== "Clean" || after.revision !== this.sourceRevision)
+      const after = workspaceAdapter.inspectSource(this.sourceRoot);
+      if (after.workingTree !== "Clean" || after.revision !== this.sourceRevision)
         throw new Error("source preflight failed: source changed during workspace creation");
       this.writeEvidence("source.json", {
         path: this.sourceRoot,
@@ -163,12 +213,14 @@ export class Run {
 
   writeEvidence(name: string, value: unknown) {
     const content = typeof value === "string" ? value : JSON.stringify(value, null, 2);
-    return atomicWrite(resolve(this.runEvidenceDir, name), redactSecrets(content));
+    const fileSystem = this.dependencies.fileSystem || productionFileSystem;
+    return fileSystem.atomicWrite(resolve(this.runEvidenceDir, name), redactSecrets(content));
   }
 
   saveAgentMap(agent: string, entry: any) {
     this.agentMap[agent] = entry;
-    writeFileSync(`${this.sessionDir}/agent_map.json`, JSON.stringify(this.agentMap, null, 2));
+    const fileSystem = this.dependencies.fileSystem || productionFileSystem;
+    fileSystem.writeFile(`${this.sessionDir}/agent_map.json`, JSON.stringify(this.agentMap, null, 2));
   }
   addUsage(tokens: number, cost: number) {
     this.tokens += tokens;
@@ -208,7 +260,7 @@ export class Run {
   private finalize(ok: boolean, reason = "", statusOverride?: string) {
     if (this.finalized) return !reason && ok;
     this.finalized = true;
-    clearTimeout(this.timeoutTimer);
+    this.clearTimer(this.timeoutTimer);
     const finalSource = this.gitEnabled ? this.finalSourceState() : undefined;
     const integrityError = this.gitEnabled ? this.sourceIntegrityError(finalSource) : undefined;
     const finalReason = integrityError || this.abortReason || reason;
@@ -237,7 +289,7 @@ export class Run {
       },
       tokens: this.tokens,
       cost: this.cost,
-      ended_at: nowIso(),
+      ended_at: this.nowIso(),
     });
     this.tracer.sessionFinish(this.adwId, accepted, status);
     return accepted;
@@ -293,7 +345,7 @@ export class Run {
       params,
       status: "running",
       attempt: 0,
-      startedAt: nowIso(),
+      startedAt: this.nowIso(),
     };
     this.phases.push(phase);
     this.tracer.phaseUpsert(phase);
@@ -309,7 +361,7 @@ export class Run {
       },
     });
     this.console.phaseStarted(phase);
-    const start = Date.now();
+    const start = this.nowMs();
     try {
       await body(new PhaseHandle(this, phase));
       if (this.signal.aborted) throw new Error(this.abortReason || "workflow canceled");
@@ -323,7 +375,7 @@ export class Run {
         payload: { status: "success" },
       });
       this.tracer.phaseUpsert(phase);
-      this.console.phaseEnded(phase, (Date.now() - start) / 1000);
+      this.console.phaseEnded(phase, (this.nowMs() - start) / 1000);
     } catch (error) {
       phase.status = "fail";
       phase.error = String(error instanceof Error ? error.message : error).slice(0, 1000);
@@ -344,7 +396,7 @@ export class Run {
       });
       this.tracer.phaseUpsert(phase);
       this.fail(phase.error);
-      this.console.phaseEnded(phase, (Date.now() - start) / 1000);
+      this.console.phaseEnded(phase, (this.nowMs() - start) / 1000);
       this.console.sessionFinished(false, this.tokens, this.cost, this.cfg.observability.db);
       throw error;
     }

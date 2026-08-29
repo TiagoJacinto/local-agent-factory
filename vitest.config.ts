@@ -8,7 +8,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
-          include: ["src/**/*.test.ts", "src/**/*.spec.ts"],
+          include: ["src/**/*.test.ts", "src/**/*.spec.ts", "adws/**/*.test.ts"],
           environment: "node",
         },
       },

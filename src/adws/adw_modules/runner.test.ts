@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, test } from "vitest";
 import { AgentCall, type Phase, type SSSFConfig } from "./data_types";
 import { Run, type RunDependencies, type WorkspaceAdapter } from "./runner";
-import { Tracer } from "./tracer";
+
 
 const roots: string[] = [];
 
@@ -25,7 +25,14 @@ function setup(dependencies: RunDependencies = {}) {
     observability: { db: join(root, "trace.db"), poll_ms: 1 },
     agents: [],
   } as unknown as SSSFConfig;
-  const tracer = new Tracer(cfg.observability.db, join(root, "events.jsonl"));
+  const tracer = {
+    maxPhaseSeq: () => 0,
+    event: () => "event",
+    phaseUpsert: () => undefined,
+    sessionRequest: () => undefined,
+    sessionAddUsage: () => undefined,
+    sessionFinish: () => undefined,
+  } as any;
   return { root, run: new Run(cfg, "test-run", tracer, "test-engineer", dependencies) };
 }
 
@@ -110,4 +117,39 @@ describe("Run execution", () => {
     );
     expect(run.finish()).toBe(0);
   });
+});
+
+test("rejects a changed source when finishing", () => {
+  const calls: string[] = [];
+  let state: "Clean" | "Dirty" = "Clean";
+  const root = mkdtempSync(join(tmpdir(), "sssf-source-integrity-test-"));
+  roots.push(root);
+  const adapter = fakeWorkspace(root, calls);
+  adapter.inspectSource = () => ({ revision: "revision-1", workingTree: state });
+  const { run } = setup({
+    sourceRoot: root,
+    workspaceRoot: join(root, "workspaces"),
+    workspaceAdapter: adapter,
+  });
+  run.prepareWorkspace();
+  state = "Dirty";
+  expect(run.finish()).toBe(1);
+});
+
+test("cancels a running workflow through the injected timer", async () => {
+  let timer: (() => void) | undefined;
+  const { run } = setup({
+    setTimeout: (handler) => {
+      timer = handler;
+      return setTimeout(() => undefined, 60_000);
+    },
+  });
+  timer?.();
+  await expect(
+    run.phase(
+      { name: "canceled", kind: "code", owner: "engineer", description: "Rejects canceled work." },
+      () => undefined,
+    ),
+  ).rejects.toThrow("whole-run timeout");
+  expect(run.finish()).toBe(1);
 });
