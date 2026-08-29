@@ -406,7 +406,7 @@ function createWorkspace(
   const workspacePath = join(workspaceRoot, runIdentifier);
   mkdirSync(workspaceRoot, { recursive: true });
   execFileSync("git", ["clone", "--quiet", "--no-hardlinks", sourcePath, workspacePath], {
-    timeout: 30_000,
+    timeout: 90_000,
     env: safeGitEnv(),
   });
   return workspacePath;
