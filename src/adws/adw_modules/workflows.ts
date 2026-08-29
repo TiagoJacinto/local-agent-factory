@@ -86,6 +86,27 @@ export async function plan(x: any) {
   );
   return run.finish();
 }
+export async function prewalk(x: any) {
+  const run = setup(x.config, x.adwId, ["prewalk"]);
+  await req(run, x.prompt);
+  await run.phase(
+    {
+      name: "prewalk",
+      kind: "agent",
+      owner: "prewalk",
+      description:
+        "Plan on the strong model, then hand the same Pi session to the implementation model at its first edit or write",
+    },
+    async (ph: PhaseHandle) => {
+      await ph.call(
+        new AgentCall("BuildOutput", x.prompt, undefined, [gates.diffMatchesClaims], `
+Prewalk protocol: if the todo tool is available, create or update the task Todo before mutation; otherwise continue without it. Before handoff, use only read, grep, find, and ls; do not use bash for edits or test commands. Use edit or write for the first mutation. That successful edit or write is the handoff boundary. After handoff, continue the same task on the implementation model, use bash as needed, and verify the result.
+`),
+      );
+    },
+  );
+  return run.awaitReview();
+}
 export async function build(x: any) {
   const run = setup(x.config, x.adwId, ["builder"]);
   await req(run, x.prompt);

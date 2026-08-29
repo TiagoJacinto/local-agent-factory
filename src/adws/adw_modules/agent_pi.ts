@@ -137,15 +137,14 @@ export async function run(
     id,
     "--thinking",
     req.thinking,
-    "--session-id",
-    req.sessionId,
+    "--session",
+    `${req.sessionDir}/${req.sessionId}.jsonl`,
     "--session-dir",
     req.sessionDir,
     "--system-prompt",
     req.systemPrompt,
   ];
   if (req.tools?.length) args.push("--tools", req.tools.join(","));
-  for (const extension of req.extensions) args.push("-e", extension);
   args.push(req.prompt);
   mkdirSync(dirname(req.rawOutputPath), { recursive: true });
   mkdirSync(dirname(req.stderrPath), { recursive: true });
@@ -163,6 +162,7 @@ export async function run(
   };
   let buffer = "";
   let completed = false;
+  let stoppedForHandoff = false;
   let terminalFailure = "";
   const processController = new AbortController();
   const abortForSignal = () => processController.abort();
@@ -188,6 +188,11 @@ export async function run(
         result.context_tokens = turn;
     }
     onEvent?.(event);
+    if (req.stopWhen?.(event)) {
+      stoppedForHandoff = true;
+      processController.abort();
+      return;
+    }
     if (event.type === "agent_end") {
       const message = event.messages?.at(-1);
       if (message?.stopReason === "error") {
@@ -218,7 +223,7 @@ export async function run(
   if (buffer.trim()) handleLine(buffer);
   req.signal?.removeEventListener("abort", abortForSignal);
   if (terminalFailure) throw new Error(`pi provider error: ${terminalFailure}`);
-  if (!completed && (process.failure || process.exitCode !== 0)) {
+  if (!stoppedForHandoff && !completed && (process.failure || process.exitCode !== 0)) {
     const reason = process.failure || `exit ${process.exitCode}`;
     throw new Error(`pi ${reason}: ${clip(process.stderr, 2000)}`.trim());
   }

@@ -108,7 +108,7 @@ curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/ma
 Choose an exact release when you need repeatability:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash -s -- --version v0.2.0
+curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash -s -- --version v0.3.0
 ```
 
 The installer records the resolved version in `adws/adw_sssf_config/sssf.lock.yaml`. Existing installs keep that version until you explicitly run the installer with `--version` or `--latest`.
@@ -130,9 +130,9 @@ This creates `dist/sssf.tar.gz` and its checksum for a GitHub Release asset.
 Releases are published automatically when a tag matches the package version:
 
 ```bash
-# package.json version must be 0.2.0
-git tag v0.2.0
-git push origin v0.2.0
+# package.json version must be 0.3.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 The release workflow runs formatting, lint, typecheck, and tests. It then uploads
@@ -148,7 +148,7 @@ cp -r /path/to/local-agent-factory/.pi/skills/sssf .pi/skills/
 bun .pi/skills/sssf/scripts/install.ts
 ```
 
-Re-running `install.ts` is safe. It skips every file that already exists and reports what it skipped, so a second run doubles as a drift check. `--update` refreshes runtime files while preserving your config, prompts, harness extensions, and justfile. `--force` refreshes **all** stamped files, including your `sssf.config.yaml` and your prompts, so commit first.
+Re-running `install.ts` is safe. It skips every file that already exists and reports what it skipped, so a second run doubles as a drift check. `--update` refreshes runtime files, adds missing agents from the starter roster, and preserves your existing config entries, prompts, harness extensions, and justfile. `--force` refreshes **all** stamped files, including your `sssf.config.yaml` and your prompts, so commit first.
 
 Green on the smoke test means the whole path works: config validated, session minted, Pi ran, envelope parsed, events landed in `adws/adw_data/sssf.db`. Fix it there before composing anything larger, because every multi-agent chain rides this exact path.
 
@@ -192,16 +192,15 @@ There are three actors here, and the design keeps them separate on purpose: **th
 
 The skill package lives in `.pi/skills/sssf/`. It contains the hard rules, cookbooks, references, scripts, and templates. `SKILL.md` routes each request to one of nine cookbooks; `templates/` holds exactly what gets stamped.
 
-| What lands in your repo                 | Where it comes from              | Tracked                               |
-| --------------------------------------- | -------------------------------- | ------------------------------------- |
-| `adws/adw_sssf_config/sssf.config.yaml` | `templates/sssf.config.yaml`     | yes, it is your agent roster          |
-| `adws/adw_*.ts`                         | `templates/adws/`                | yes, eight starter workflows          |
-| `adws/adw_modules/`                     | `templates/adws/adw_modules/`    | yes, all low-level logic              |
-| `adws/adw_data/prompt_engineering/`     | `templates/prompt_engineering/`  | yes, **your prompts live here**       |
-| `adws/adw_data/harness_engineering/`    | `templates/harness_engineering/` | yes, pi extensions                    |
-| `.env.sample`                           | `templates/env.sample`           | yes                                   |
-| `justfile`                              | `templates/justfile`             | yes, starter recipes to run and watch |
-| `adws/adw_data/sessions/`, `sssf.db`    | created at runtime               | no, gitignored                        |
+| What lands in your repo                 | Where it comes from             | Tracked                               |
+| --------------------------------------- | ------------------------------- | ------------------------------------- |
+| `adws/adw_sssf_config/sssf.config.yaml` | `templates/sssf.config.yaml`    | yes, it is your agent roster          |
+| `adws/adw_*.ts`                         | `templates/adws/`               | yes, eight starter workflows          |
+| `adws/adw_modules/`                     | `templates/adws/adw_modules/`   | yes, all low-level logic              |
+| `adws/adw_data/prompt_engineering/`     | `templates/prompt_engineering/` | yes, **your prompts live here**       |
+| `.env.sample`                           | `templates/env.sample`          | yes                                   |
+| `justfile`                              | `templates/justfile`            | yes, starter recipes to run and watch |
+| `adws/adw_data/sessions/`, `sssf.db`    | created at runtime              | no, gitignored                        |
 
 The prompts are yours the moment they land. Edit them in `adws/adw_data/prompt_engineering/{agent}/`, never back inside the skill.
 
@@ -233,15 +232,13 @@ agents:
     prompt_engineering:
       system: adws/adw_data/prompt_engineering/planner/system.md
       user: adws/adw_data/prompt_engineering/planner/user.md
-    harness_engineering:
-      - adws/adw_data/harness_engineering/subagents.ts # this agent can spawn subagents
     writes: # the plan is all it may leave in the repo
       - specs/
 ```
 
 Five starter agents ship in the box: `planner`, `builder`, `scout` (read-only recon), `reviewer`, and `documenter`. There is no tester, because running a suite is a known command and therefore code.
 
-Every agent gets its own model, thinking level, prompts, tools, and harness. That is the core four, and it is the whole surface you tune. Give the planner a frontier model and the builder a cheap fast one. Give the scout subagents. Give the reviewer no ability to write code at all.
+Every agent gets its own model, thinking level, prompts, and built-in Pi tools. Give the planner a frontier model and the builder a cheap fast one. Give the reviewer no ability to write code at all. Extensions, custom tools, and subagents are deliberately outside the factory's runtime surface.
 
 **`tools` is a capability list. `writes` is the boundary.** They are not the same thing, and the difference matters: `bash` runs anything, including `git checkout`, and `write` reaches any path. So "this agent changes nothing" is enforced in code, after every call, by comparing the repo before and after. Unauthorized changes are rolled back and the phase fails. A read-only agent is read-only with respect to your repo, never unable to write its own report.
 
@@ -361,7 +358,6 @@ super-simple-software-factory/          # the deployable factory, and nothing el
     └── templates/                      # EXACTLY what install.ts stamps
         ├── sssf.config.yaml            # the starter roster
         ├── prompt_engineering/{agent}/ # system.md + user.md per agent
-        ├── harness_engineering/        # pi extensions
         └── adws/
             ├── adw_*.ts                # the eight starter workflows
             └── adw_modules/            # ALL low-level logic, ADW scripts stay thin
@@ -451,7 +447,7 @@ Where to start, roughly in the order that pays off fastest:
 | Your roster             | `adws/adw_sssf_config/sssf.config.yaml`     | Models, thinking levels, tools, and what each agent is allowed to write                          |
 | Your chains             | `adws/adw_*.ts`                             | Copy the closest workflow and edit the phase list. They are 40 to 180 lines on purpose           |
 | Your definition of done | `adws/adw_modules/gates.ts`                 | A gate is one function. Whatever "done" means where you work, write it here                      |
-| Your agent capabilities | `adws/adw_data/harness_engineering/`        | Pi extensions, a different set per agent if that is what the job needs                           |
+| Your agent capabilities | `adws/adw_sssf_config/sssf.config.yaml`     | Built-in Pi tools and write boundaries, configured per agent                                     |
 
 It still does not provide cloud workers, distributed scheduling, or automatic integration. The local safety boundary is the clean source check, disposable clone, bounded process runner, isolated environment, durable evidence, and manual review Gate.
 

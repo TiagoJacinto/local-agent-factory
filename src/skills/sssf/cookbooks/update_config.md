@@ -56,34 +56,6 @@ Narrow by role, not by reflex:
 - Withhold `edit`/`write` only where the restriction _is_ the guarantee. The reviewer's contract is "change nothing", so withholding `edit` makes that structural instead of merely prompted.
 - Recon agents should get the full read surface (`read`, `grep`, `find`, `ls`) — cheaper and more legible in the trace than the equivalent `bash` calls.
 
-**Extension tools count against the allowlist.** `--tools` filters built-in, extension, and custom tools alike. Once an agent has a `tools` list — its own, or inherited from `defaults` — a tool registered by one of its `harness_engineering` extensions is dropped unless it is named there. Nothing errors: the extension loads, the run passes, the tool is just never offered. Any agent with a tool-registering extension must list that tool by name.
-
-## Add harness extensions
-
-```yaml
-harness_engineering:
-  - .pi/extensions/json_guard.ts # a pi extension FILE PATH
-```
-
-Entries are pi extension **file paths**, passed through as `pi -e <path>`, applied to that agent only. Reach for an output-tightening extension when an agent keeps wrapping its envelope in prose and burning correction retries. The starter roster ships with none — this is an escape hatch, not a default.
-
-**Adding a tool-registering extension is a two-part edit.** The extension path goes in `harness_engineering`, _and_ the tool name it registers goes in that agent's `tools` list:
-
-```yaml
-- name: reviewer
-  harness_engineering:
-    - .pi/extensions/ast_query.ts # registers tool: ast_query
-  tools:
-    - read
-    - grep
-    - find
-    - ls
-    - bash
-    - ast_query # REQUIRED — or the extension loads and its tool is filtered out
-```
-
-Skip the second half and it fails silently: extension loaded, run green, tool never available to the model. Extensions that only shape output or register flags — no new tool — need no `tools` change.
-
 ## Add a new agent
 
 Three steps, all required — skipping any one fails `agents.validate()` at ADW startup, before anything spawns:

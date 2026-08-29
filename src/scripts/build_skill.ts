@@ -45,10 +45,6 @@ function additionalSkillNames(): string[] {
 
 function copyRuntime(): void {
   copyTree(join(sourceRoot, "adws"), join(outputRoot, "templates/adws"));
-  copyIfExists(
-    join(sourceRoot, "harness_engineering"),
-    join(outputRoot, "templates/harness_engineering"),
-  );
   for (const script of ["make_adw.ts", "make_config.ts"]) {
     copyTree(join(sourceRoot, `scripts/${script}`), join(outputRoot, `scripts/${script}`));
   }

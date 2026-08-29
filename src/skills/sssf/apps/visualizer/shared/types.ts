@@ -171,7 +171,6 @@ export interface AgentStartPayload {
   purpose?: string;
   /** Tool allowlist; null means all tools. Absent on pre-config-payload rows. */
   tools?: string[] | null;
-  harness_engineering?: string[];
 }
 
 /**

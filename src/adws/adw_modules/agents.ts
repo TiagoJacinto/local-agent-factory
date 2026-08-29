@@ -18,7 +18,6 @@ export function loadConfig(path = "adws/adw_sssf_config/sssf.config.yaml"): SSSF
     model: d.model || "openrouter/google/gemini-3.6-flash",
     thinking: d.thinking || "medium",
     color: d.color || "",
-    harness_engineering: (d.harness_engineering || []).map(resolveRuntimePath),
     tools: d.tools ?? null,
     protected_files: d.protected_files || [
       "adws/adw_modules/",
@@ -40,11 +39,14 @@ export function loadConfig(path = "adws/adw_sssf_config/sssf.config.yaml"): SSSF
     coding_agent: a.coding_agent ?? defaults.coding_agent,
     model: a.model ?? defaults.model,
     thinking: a.thinking ?? defaults.thinking,
+    prewalk: a.prewalk
+      ? {
+          implementation_model: a.prewalk.implementation_model,
+          implementation_thinking: a.prewalk.implementation_thinking ?? defaults.thinking,
+        }
+      : undefined,
     color: a.color ?? defaults.color,
     tools: a.tools ?? defaults.tools,
-    harness_engineering: (a.harness_engineering ?? defaults.harness_engineering).map(
-      resolveRuntimePath,
-    ),
     writes: a.writes === undefined ? null : a.writes,
     allowed_env: a.allowed_env ?? defaults.allowed_env,
   }));
@@ -89,6 +91,10 @@ export function validate(cfg: SSSFConfig, required: string[]) {
     try {
       const [provider] = pi.resolveModel(agent.model);
       pi.assertCredential(provider);
+      if (agent.prewalk) {
+        const [implementationProvider] = pi.resolveModel(agent.prewalk.implementation_model);
+        pi.assertCredential(implementationProvider);
+      }
     } catch (error) {
       problems.push(`agent ${name}: ${error}`);
     }
@@ -138,7 +144,6 @@ export async function execute(run: any, phase: Phase, call: AgentCall): Promise<
       coding_agent: agent.coding_agent,
       purpose: agent.purpose,
       tools: agent.tools,
-      harness_engineering: agent.harness_engineering,
     },
   });
   run.console.agentStarted(agent.name, agent.model, sid);
@@ -147,23 +152,55 @@ export async function execute(run: any, phase: Phase, call: AgentCall): Promise<
   const tracker = new pi.ToolCallTracker();
   let last: any;
   let correction = "";
+  let activeModel = agent.model;
+  let activeThinking = agent.thinking;
+  const prewalk =
+    agent.prewalk &&
+    (agent.model !== agent.prewalk.implementation_model ||
+      agent.thinking !== agent.prewalk.implementation_thinking)
+      ? {
+          todoSeen: agent.tools ? !agent.tools.includes("todo") : true,
+          handoffTool: "",
+          handedOff: false,
+        }
+      : undefined;
   for (let i = 0; i < attempts * 2; i++) {
     const request: PiRequest = {
       prompt: correction || user,
       systemPrompt: system,
-      model: agent.model,
-      thinking: agent.thinking,
+      model: activeModel,
+      thinking: activeThinking,
       sessionId: sid,
       sessionDir: `${run.sessionDir}/${agent.name}`,
       rawOutputPath: `${run.sessionDir}/${agent.name}/raw_output.jsonl`,
       stderrPath: `${run.sessionDir}/${agent.name}/stderr.log`,
-      tools: agent.tools,
-      extensions: agent.harness_engineering,
+      tools:
+        prewalk && activeModel === agent.model
+          ? agent.tools?.filter((tool: string) => tool !== "bash") ?? null
+          : agent.tools,
       cwd: run.repoRoot,
       allowedEnv: agent.allowed_env,
       timeoutMs: run.cfg.defaults.harness_timeout_seconds * 1000,
       maxOutputBytes: run.cfg.defaults.max_output_bytes,
       signal: run.signal,
+      stopWhen: prewalk
+        ? (event: any) => {
+            if (event?.type !== "tool_execution_end" || event.isError) return false;
+            if (event.toolName === "todo") {
+              prewalk.todoSeen = true;
+              return false;
+            }
+            if (
+              prewalk.todoSeen &&
+              !prewalk.handoffTool &&
+              (event.toolName === "edit" || event.toolName === "write")
+            ) {
+              prewalk.handoffTool = event.toolName;
+              return true;
+            }
+            return false;
+          }
+        : undefined,
     };
     last = await pi.run(
       request,
@@ -184,6 +221,27 @@ export async function execute(run: any, phase: Phase, call: AgentCall): Promise<
       (pid) => run.tracer.processEnd(pid),
     );
     run.addUsage(last.tokens, last.cost);
+    if (prewalk?.handoffTool && !prewalk.handedOff) {
+      prewalk.handedOff = true;
+      activeModel = agent.prewalk!.implementation_model;
+      activeThinking = agent.prewalk!.implementation_thinking;
+      correction = "Continue the task now. Implement and verify the approved work.";
+      run.tracer.event({
+        adw_id: run.adwId,
+        phase_id: phase.phaseId,
+        type: "prewalk_handoff",
+        name: agent.name,
+        payload: {
+          session_id: sid,
+          handoff_tool: prewalk.handoffTool,
+          from_model: agent.model,
+          to_model: activeModel,
+          from_thinking: agent.thinking,
+          to_thinking: activeThinking,
+        },
+      });
+      continue;
+    }
     let parsed: any;
     try {
       const raw = last.text.match(/\{[\s\S]*\}/)?.[0] || last.text;

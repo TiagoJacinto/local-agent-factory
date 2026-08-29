@@ -224,7 +224,6 @@ export interface ConfigDefaults {
   model: string;
   thinking: string;
   color: string;
-  harness_engineering: string[];
   tools: string[] | null;
   protected_files: string[];
   data_dir: string;
@@ -238,10 +237,10 @@ export interface AgentConfig {
   coding_agent: string;
   model: string;
   thinking: string;
+  prewalk?: { implementation_model: string; implementation_thinking: string };
   color: string;
   purpose: string;
   prompt_engineering: { system: string; user: string };
-  harness_engineering: string[];
   tools: string[] | null;
   writes: string[] | null;
   allowed_env: string[];
@@ -256,12 +255,12 @@ export interface PiRequest {
   rawOutputPath: string;
   stderrPath: string;
   tools: string[] | null;
-  extensions: string[];
   cwd: string;
   allowedEnv: string[];
   timeoutMs: number;
   maxOutputBytes: number;
   signal?: AbortSignal;
+  stopWhen?: (event: unknown) => boolean;
 }
 export interface UsageBreakdown {
   input_tokens: number;

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,13 +37,48 @@ test("installs a self-contained Pi workflow runtime", () => {
   ).not.toContain("{{problemFolder}}");
   const installer = join(distributionSkills, "sssf/scripts/install.ts");
 
-  execFileSync("bun", [installer, "--version", "v0.2.0"], { cwd: target, stdio: "pipe" });
+  execFileSync("bun", [installer, "--version", "v0.3.0"], { cwd: target, stdio: "pipe" });
 
   const lock = join(target, "adws/adw_sssf_config/sssf.lock.yaml");
-  expect(readFileSync(lock, "utf8")).toContain("version: v0.2.0");
+  expect(readFileSync(lock, "utf8")).toContain("version: v0.3.0");
+
+  const configPath = join(target, "adws/adw_sssf_config/sssf.config.yaml");
+  const config = readFileSync(configPath, "utf8");
+  const lines = config.split("\n");
+  const agentsStart = lines.indexOf("agents:");
+  const agentStarts = lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => /^  - name: \S+$/.test(line));
+  const legacyNames = new Set([
+    "planner",
+    "builder",
+    "double_tdd",
+    "scout",
+    "reviewer",
+    "documenter",
+  ]);
+  const legacyBlocks = agentStarts
+    .map(({ index }, blockIndex) => {
+      const end = agentStarts[blockIndex + 1]?.index ?? lines.length;
+      return { name: lines[index].slice("  - name: ".length), block: lines.slice(index, end) };
+    })
+    .filter(({ name }) => legacyNames.has(name))
+    .flatMap(({ block }) => block);
+  writeFileSync(
+    configPath,
+    [...lines.slice(0, agentsStart + 1), ...legacyBlocks, "# local roster customization"].join(
+      "\n",
+    ),
+  );
+  execFileSync("bun", [installer, "--update"], { cwd: target, stdio: "pipe" });
+  const updatedConfig = readFileSync(configPath, "utf8");
+  for (const agent of ["research_questions", "research", "prd", "tdd"]) {
+    expect(updatedConfig).toContain(`  - name: ${agent}`);
+  }
+  expect(updatedConfig).toContain("# local roster customization");
 
   execFileSync("bun", [installer], { cwd: target, stdio: "pipe" });
-  expect(readFileSync(lock, "utf8")).toContain("version: v0.2.0");
+  expect(readFileSync(lock, "utf8")).toContain("version: v0.3.0");
   expect(readFileSync(join(target, ".gitignore"), "utf8")).toContain(".pi/skills/sssf/");
 
   const runner = join(target, "adws/adw_modules/runner.ts");
@@ -81,4 +116,4 @@ test("installs a self-contained Pi workflow runtime", () => {
     encoding: "utf8",
   });
   expect(tables).toContain("sessions");
-});
+}, 120_000);
