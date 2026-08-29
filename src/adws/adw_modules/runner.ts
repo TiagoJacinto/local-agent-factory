@@ -8,6 +8,32 @@ import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs
 import { resolve } from "node:path";
 import { tmpdir } from "node:os";
 
+export interface WorkspaceSourceState {
+  revision: string;
+  workingTree: "Clean" | "Dirty";
+}
+
+export interface WorkspaceAdapter {
+  isRepository(path: string): boolean;
+  inspectSource(path: string): WorkspaceSourceState;
+  cloneRepository(source: string, destination: string): string;
+  copyRepository(source: string, destination: string): void;
+}
+
+export interface RunDependencies {
+  sourceRoot?: string;
+  workspaceRoot?: string;
+  workspaceAdapter?: WorkspaceAdapter;
+  executeAgentCall?: (run: Run, phase: Phase, call: AgentCall) => Promise<EnvelopeBase>;
+}
+
+const productionWorkspaceAdapter: WorkspaceAdapter = {
+  isRepository: (path) => git.isRepo(path),
+  inspectSource: (path) => git.inspectSource(path),
+  cloneRepository: (source, destination) => git.cloneRepository(source, destination),
+  copyRepository: (source, destination) => cpSync(source, destination, { recursive: true }),
+};
+
 export class PhaseHandle {
   constructor(
     public run: Run,
@@ -69,10 +95,11 @@ export class Run {
     public adwId: string,
     public tracer: Tracer,
     public engineer: string,
+    private readonly dependencies: RunDependencies = {},
   ) {
     this.console = new Console(tracer, adwId);
     this.seq = tracer.maxPhaseSeq(adwId);
-    this.sourceRoot = git.repoRoot();
+    this.sourceRoot = this.dependencies.sourceRoot || git.repoRoot();
     this.repoRoot = this.sourceRoot;
     this.sessionDir = resolve(cfg.defaults.data_dir, "sessions", adwId);
     this.contextHandoffDir = resolve(this.sessionDir, "context_handoff");
@@ -91,24 +118,25 @@ export class Run {
   }
 
   prepareWorkspace(expectedRevision?: string) {
-    this.gitEnabled = git.isRepo(this.sourceRoot);
+    const workspaceAdapter = this.dependencies.workspaceAdapter || productionWorkspaceAdapter;
+    this.gitEnabled = workspaceAdapter.isRepository(this.sourceRoot);
     ensureDir(this.contextHandoffDir);
     ensureDir(this.runEvidenceDir);
-    const workspace = resolve(tmpdir(), "local-agent-factory", this.adwId);
-    ensureDir(resolve(tmpdir(), "local-agent-factory"));
+    const workspace = resolve(
+      this.dependencies.workspaceRoot || resolve(tmpdir(), "local-agent-factory"),
+      this.adwId,
+    );    ensureDir(resolve(tmpdir(), "local-agent-factory"));
     if (existsSync(workspace)) rmSync(workspace, { recursive: true, force: true });
     if (this.gitEnabled) {
-      const before = git.inspectSource(this.sourceRoot);
-      if (before.workingTree !== "Clean")
+      const before = workspaceAdapter.inspectSource(this.sourceRoot);      if (before.workingTree !== "Clean")
         throw new Error("source preflight failed: working tree is dirty");
       if (expectedRevision && before.revision !== expectedRevision)
         throw new Error(
           `source preflight failed: expected ${expectedRevision}, found ${before.revision}`,
         );
       this.sourceRevision = before.revision;
-      git.cloneRepository(this.sourceRoot, workspace);
-      const after = git.inspectSource(this.sourceRoot);
-      if (after.workingTree !== "Clean" || after.revision !== this.sourceRevision)
+      workspaceAdapter.cloneRepository(this.sourceRoot, workspace);
+      const after = workspaceAdapter.inspectSource(this.sourceRoot);      if (after.workingTree !== "Clean" || after.revision !== this.sourceRevision)
         throw new Error("source preflight failed: source changed during workspace creation");
       this.writeEvidence("source.json", {
         path: this.sourceRoot,
@@ -120,7 +148,7 @@ export class Run {
         workspace,
       });
     } else {
-      cpSync(this.sourceRoot, workspace, { recursive: true });
+      workspaceAdapter.copyRepository(this.sourceRoot, workspace);
       this.writeEvidence("source.json", {
         path: this.sourceRoot,
         git: false,
@@ -148,7 +176,9 @@ export class Run {
     this.tracer.sessionAddUsage(this.adwId, tokens, cost);
   }
   async executeAgentCall(phase: Phase, call: AgentCall): Promise<EnvelopeBase> {
-    return agents.execute(this, phase, call);
+    return this.dependencies.executeAgentCall
+      ? this.dependencies.executeAgentCall(this, phase, call)
+      : agents.execute(this, phase, call);
   }
   abort(reason: string) {
     if (this.signal.aborted) return;
@@ -163,8 +193,9 @@ export class Run {
   }
   private finalSourceState() {
     try {
-      return git.inspectSource(this.sourceRoot);
-    } catch {
+      return (this.dependencies.workspaceAdapter || productionWorkspaceAdapter).inspectSource(
+        this.sourceRoot,
+      );    } catch {
       return undefined;
     }
   }
