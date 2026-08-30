@@ -10,8 +10,9 @@ const placeholder = /{{([A-Za-z][A-Za-z0-9_]*)}}/g;
 
 /** Compile canonical skill text for its project or workflow consumer. */
 export function compileSkill(source: string, options: CompileSkillOptions): string {
-  const conditioned = source.replace(conditionalBlock, (_match, target: SkillTarget, content: string) =>
-    target === options.target ? content : "",
+  const conditioned = source.replace(
+    conditionalBlock,
+    (_match, target: SkillTarget, content: string) => (target === options.target ? content : ""),
   );
   if (conditioned.includes("<!-- @if") || conditioned.includes("<!-- @endif -->")) {
     throw new Error("Malformed skill conditional block");

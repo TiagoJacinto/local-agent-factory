@@ -3,7 +3,14 @@ import { resolve } from "node:path";
 import { loadConfig, validate } from "./agents";
 import { changedPaths, snapshot } from "./permissions";
 import { runCommand } from "./quality";
-import { AgentCall, type DoubleTddOutput, type DoubleTddState, type DoubleTddStateName, type EnvelopeBase, type QualityResult } from "./data_types";
+import {
+  AgentCall,
+  type DoubleTddOutput,
+  type DoubleTddState,
+  type DoubleTddStateName,
+  type EnvelopeBase,
+  type QualityResult,
+} from "./data_types";
 import { PhaseHandle, Run } from "./runner";
 import { z } from "zod";
 
@@ -87,19 +94,30 @@ const doubleTddStateSchema = z.object({
   INNER_RED_PROOF: z.unknown(),
   LATEST_RESULTS: z.record(z.string(), z.unknown()),
 });
-const doubleTddOutputSchema = z.object({
-  status: z.enum(["success", "fail"]),
-  summary: z.string().optional(), artifacts: z.array(z.string()).optional(),
-  notes_for_next_agent: z.string().optional(), state: stateNameSchema.optional(),
-  acceptance_full_command: argvSchema.optional(), unit_full_command: argvSchema.optional(),
-  focused_outer_command: argvSchema.optional(), focused_inner_command: argvSchema.optional(),
-  inventory: z.array(inventoryEntrySchema).optional(), selected_example: z.string().trim().min(1).optional(),
-  criterion: z.string().trim().min(1).optional(), oracle: z.string().trim().min(1).optional(),
-  high_value_test: z.string().trim().min(1).optional(), inner_responsibility: z.string().trim().min(1).optional(),
-  inner_test: z.string().trim().min(1).optional(), red_proof: z.string().optional(),
-  failure_kind: z.enum(["plumbing", "missing_behavior"]).optional(), handled: z.boolean().optional(),
-  acceptance_gap: z.boolean().optional(),
-}).passthrough();
+const doubleTddOutputSchema = z
+  .object({
+    status: z.enum(["success", "fail"]),
+    summary: z.string().optional(),
+    artifacts: z.array(z.string()).optional(),
+    notes_for_next_agent: z.string().optional(),
+    state: stateNameSchema.optional(),
+    acceptance_full_command: argvSchema.optional(),
+    unit_full_command: argvSchema.optional(),
+    focused_outer_command: argvSchema.optional(),
+    focused_inner_command: argvSchema.optional(),
+    inventory: z.array(inventoryEntrySchema).optional(),
+    selected_example: z.string().trim().min(1).optional(),
+    criterion: z.string().trim().min(1).optional(),
+    oracle: z.string().trim().min(1).optional(),
+    high_value_test: z.string().trim().min(1).optional(),
+    inner_responsibility: z.string().trim().min(1).optional(),
+    inner_test: z.string().trim().min(1).optional(),
+    red_proof: z.string().optional(),
+    failure_kind: z.enum(["plumbing", "missing_behavior"]).optional(),
+    handled: z.boolean().optional(),
+    acceptance_gap: z.boolean().optional(),
+  })
+  .passthrough();
 const qualityCheckSchema = z.object({
   name: z.string(),
   area: z.string(),
@@ -201,7 +219,12 @@ async function callAgent(
   return output;
 }
 
-async function runWorkflowCommand(run: Run, state: DoubleTddState, phaseName: string, argv: string[]): Promise<QualityResult> {
+async function runWorkflowCommand(
+  run: Run,
+  state: DoubleTddState,
+  phaseName: string,
+  argv: string[],
+): Promise<QualityResult> {
   const validArgv = argvSchema.parse(argv);
   let result: QualityResult | undefined;
   await run.phase(
@@ -226,7 +249,12 @@ async function runWorkflowCommand(run: Run, state: DoubleTddState, phaseName: st
   return result;
 }
 
-async function classifyFailure(run: Run, state: DoubleTddState, phaseName: string, failure: unknown) {
+async function classifyFailure(
+  run: Run,
+  state: DoubleTddState,
+  phaseName: string,
+  failure: unknown,
+) {
   state.LATEST_RESULTS[`${phaseName}_failure`] = failure;
   const output = await callAgent(
     run,
@@ -241,7 +269,12 @@ async function classifyFailure(run: Run, state: DoubleTddState, phaseName: strin
   return output;
 }
 
-async function repairPlumbing(run: Run, state: DoubleTddState, phaseName: string, failure: unknown) {
+async function repairPlumbing(
+  run: Run,
+  state: DoubleTddState,
+  phaseName: string,
+  failure: unknown,
+) {
   state.LATEST_RESULTS[`${phaseName}_failure`] = failure;
   return callAgent(
     run,
@@ -253,7 +286,10 @@ async function repairPlumbing(run: Run, state: DoubleTddState, phaseName: string
   );
 }
 
-export function validateOutputForState(state: DoubleTddStateName, output: unknown): DoubleTddOutput {
+export function validateOutputForState(
+  state: DoubleTddStateName,
+  output: unknown,
+): DoubleTddOutput {
   const validState = stateNameSchema.parse(state);
   const parsed = doubleTddOutputSchema.parse(output);
   if (parsed.status !== "success") throw new Error(`${validState} requires a success output`);
@@ -263,7 +299,12 @@ export function validateOutputForState(state: DoubleTddStateName, output: unknow
     schema.parse(value);
   };
   if (validState === "S0_SCOPE") {
-    for (const field of ["acceptance_full_command", "unit_full_command", "focused_outer_command", "focused_inner_command"])
+    for (const field of [
+      "acceptance_full_command",
+      "unit_full_command",
+      "focused_outer_command",
+      "focused_inner_command",
+    ])
       require(field, argvSchema);
     require("inventory", z.array(inventoryEntrySchema));
   }
@@ -529,7 +570,8 @@ export async function run(x: unknown) {
         continue;
       }
       state.OUTER_RED_PROOF = result.failures;
-      if (typeof diagnosis.selected_example === "string") state.SELECTED_EXAMPLE = diagnosis.selected_example;
+      if (typeof diagnosis.selected_example === "string")
+        state.SELECTED_EXAMPLE = diagnosis.selected_example;
       state.STATE = "S4_SELECT_INNER";
       continue;
     }
