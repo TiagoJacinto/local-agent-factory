@@ -7,7 +7,12 @@ const size = (p: string) => {
 };
 export function artifactsExist(e: EnvelopeBase) {
   const r = new GateReport();
-  for (const a of (e.artifacts || []) as string[])
+  const artifacts = (e.artifacts || []) as string[];
+  if (artifacts.length === 0) {
+    r.check("artifacts", false, "agent did not declare an artifact");
+    return r;
+  }
+  for (const a of artifacts)
     r.check(
       a,
       existsSync(a),

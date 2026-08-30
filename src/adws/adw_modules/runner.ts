@@ -1,8 +1,9 @@
-import { AgentCall, EnvelopeBase, Phase, PhaseParams, SSSFConfig } from "./data_types";
+import { AgentCall, Phase, PhaseParams, SSSFConfig } from "./data_types";
+import type { Agent } from "./agent";
 import { Console } from "./console";
 import type { Tracer } from "./tracer";
 import { atomicWrite, ensureDir, nowIso, redactSecrets } from "./utils";
-import * as agents from "./agents";
+import { ConfiguredAgent } from "./agents";
 import * as git from "./git_helper";
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -46,7 +47,7 @@ export interface RunDependencies {
   nowMs?: () => number;
   setTimeout?: (handler: () => void, timeoutMs: number) => ReturnType<typeof setTimeout>;
   clearTimeout?: (timer: ReturnType<typeof setTimeout>) => void;
-  executeAgentCall?: (run: Run, phase: Phase, call: AgentCall) => Promise<EnvelopeBase>;
+  agent?: Agent;
 }
 
 const productionFileSystem: RunFileSystem = {
@@ -173,7 +174,9 @@ export class Run {
       this.dependencies.workspaceRoot || resolve(tmpdir(), "local-agent-factory"),
       this.adwId,
     );
-    fileSystem.ensureDir(this.dependencies.workspaceRoot || resolve(tmpdir(), "local-agent-factory"));
+    fileSystem.ensureDir(
+      this.dependencies.workspaceRoot || resolve(tmpdir(), "local-agent-factory"),
+    );
     if (fileSystem.exists(workspace)) fileSystem.remove(workspace);
     if (this.gitEnabled) {
       const before = workspaceAdapter.inspectSource(this.sourceRoot);
@@ -220,17 +223,19 @@ export class Run {
   saveAgentMap(agent: string, entry: any) {
     this.agentMap[agent] = entry;
     const fileSystem = this.dependencies.fileSystem || productionFileSystem;
-    fileSystem.writeFile(`${this.sessionDir}/agent_map.json`, JSON.stringify(this.agentMap, null, 2));
+    fileSystem.writeFile(
+      `${this.sessionDir}/agent_map.json`,
+      JSON.stringify(this.agentMap, null, 2),
+    );
   }
   addUsage(tokens: number, cost: number) {
     this.tokens += tokens;
     this.cost += cost;
     this.tracer.sessionAddUsage(this.adwId, tokens, cost);
   }
-  async executeAgentCall(phase: Phase, call: AgentCall): Promise<EnvelopeBase> {
-    return this.dependencies.executeAgentCall
-      ? this.dependencies.executeAgentCall(this, phase, call)
-      : agents.execute(this, phase, call);
+  async executeAgentCall(phase: Phase, call: AgentCall) {
+    const agent = this.dependencies.agent || new ConfiguredAgent();
+    return agent.execute(this, phase, call);
   }
   abort(reason: string) {
     if (this.signal.aborted) return;
@@ -247,7 +252,8 @@ export class Run {
     try {
       return (this.dependencies.workspaceAdapter || productionWorkspaceAdapter).inspectSource(
         this.sourceRoot,
-      );    } catch {
+      );
+    } catch {
       return undefined;
     }
   }

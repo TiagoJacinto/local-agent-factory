@@ -3,9 +3,9 @@ import * as agents from "./agents";
 import * as gates from "./gates";
 import * as quality from "./quality";
 import * as changes from "./changes";
-import * as session from "./session";
 import { AgentCall, EnvelopeBase } from "./data_types";
 import { PhaseHandle } from "./runner";
+import type { Run } from "./runner";
 
 interface WorkflowInput {
   config: string;
@@ -14,6 +14,7 @@ interface WorkflowInput {
   agent?: string;
   base?: string;
   problemFolder?: string;
+  run?: Run;
 }
 const req = (run: any, prompt: string) =>
   run.phase(
@@ -27,14 +28,16 @@ const req = (run: any, prompt: string) =>
       ph.log({ input: prompt });
     },
   );
-function setup(config: string, id: string | undefined, names: string[]) {
+async function setup(config: string, id: string | undefined, names: string[], providedRun?: Run) {
+  if (providedRun) return providedRun;
   const cfg = agents.loadConfig(config);
   agents.validate(cfg, names);
+  const session = await import("./session");
   return session.ensure(cfg, id);
 }
 
 export async function prompt(x: any) {
-  const run = setup(x.config, x.adwId, [x.agent]);
+  const run = await setup(x.config, x.adwId, [x.agent], x.run);
   await req(run, x.prompt);
   await run.phase(
     {
@@ -50,7 +53,7 @@ export async function prompt(x: any) {
   return run.finish();
 }
 export async function scout(x: any) {
-  const run = setup(x.config, x.adwId, ["scout"]);
+  const run = await setup(x.config, x.adwId, ["scout"], x.run);
   await req(run, x.prompt);
   await run.phase(
     {
@@ -66,7 +69,7 @@ export async function scout(x: any) {
   return run.finish();
 }
 export async function plan(x: any) {
-  const run = setup(x.config, x.adwId, ["planner"]);
+  const run = await setup(x.config, x.adwId, ["planner"], x.run);
   await req(run, x.prompt);
   await run.phase(
     {
@@ -87,7 +90,7 @@ export async function plan(x: any) {
   return run.finish();
 }
 export async function prewalk(x: any) {
-  const run = setup(x.config, x.adwId, ["prewalk"]);
+  const run = await setup(x.config, x.adwId, ["prewalk"], x.run);
   await req(run, x.prompt);
   await run.phase(
     {
@@ -99,16 +102,22 @@ export async function prewalk(x: any) {
     },
     async (ph: PhaseHandle) => {
       await ph.call(
-        new AgentCall("BuildOutput", x.prompt, undefined, [gates.diffMatchesClaims], `
+        new AgentCall(
+          "BuildOutput",
+          x.prompt,
+          undefined,
+          [gates.diffMatchesClaims],
+          `
 Prewalk protocol: if the todo tool is available, create or update the task Todo before mutation; otherwise continue without it. Before handoff, use only read, grep, find, and ls; do not use bash for edits or test commands. Use edit or write for the first mutation. That successful edit or write is the handoff boundary. After handoff, continue the same task on the implementation model, use bash as needed, and verify the result.
-`),
+`,
+        ),
       );
     },
   );
   return run.awaitReview();
 }
 export async function build(x: any) {
-  const run = setup(x.config, x.adwId, ["builder"]);
+  const run = await setup(x.config, x.adwId, ["builder"], x.run);
   await req(run, x.prompt);
   await run.phase(
     {
@@ -165,7 +174,7 @@ export async function testLoop(run: any, prompt: string, previous: any) {
   return { test, previous };
 }
 export async function buildReview(x: any) {
-  const run = setup(x.config, x.adwId, ["builder", "reviewer"]);
+  const run = await setup(x.config, x.adwId, ["builder", "reviewer"], x.run);
   await req(run, x.prompt);
   let prev: any;
   await run.phase(
@@ -220,7 +229,7 @@ export async function buildReview(x: any) {
     : run.finish(false, `the reviewer never approved after 3 revision(s)`);
 }
 export async function qualityRun(x: any) {
-  const run = setup(x.config, x.adwId, []);
+  const run = await setup(x.config, x.adwId, [], x.run);
   await req(run, x.prompt);
   await run.phase(
     {
@@ -242,7 +251,7 @@ export async function qualityRun(x: any) {
   return run.finish();
 }
 export async function document(x: any) {
-  const run = setup(x.config, x.adwId, ["documenter"]);
+  const run = await setup(x.config, x.adwId, ["documenter"], x.run);
   await req(run, x.prompt);
   let c: any;
   await run.phase(
@@ -315,7 +324,8 @@ async function researchPhases(run: any, x: WorkflowInput) {
   );
 
   const researchQuestionsArtifact = questions?.artifacts?.[0];
-  if (!researchQuestionsArtifact) throw new Error("research questions agent did not declare an artifact");
+  if (!researchQuestionsArtifact)
+    throw new Error("research questions agent did not declare an artifact");
   const researchSkill = compileWorkflowSkill(
     "rpi-create-research",
     { researchQuestionsArtifact, problemFolder },
@@ -332,24 +342,14 @@ async function researchPhases(run: any, x: WorkflowInput) {
     },
     async (ph: PhaseHandle) => {
       research = await ph.call(
-        new AgentCall(
-          "GenericOutput",
-          x.prompt,
-          questions,
-          [gates.artifactsExist],
-          researchSkill,
-        ),
+        new AgentCall("GenericOutput", x.prompt, questions, [gates.artifactsExist], researchSkill),
       );
     },
   );
   return research;
 }
 
-async function prdOrientedDesignPhases(
-  run: any,
-  x: WorkflowInput,
-  research?: EnvelopeBase,
-) {
+async function prdOrientedDesignPhases(run: any, x: WorkflowInput, research?: EnvelopeBase) {
   const problemFolder = requireProblemFolder(x);
   const prdSkill = compileWorkflowSkill("rpi-create-prd", { problemFolder }, run.repoRoot);
   let prd: EnvelopeBase | undefined;
@@ -384,7 +384,7 @@ async function prdOrientedDesignPhases(
 }
 
 export async function ship(x: WorkflowInput) {
-  const run = setup(x.config, x.adwId, ["builder"]);
+  const run = await setup(x.config, x.adwId, ["builder"], x.run);
   await req(run, x.prompt);
 
   const implementationSkill = compileWorkflowSkill("rpi-implement-outline", {}, run.repoRoot);
@@ -423,7 +423,7 @@ export async function ship(x: WorkflowInput) {
 
 export async function research(x: WorkflowInput) {
   requireProblemFolder(x);
-  const run = setup(x.config, x.adwId, ["research_questions", "research"]);
+  const run = await setup(x.config, x.adwId, ["research_questions", "research"], x.run);
   await req(run, x.prompt);
   await researchPhases(run, x);
   return run.finish();
@@ -431,7 +431,7 @@ export async function research(x: WorkflowInput) {
 
 export async function prdOrientedDesign(x: WorkflowInput) {
   requireProblemFolder(x);
-  const run = setup(x.config, x.adwId, ["prd", "tdd"]);
+  const run = await setup(x.config, x.adwId, ["prd", "tdd"], x.run);
   await req(run, x.prompt);
   await prdOrientedDesignPhases(run, x);
   return run.finish();
@@ -439,7 +439,12 @@ export async function prdOrientedDesign(x: WorkflowInput) {
 
 export async function prdOrientedDiscovery(x: WorkflowInput) {
   requireProblemFolder(x);
-  const run = setup(x.config, x.adwId, ["research_questions", "research", "prd", "tdd"]);
+  const run = await setup(
+    x.config,
+    x.adwId,
+    ["research_questions", "research", "prd", "tdd"],
+    x.run,
+  );
   await req(run, x.prompt);
   const research = await researchPhases(run, x);
   await prdOrientedDesignPhases(run, x, research);

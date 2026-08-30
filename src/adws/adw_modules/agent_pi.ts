@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { PiRequest, PiResult, usageZero, addTurn } from "./data_types";
 import { operatorEnv, nowIso } from "./utils";
 import { runProcess } from "./process";
+import { AgentRuntime } from "./agent_runtime";
 
 const PI_PATH = process.env.PI_PATH || "pi";
 const MODELS = process.env.PI_MODELS_PATH || `${process.env.HOME}/.pi/agent/models.json`;
@@ -230,6 +231,13 @@ export async function run(
   result.returncode = process.exitCode ?? 0;
   return result;
 }
+
+export const runtime: AgentRuntime = {
+  resolveModel,
+  assertCredential,
+  contextWindow,
+  run,
+};
 
 export class ToolCallTracker {
   open = new Map<string, { tool: string; args: any; started: string; clock: number }>();

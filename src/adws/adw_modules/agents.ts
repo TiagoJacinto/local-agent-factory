@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { AgentCall, AgentConfig, EnvelopeBase, Phase, PiRequest, SSSFConfig } from "./data_types";
+import type { Agent } from "./agent";
 import * as pi from "./agent_pi";
+import * as opencode from "./agent_opencode";
+import { AgentRuntime } from "./agent_runtime";
 import * as prompts from "./prompts";
 import { newId } from "./utils";
 import { snapshot, enforce } from "./permissions";
@@ -79,21 +82,21 @@ export function validate(cfg: SSSFConfig, required: string[]) {
       problems.push(String(error));
       continue;
     }
-    if (agent.coding_agent !== "pi")
-      problems.push(
-        `agent ${name}: coding_agent ${agent.coding_agent} is not implemented (pi only)`,
-      );
+    if (agent.coding_agent !== "pi" && agent.coding_agent !== "opencode")
+      problems.push(`agent ${name}: unsupported coding_agent ${agent.coding_agent}`);
     for (const [label, path] of [
       ["system", agent.prompt_engineering.system],
       ["user", agent.prompt_engineering.user],
     ] as const)
       if (!existsSync(path)) problems.push(`agent ${name}: ${label} prompt not found: ${path}`);
     try {
-      const [provider] = pi.resolveModel(agent.model);
-      pi.assertCredential(provider);
+      const runtime: AgentRuntime =
+        agent.coding_agent === "opencode" ? opencode.runtime : pi.runtime;
+      const [provider] = runtime.resolveModel(agent.model);
+      runtime.assertCredential(provider);
       if (agent.prewalk) {
-        const [implementationProvider] = pi.resolveModel(agent.prewalk.implementation_model);
-        pi.assertCredential(implementationProvider);
+        const [implementationProvider] = runtime.resolveModel(agent.prewalk.implementation_model);
+        runtime.assertCredential(implementationProvider);
       }
     } catch (error) {
       problems.push(`agent ${name}: ${error}`);
@@ -114,6 +117,12 @@ function sessionId(run: any, agent: AgentConfig) {
   return id;
 }
 
+export class ConfiguredAgent implements Agent {
+  execute(run: any, phase: Phase, call: AgentCall) {
+    return execute(run, phase, call);
+  }
+}
+
 export async function execute(run: any, phase: Phase, call: AgentCall): Promise<EnvelopeBase> {
   const agent = resolveAgent(run.cfg, phase.params.owner);
   const dir = `${run.sessionDir}/${agent.name}`;
@@ -123,10 +132,7 @@ export async function execute(run: any, phase: Phase, call: AgentCall): Promise<
     previous_envelope: call.previous ? JSON.stringify(call.previous, null, 2) : "(none)",
     context_handoff_dir: run.contextHandoffDir,
   };
-  const system = [
-    prompts.render(agent.prompt_engineering.system, vars),
-    call.systemPromptAppendix,
-  ]
+  const system = [prompts.render(agent.prompt_engineering.system, vars), call.systemPromptAppendix]
     .filter(Boolean)
     .join("\n\n");
   const user = prompts.render(agent.prompt_engineering.user, vars);
@@ -149,6 +155,7 @@ export async function execute(run: any, phase: Phase, call: AgentCall): Promise<
   run.console.agentStarted(agent.name, agent.model, sid);
   const before = snapshot(run);
   const attempts = (phase.params.retries || 0) + 1;
+  const runtime: AgentRuntime = agent.coding_agent === "opencode" ? opencode.runtime : pi.runtime;
   const tracker = new pi.ToolCallTracker();
   let last: any;
   let correction = "";
@@ -176,7 +183,7 @@ export async function execute(run: any, phase: Phase, call: AgentCall): Promise<
       stderrPath: `${run.sessionDir}/${agent.name}/stderr.log`,
       tools:
         prewalk && activeModel === agent.model
-          ? agent.tools?.filter((tool: string) => tool !== "bash") ?? null
+          ? (agent.tools?.filter((tool: string) => tool !== "bash") ?? null)
           : agent.tools,
       cwd: run.repoRoot,
       allowedEnv: agent.allowed_env,
@@ -202,7 +209,7 @@ export async function execute(run: any, phase: Phase, call: AgentCall): Promise<
           }
         : undefined,
     };
-    last = await pi.run(
+    last = await runtime.run(
       request,
       (e) => {
         const toolCall = tracker.observe(e);

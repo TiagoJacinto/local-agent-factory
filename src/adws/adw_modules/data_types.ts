@@ -259,6 +259,7 @@ export interface PiRequest {
   allowedEnv: string[];
   timeoutMs: number;
   maxOutputBytes: number;
+  retry?: boolean;
   signal?: AbortSignal;
   stopWhen?: (event: unknown) => boolean;
 }

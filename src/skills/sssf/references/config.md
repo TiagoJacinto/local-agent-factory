@@ -8,7 +8,7 @@ It lives at **`adws/adw_sssf_config/sssf.config.yaml`** — the default path eve
 
 ```yaml
 defaults:
-  coding_agent: pi
+  coding_agent: pi # pi or opencode
   model: google/gemini-3.6-flash # ALWAYS provider/model-id
   thinking: medium
   tools: [todo, read, bash, edit, write, grep, find, ls]

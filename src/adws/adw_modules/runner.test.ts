@@ -2,9 +2,9 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, test } from "vitest";
-import { AgentCall, type Phase, type SSSFConfig } from "./data_types";
+import { AgentCall, type SSSFConfig } from "./data_types";
+import { InMemoryAgent } from "./agent";
 import { Run, type RunDependencies, type WorkspaceAdapter } from "./runner";
-
 
 const roots: string[] = [];
 
@@ -50,13 +50,9 @@ function fakeWorkspace(root: string, calls: string[]): WorkspaceAdapter {
 
 const agentResult = { status: "success" as const, summary: "ok" };
 
-async function callAgent(_run: Run, _phase: Phase, call: AgentCall) {
-  return { ...agentResult, notes_for_next_agent: call.prompt };
-}
-
 describe("Run execution", () => {
   test("runs phases in order and records final success", async () => {
-    const { run } = setup({ executeAgentCall: callAgent });
+    const { run } = setup({ agent: new InMemoryAgent([agentResult]) });
     const order: string[] = [];
 
     await run.phase(
@@ -68,7 +64,9 @@ describe("Run execution", () => {
     );
     await run.phase(
       { name: "second", kind: "code", owner: "engineer", description: "Records the second phase." },
-      () => order.push("second"),
+      () => {
+        order.push("second");
+      },
     );
 
     expect(order).toEqual(["first", "second"]);
@@ -90,7 +88,9 @@ describe("Run execution", () => {
 
     expect(run.phases[0]).toMatchObject({ status: "fail", error: "expected failure" });
     expect(run.finish()).toBe(1);
-    expect(readFileSync(join(run.runEvidenceDir, "result.json"), "utf8")).toContain('"status": "fail"');
+    expect(readFileSync(join(run.runEvidenceDir, "result.json"), "utf8")).toContain(
+      '"status": "fail"',
+    );
   });
 
   test("uses deterministic workspace and agent seams while retaining evidence", async () => {
@@ -101,13 +101,15 @@ describe("Run execution", () => {
       sourceRoot: root,
       workspaceRoot: join(root, "workspaces"),
       workspaceAdapter: fakeWorkspace(root, calls),
-      executeAgentCall: callAgent,
+      agent: new InMemoryAgent([agentResult]),
     });
 
     run.prepareWorkspace();
     await run.phase(
       { name: "invoke", kind: "agent", owner: "fake", description: "Persists an invocation." },
-      (phase) => phase.call(new AgentCall("GenericOutput", "artifact")),
+      async (phase) => {
+        await phase.call(new AgentCall("GenericOutput", "artifact"));
+      },
     );
 
     expect(calls).toEqual([`clone:${join(root, "workspaces", "test-run")}`]);

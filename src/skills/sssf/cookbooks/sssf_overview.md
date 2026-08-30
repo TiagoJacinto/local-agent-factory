@@ -24,7 +24,7 @@ adws/
 └── adw_modules/                 ALL low-level logic — ADW scripts stay thin
 ```
 
-**The factory runs Pi only.** `coding_agent: pi` is the supported setting.
+**The factory supports Pi and OpenCode CLI workers.** Set `coding_agent: pi` or `coding_agent: opencode`; both use the same phase, envelope, and Prewalk orchestration.
 
 ## The phase model
 
