@@ -31,6 +31,7 @@ export interface RunFileSystem {
 }
 
 export interface RunConsole {
+  sessionStarted(id: string, engineer: string): void;
   note(message: string): void;
   phaseStarted(phase: Phase): void;
   phaseEnded(phase: Phase, seconds: number): void;
@@ -45,8 +46,8 @@ export interface RunDependencies {
   console?: RunConsole;
   nowIso?: () => string;
   nowMs?: () => number;
-  setTimeout?: (handler: () => void, timeoutMs: number) => ReturnType<typeof setTimeout>;
-  clearTimeout?: (timer: ReturnType<typeof setTimeout>) => void;
+  setTimeout?: (handler: () => void, timeoutMs: number) => ReturnType<typeof setTimeout> | number;
+  clearTimeout?: (timer: ReturnType<typeof setTimeout> | number) => void;
   agent?: Agent;
 }
 
@@ -115,10 +116,10 @@ export class Run {
   agentMap: Record<string, any>;
   console: RunConsole;
   private readonly abortController = new AbortController();
-  private readonly timeoutTimer: ReturnType<typeof setTimeout>;
+  private readonly timeoutTimer: ReturnType<typeof setTimeout> | number;
   readonly nowIso: () => string;
   private readonly nowMs: () => number;
-  private readonly clearTimer: (timer: ReturnType<typeof setTimeout>) => void;
+  private readonly clearTimer: (timer: ReturnType<typeof setTimeout> | number) => void;
   private abortReason = "";
   private finalized = false;
   currentIso() {
@@ -151,7 +152,7 @@ export class Run {
       () => this.abort("whole-run timeout"),
       timeoutMs,
     );
-    const timer = this.timeoutTimer as ReturnType<typeof setTimeout> & { unref?: () => void };
+    const timer = this.timeoutTimer as { unref?: () => void };
     timer.unref?.();
     const p = `${this.sessionDir}/agent_map.json`;
     this.agentMap = {};

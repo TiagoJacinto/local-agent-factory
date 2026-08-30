@@ -54,6 +54,7 @@ test("loads and compiles a workflow skill with runtime values", () => {
 
 const roots: string[] = [];
 const silentConsole: RunConsole = {
+  sessionStarted: () => undefined,
   note: () => undefined,
   phaseStarted: () => undefined,
   phaseEnded: () => undefined,

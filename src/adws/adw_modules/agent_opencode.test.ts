@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
@@ -11,7 +11,9 @@ writeFileSync(
     root +
     '/calls"\ncount=$(cat "$count_file" 2>/dev/null || printf 0)\nprintf \'%s\' "$((count + 1))" > "$count_file"\nprintf \'%s\\n\' "$@" > "' +
     root +
-    '/args"\nprintf \'%s\\n\' \'{"type":"step_start","sessionID":"ses-test"}\'\ncase " $* " in\n  *" envelope "*) printf \'%s\\n\' \'{"type":"text","sessionID":"ses-test","part":{"text":"{\\"status\\":\\"success\\",\\"summary\\":\\"done\\"}"}}\' ;;\n  *) printf \'%s\\n\' \'{"type":"tool_use","sessionID":"ses-test","part":{"tool":"edit","callID":"call-1","state":{"status":"completed","input":{"filePath":"notes/cli.py"},"output":"ok"}}}\'; sleep 30 ;;\nesac\n',
+    '/args"\nprintf \'%s\\n\' \'{"type":"step_start","sessionID":"ses-test"}\'\ncase "$*" in\n  *envelope*) printf \'%s\\n\' \'{"type":"text","sessionID":"ses-test","part":{"text":"{\\"status\\":\\"success\\",\\"summary\\":\\"done\\"}"}}\' ;;\n  *) printf \'%s\\n\' \'{"type":"tool_use","sessionID":"ses-test","part":{"tool":"edit","callID":"call-1","state":{"status":"completed","input":{"filePath":"notes/cli.py"},"output":"ok"}}}\'; sleep 1; printf \'late\' > "' +
+    root +
+    '/late" ;;\nesac\n',
 );
 chmodSync(fake, 0o755);
 process.env.OPENCODE_PATH = fake;
@@ -42,6 +44,7 @@ test("translates OpenCode edit completion through the Pi handoff seam", async ()
   expect(result.text).toBe("");
   expect(events.map((event) => event.type)).toEqual(["tool_execution_start", "tool_execution_end"]);
   expect(events[1].toolName).toBe("edit");
+  expect(existsSync(join(root, "late"))).toBe(false);
 
   const continuationEvents: any[] = [];
   const continuation = await runtime.run(
@@ -67,9 +70,7 @@ test("translates OpenCode edit completion through the Pi handoff seam", async ()
   expect(continuation.text).toContain('"status":"success"');
   expect(readFileSync(join(root, "calls"), "utf8")).toBe("2");
   expect(readFileSync(join(root, "args"), "utf8")).toContain("--session\nses-test");
-  expect(readFileSync(join(sessionDir, "continuation.raw.jsonl"), "utf8")).toContain(
-    "Runtime thinking level: off.",
-  );
+  expect(readFileSync(join(root, "args"), "utf8")).toContain("Runtime thinking level: off.");
   rmSync(root, { recursive: true, force: true });
 });
 
