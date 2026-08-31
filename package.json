@@ -3,7 +3,7 @@
   "version": "0.4.2",
   "private": true,
   "bin": {
-    "local-agent-factory": "./src/cli.ts"
+    "local-agent-factory": "./src/entrypoints/cli.ts"
   },
   "type": "module",
   "scripts": {
@@ -23,11 +23,11 @@
     "lint": "oxlint src tests",
     "lint:staged": "oxlint",
     "lint:fix": "oxlint src tests --fix",
-    "build:skill": "bun run src/scripts/build_skill.ts",
-    "check:skill": "bun run src/scripts/build_skill.ts --check",
-    "package:skill": "bun run build:skill && bun run src/scripts/package_skill.ts",
-    "start": "bun run src/cli.ts greet",
-    "dev": "bun --watch run src/cli.ts greet",
+    "build:skill": "bun run src/modules/factory-distribution/application/build_skill.ts",
+    "check:skill": "bun run src/modules/factory-distribution/application/build_skill.ts --check",
+    "package:skill": "bun run build:skill && bun run src/modules/factory-distribution/application/package_skill.ts",
+    "start": "bun run src/entrypoints/cli.ts greet",
+    "dev": "bun --watch run src/entrypoints/cli.ts greet",
     "typecheck:factory": "bun run typecheck.ts",
     "typecheck:app": "tsc --noEmit"
   },

@@ -6,7 +6,11 @@ argument-hint: "[install | create adw | run adw | update config | ...]"
 
 # Super Simple Software Factory (SSSF)
 
-Reusable combination of **agents plus code**: deterministic TypeScript ADW scripts own sequencing, retries, and acceptance; coding agents (Pi in v1) work inside bounded phases; typed JSON envelopes carry context between them; everything streams into SQLite for the polled visualizer. Agent proposes, code disposes.
+Reusable combination of **agents plus code**: deterministic TypeScript ADW scripts own sequencing, retries, and acceptance; configured Agent Runtime adapters work inside bounded phases; typed JSON envelopes carry context between them; everything streams into SQLite for the polled visualizer. Agent proposes, code disposes.
+
+## Path context
+
+This skill runs in an **installed target repository**. Its `adws/` directory is installed runtime code, and `adws/adw_data/` is runtime evidence. In the factory development repository, canonical sources live under `src/adws/` and `src/skills/sssf/`; `dist/` is generated package output. Do not edit generated or installed copies to change the factory package. Update the canonical source, then run `bun run build:skill` and `bun run check:skill`.
 
 ## Startup
 
@@ -14,7 +18,7 @@ Three steps. Then stop. In Pi, invoke this skill with `/skill:sssf`.
 
 1. Read [cookbooks/sssf_overview.md](cookbooks/sssf_overview.md) — the system map.
 2. `ls adws/adw_*.ts` and read each file's `Phases:` docstring line.
-3. Print the ADWs as a table — name, the chain, one line on when to reach for it — and **wait for the engineer's request.**
+3. Print the discovered workflows as a table — name, the chain, one line on when to reach for it — and **wait for the engineer's request.**
 
 ```text
 | ADW | Chain | Use when |
@@ -62,7 +66,7 @@ Deep specs, when needed: [references/config.md](references/config.md) · [refere
 
 1. **Validate before running** — every ADW declares `REQUIRED_AGENTS` and calls `agents.validate()` first; a missing/misnamed agent fails before anything spawns.
 2. **Typed outputs only** — every agent call pairs with a concrete `EnvelopeBase` subclass in `adw_modules/data_types.ts`; parse failures re-prompt the same session (context intact), never restart.
-   **The output contract is a synced triad**: (a) the type in `data_types.ts`, (b) the JSON example in the agent's `user.md` `## Report` section, (c) `output_type=` at every call site. These are ONE contract — change any one, update all three in the same edit (grep the type name to find every call site).
+   **The output contract is a synced triad**: (a) the type in `data_types.ts`, (b) the JSON example in the agent's `user.md` `## Report` section, (c) `output_type=` at every call site. These are one contract. Change all three in one edit, then run the repository's contract check when it exists. Until migration adds that check, grep the type name to prove every binding.
 3. **Gates validate claims, not guesses** — `gate(envelope, run) -> list[str]` violations; failures return to the same session as corrections.
 4. **Four-param rule** — any function with more than 4 parameters takes one concrete data type instead (`AgentCall`, `PhaseParams` are the pattern).
 5. **One agent, one prompt, one purpose** — identity lives in `system.md`; task shape (user prompt + output type) lives at the call site.

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { createCli } from "./cli";
+import { createCli } from "./entrypoints/cli";
 
 describe("CLI", () => {
   test("uses Commander to run the greet command", async () => {

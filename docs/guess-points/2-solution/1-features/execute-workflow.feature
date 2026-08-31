@@ -1,10 +1,10 @@
 Feature: Execute a workflow controller
   Domain definitions: [Workflow, WorkflowPrimitive, PrimitiveInvocation, PureComputation, CompositeFunction, WorkflowExecutor, WorkflowRun, RunContext, and Artifact](../../../../CONTEXT.md#language)
-  Actor: [WorkflowOperator](../../1-problem/1-ROLES.md#horizontal-local-agent-factory-cli)
-  Platform: [Local Agent Factory](../../3-architecture/1-PLATFORMS.md#internal-platforms)
+  Actor: [Workflow Operator](../../1-problem/1-ROLES.md#workflow-operator)
+  Platform: [Local Agent Factory](../../3-architecture/1-PLATFORMS.md#local-agent-factory)
 
-  As a WorkflowOperator,
-  I want to execute a registered workflow controller through one workflow executor,
+  As a Workflow Operator,
+  I want to execute a registered Workflow through one Workflow Executor,
   So that I can inspect its ordered invocation results and artifacts
 
   Rule: Record primitive invocations in controller order

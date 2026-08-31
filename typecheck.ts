@@ -1,6 +1,9 @@
 export {};
 
-const roots = ["src/adws", "src/scripts"];
+const roots = [
+  "src/modules/change-delivery/operational",
+  "src/modules/factory-distribution/application",
+];
 const files = roots.flatMap((root) =>
   [...new Bun.Glob("**/*.ts").scanSync(root)].map((file) => `${root}/${file}`),
 );

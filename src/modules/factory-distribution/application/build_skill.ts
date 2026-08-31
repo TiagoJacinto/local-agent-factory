@@ -10,9 +10,9 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { compileSkill } from "../adws/adw_modules/skill_compiler";
+import { compileSkill } from "../../change-delivery/operational/adw_modules/skill_compiler";
 
-const repositoryRoot = resolve(import.meta.dir, "../..");
+const repositoryRoot = resolve(import.meta.dir, "../../../..");
 const sourceRoot = join(repositoryRoot, "src");
 const skillsSource = join(sourceRoot, "skills");
 const sssfSource = join(skillsSource, "sssf");
@@ -44,11 +44,20 @@ function additionalSkillNames(): string[] {
 }
 
 function copyRuntime(): void {
-  copyTree(join(sourceRoot, "adws"), join(outputRoot, "templates/adws"));
+  copyTree(
+    join(sourceRoot, "modules/change-delivery/operational"),
+    join(outputRoot, "templates/adws"),
+  );
   for (const script of ["make_adw.ts", "make_config.ts"]) {
-    copyTree(join(sourceRoot, `scripts/${script}`), join(outputRoot, `scripts/${script}`));
+    copyTree(
+      join(sourceRoot, `modules/factory-distribution/application/${script}`),
+      join(outputRoot, `scripts/${script}`),
+    );
   }
-  copyIfExists(join(sourceRoot, "scripts/install.ts"), join(outputRoot, "scripts/install.ts"));
+  copyIfExists(
+    join(sourceRoot, "modules/factory-distribution/application/install.ts"),
+    join(outputRoot, "scripts/install.ts"),
+  );
 }
 
 function copyIfExists(from: string, to: string): void {
@@ -81,7 +90,10 @@ function staleFiles(source: string, destination: string, projectSkill = false): 
 function check(): void {
   const stale = [
     ...staleFiles(sssfSource, outputRoot),
-    ...staleFiles(join(sourceRoot, "adws"), join(outputRoot, "templates/adws")),
+    ...staleFiles(
+      join(sourceRoot, "modules/change-delivery/operational"),
+      join(outputRoot, "templates/adws"),
+    ),
     ...additionalSkillNames().flatMap((name) => [
       ...staleFiles(join(skillsSource, name), join(outputSkillsRoot, name), true),
       ...staleFiles(join(skillsSource, name), join(outputRoot, "templates/workflow_skills", name)),

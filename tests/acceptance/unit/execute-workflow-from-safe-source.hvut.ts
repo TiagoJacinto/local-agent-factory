@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { WorkflowExecutor, type WorkflowDefinition } from "../../../src/workflow";
+import { WorkflowExecutor, type WorkflowDefinition } from "../../../src/modules/workflow-execution";
 
 function createRepository(): { path: string; revision: string; head: string } {
   const path = mkdtempSync(join(tmpdir(), "safe-source-"));

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-const root = resolve(import.meta.dir, "../..");
+const root = resolve(import.meta.dir, "../../../..");
 const output = join(root, "dist");
 const archive = join(output, "sssf.tar.gz");
 mkdirSync(output, { recursive: true });

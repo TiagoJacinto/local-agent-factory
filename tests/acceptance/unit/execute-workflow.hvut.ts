@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describeFeature, loadFeature } from "@amiceli/vitest-cucumber";
 import { expect } from "vitest";
-import { WorkflowExecutor, type WorkflowDefinition } from "../../../src/workflow";
+import { WorkflowExecutor, type WorkflowDefinition } from "../../../src/modules/workflow-execution";
 
 const feature = await loadFeature(
   "docs/guess-points/2-solution/1-features/execute-workflow.feature",

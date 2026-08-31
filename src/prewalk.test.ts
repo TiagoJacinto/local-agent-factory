@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { runPrewalk, type PiSession, type PiTurn } from "./prewalk";
+import { runPrewalk, type PiSession, type PiTurn } from "./modules/workflow-execution";
 
 function session(identifier: string, turns: readonly PiTurn[]) {
   const calls: Parameters<PiSession["runTurn"]>[0][] = [];
@@ -99,4 +99,17 @@ describe("runPrewalk", () => {
     expect(result.handoffTool).toBe("write");
     expect(calls.map((call) => call.model.model)).toEqual(["slow", "slow", "slow", "fast"]);
   });
+});
+
+test("stops when the bounded prewalk budget is exhausted", async () => {
+  const { piSession } = session("session-budget", [{ toolResults: [], complete: false }]);
+  await expect(
+    runPrewalk(piSession, {
+      prompt: "Inspect the task",
+      planningModel: { model: "slow" },
+      implementationModel: { model: "fast" },
+      builtInTools: ["read"],
+      maxTurns: 1,
+    }),
+  ).rejects.toThrow("Prewalk budget exhausted");
 });

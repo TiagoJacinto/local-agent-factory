@@ -10,14 +10,22 @@ const sourceDirectory = fileURLToPath(new URL(".", import.meta.url));
 test("installs a self-contained Pi workflow runtime", () => {
   const repositoryRoot = resolve(sourceDirectory, "..");
   const target = mkdtempSync(join(tmpdir(), "sssf-install-"));
-  execFileSync("bun", [join(repositoryRoot, "src/scripts/build_skill.ts")], {
-    cwd: repositoryRoot,
-    stdio: "pipe",
-  });
-  execFileSync("bun", [join(repositoryRoot, "src/scripts/package_skill.ts")], {
-    cwd: repositoryRoot,
-    stdio: "pipe",
-  });
+  execFileSync(
+    "bun",
+    [join(repositoryRoot, "src/modules/factory-distribution/application/build_skill.ts")],
+    {
+      cwd: repositoryRoot,
+      stdio: "pipe",
+    },
+  );
+  execFileSync(
+    "bun",
+    [join(repositoryRoot, "src/modules/factory-distribution/application/package_skill.ts")],
+    {
+      cwd: repositoryRoot,
+      stdio: "pipe",
+    },
+  );
   const archiveEntries = execFileSync("tar", ["-tzf", join(repositoryRoot, "dist/sssf.tar.gz")], {
     encoding: "utf8",
   });
@@ -88,7 +96,7 @@ test("installs a self-contained Pi workflow runtime", () => {
   expect(
     existsSync(join(target, "adws/adw_data/workflow_skills/rpi-create-research/SKILL.md")),
   ).toBe(true);
-  expect(readFileSync(runner, "utf8")).not.toContain("src/workflow");
+  expect(readFileSync(runner, "utf8")).not.toContain("src/modules/workflow-execution");
 
   for (const example of [
     "adw_simple_sdlc.ts",

@@ -1,9 +1,9 @@
 Feature: Hand off from planning to implementation
-  Domain definitions: [Workflow, HarnessPrimitive, WorkflowRun, and RunContext](../../../../CONTEXT.md#language)
-  Actor: [WorkflowOperator](../../1-problem/1-ROLES.md#horizontal-local-agent-factory-cli)
-  Platform: [Local Agent Factory](../../3-architecture/1-PLATFORMS.md#internal-platforms)
+  Domain definitions: [Workflow, Harness Primitive, Workflow Run, Run Context, and Prewalk](../../../../CONTEXT.md#language)
+  Actor: [Workflow Operator](../../1-problem/1-ROLES.md#workflow-operator)
+  Platform: [Local Agent Factory](../../3-architecture/1-PLATFORMS.md#local-agent-factory)
 
-  As a WorkflowOperator,
+  As a Workflow Operator,
   I want a coding run to hand off from planning to implementation,
   So that a strong model can prepare the work before a faster model implements it
 

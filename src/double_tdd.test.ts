@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { isTestPath, validateOutputForState } from "./adws/adw_modules/double_tdd";
+import {
+  isTestPath,
+  validateOutputForState,
+} from "./modules/change-delivery/operational/adw_modules/double_tdd";
 
 describe("double-loop TDD state validation", () => {
   test("recognises acceptance and unit test paths", () => {

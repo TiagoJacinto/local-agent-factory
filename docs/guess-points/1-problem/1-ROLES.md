@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This catalog defines each role by the single horizontal through which it interacts with the system. A **horizontal** is an interaction environment or channel, such as source authoring, a code API, a browser application, or a REST API. The **verticals** within that horizontal are the bounded capabilities exposed to the role.
+This catalog defines each role by its single horizontal. A **horizontal** is the interaction environment through which a role acts and observes outcomes. The **verticals** within that horizontal are the bounded capabilities available to that role.
 
 One person may perform multiple roles, but each role belongs to exactly one horizontal. An interface not listed for a role is outside that role's access boundary.
 
@@ -10,28 +10,38 @@ One person may perform multiple roles, but each role belongs to exactly one hori
 
 ### Workflow Operator
 
-A **Workflow Operator** is a person who executes a registered workflow and inspects its workflow run, primitive invocation results, and artifacts.
+A **Workflow Operator** requests registered Workflow Capabilities and inspects the resulting Workflow Runs.
 
-Source features: [`execute-workflow.feature`](../2-solution/1-features/execute-workflow.feature), [`execute-workflow-from-safe-source.feature`](../2-solution/1-features/execute-workflow-from-safe-source.feature)
+Source features: [`execute-workflow.feature`](../2-solution/1-features/execute-workflow.feature), [`execute-workflow-from-safe-source.feature`](../2-solution/1-features/execute-workflow-from-safe-source.feature), [`prewalk-model-handoff.feature`](../2-solution/1-features/prewalk-model-handoff.feature)
 
-#### Horizontal: Local Agent Factory CLI
+#### Horizontal: Local Agent Factory
 
-The Workflow Operator calls the Local Agent Factory from outside the system through its CLI.
+The Workflow Operator interacts with the Local Agent Factory through its operator interface. The first adapter is a local CLI. A future adapter may use the same Factory facade without creating another role horizontal.
 
-| Vertical                | Interface available to the role | Permitted interaction                                                                                                                          |
-| ----------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Workflow execution      | Local Agent Factory CLI         | Request execution of one registered workflow, optionally against an expected revision of a clean source repository.                            |
-| Workflow-run inspection | CLI workflow-run output         | Inspect the run identifier, status, source revision, disposable workspace path when one was created, and ordered primitive invocation results. |
-| Artifact inspection     | CLI artifact output             | Inspect artifacts and their production and consumption within the workflow run.                                                                |
+| Vertical                | Permitted interaction                                                                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Workflow execution      | Request one registered Workflow Capability against a clean expected Source Revision when the workflow changes source.                                        |
+| Workflow-run inspection | Inspect the run identifier, status, source, Disposable Workspace, ordered Phases and Primitive Invocations, Envelopes, Artifacts, budgets, and Run Evidence. |
+| Integration decision    | Accept, reject, accept with changes, or abandon a result at the human Gate. Integration itself remains outside the Factory.                                  |
+| Evidence inspection     | Inspect the Evidence Manifest, validation evidence, review findings, and retained failed workspaces.                                                         |
 
 #### Access boundary
 
-- **CLI:** Access is limited to executing registered workflows and inspecting their returned runs through the CLI.
-- **Direct platform access:** The role does not directly access the model platform or agent harness; it reaches them only through CLI workflow execution.
+- The operator requests a registered Workflow. It does not issue raw adapter calls or modify execution state directly.
+- The operator may inspect evidence but cannot treat an agent Proposal as an accepted Decision without an explicit promotion path.
+- The operator may integrate an accepted result outside the Factory. The Factory does not merge, push, deploy, or release on the operator's behalf.
 
-#### Observable workflow
+### Workflow Observer
 
-1. Select a registered workflow by identifier through the CLI.
-2. Request its execution, including the source repository and expected revision when required.
-3. Inspect the CLI's workflow-run output.
-4. Inspect ordered primitive invocation results and artifacts reported for that run.
+A **Workflow Observer** examines live or completed Workflow Runs without starting, changing, or integrating them.
+
+#### Horizontal: Local Agent Factory trace view
+
+| Vertical          | Permitted interaction                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Run inspection    | Inspect status, Phases, Primitive Invocations, budgets, tool activity, and Run Evidence through the trace projection.    |
+| Failure diagnosis | Inspect failed Gate Reports, invalid Envelopes, command output, retained workspaces, and recorded Integration Decisions. |
+
+#### Access boundary
+
+The Workflow Observer has no authority to execute a Workflow, resume an agent session, change a write boundary, promote a Proposal, or integrate a result.

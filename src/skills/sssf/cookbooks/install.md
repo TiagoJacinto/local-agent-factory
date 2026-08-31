@@ -30,16 +30,14 @@ Run from the **target repo root** — the cwd is where everything lands. If the 
 
 `install.ts` copies `templates/` into the cwd:
 
-| Stamped                                                                         | From                            | Tracked?                                                                       |
-| ------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------ |
-| `adws/adw_sssf_config/sssf.config.yaml`                                         | `templates/sssf.config.yaml`    | yes — the agent roster                                                         |
-| `.env.sample`                                                                   | `templates/env.sample`          | yes                                                                            |
-| `adws/adw_*.ts`                                                                 | `templates/adws/`               | yes — the eight starter ADWs; composition examples stay in the factory repo    |
-| `adws/adw_modules/`                                                             | `templates/adws/adw_modules/`   | yes — all low-level logic                                                      |
-| `adws/adw_data/prompt_engineering/{planner,builder,scout,reviewer,documenter}/` | `templates/prompt_engineering/` | yes — **the user-owned home for prompts**                                      |
-| `justfile`                                                                      | `templates/justfile`            | yes — starter recipes: `just demo`, the workflows, the trace reads, `just obs` |
-| `adws/adw_sssf_config/sssf.lock.yaml`                                           | resolved release version        | yes — team installation lock                                                   |
-| `adws/adw_data/sessions/`, `adws/adw_data/sssf.db`                              | created at runtime              | no — gitignored                                                                |
+- `adws/adw_sssf_config/sssf.config.yaml` comes from `templates/sssf.config.yaml` and is tracked as the agent roster.
+- `.env.sample` comes from `templates/env.sample` and is tracked.
+- `adws/adw_*.ts` comes from `templates/adws/` and is tracked as registered workflow entrypoints. Composition examples remain in the factory repository.
+- `adws/adw_modules/` comes from `templates/adws/adw_modules/` and is tracked as the current runtime implementation.
+- `adws/adw_data/prompt_engineering/{planner,builder,scout,reviewer,documenter}/` comes from `templates/prompt_engineering/` and is tracked as the **user-owned** prompt home.
+- `justfile` comes from `templates/justfile` and is tracked with starter run and trace recipes.
+- `adws/adw_sssf_config/sssf.lock.yaml` records the resolved release version and is tracked.
+- `adws/adw_data/sessions/` and `adws/adw_data/sssf.db` are runtime output and are gitignored.
 
 `prompt_engineering/` is the user-owned home for agent prompts. Edit those files in `adws/adw_data/`, never back inside the skill. The factory deliberately uses only Pi's built-in tools; extensions and custom tools are not part of the runtime.
 

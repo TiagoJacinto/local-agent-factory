@@ -1,10 +1,10 @@
 Feature: Execute a workflow from a safe source repository
   Source: [GitHub issue #2](https://github.com/TiagoJacinto/local-agent-factory/issues/2)
-  Domain definitions: [Workflow, HarnessPrimitive, PrimitiveInvocation, WorkflowRun, SourceRepository, SourceRevision, WorkingTree, DisposableWorkspace, and RunIdentifier](../../../../CONTEXT.md#language)
-  Actor: [WorkflowOperator](../../1-problem/1-ROLES.md#horizontal-local-agent-factory-cli)
-  Platform: [Local Agent Factory](../../3-architecture/1-PLATFORMS.md#internal-platforms)
+  Domain definitions: [Workflow, Harness Primitive, Primitive Invocation, Workflow Run, Source Repository, Source Revision, Disposable Workspace, and Run Identifier](../../../../CONTEXT.md#language)
+  Actor: [Workflow Operator](../../1-problem/1-ROLES.md#workflow-operator)
+  Platform: [Local Agent Factory](../../3-architecture/1-PLATFORMS.md#local-agent-factory)
 
-  As a WorkflowOperator,
+  As a Workflow Operator,
   I want to execute a workflow against an expected clean source revision,
   So that generated work is isolated from my source repository
 

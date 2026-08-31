@@ -3,9 +3,13 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import { enforce, PermissionBreach, snapshot } from "./adws/adw_modules/permissions";
-import { runProcess } from "./adws/adw_modules/process";
-import { executionEnv, redactSecrets } from "./adws/adw_modules/utils";
+import {
+  enforce,
+  PermissionBreach,
+  snapshot,
+} from "./modules/workflow-execution/adapters/local-process";
+import { runProcess } from "./modules/workflow-execution/adapters/local-process";
+import { executionEnv, redactSecrets } from "./modules/workflow-execution/adapters/local-process";
 
 test("keeps ambient environment variables out of managed processes", async () => {
   const name = "SSSF_ROBUSTNESS_SECRET";

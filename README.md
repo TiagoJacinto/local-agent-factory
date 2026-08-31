@@ -3,6 +3,8 @@
 > **Repeatable agents-plus-code workflows, packaged as one skill, stamped into any repo.**
 > Deterministic TypeScript owns the graph. Coding agents are bounded nodes inside it.
 
+`src/` and `src/skills/` are this repository's source of truth. `dist/` is generated package output. An installed repository receives a generated `adws/` tree and writes runtime evidence to `adws/adw_data/`. Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the canonical system map and planned source convergence.
+
 📺 Full breakdown on YouTube: **[Super Simple Software Factory](https://youtu.be/haUfb1ievTE)**
 
 <p align="center">
@@ -195,8 +197,8 @@ The skill package lives in `.pi/skills/sssf/`. It contains the hard rules, cookb
 | What lands in your repo                 | Where it comes from             | Tracked                               |
 | --------------------------------------- | ------------------------------- | ------------------------------------- |
 | `adws/adw_sssf_config/sssf.config.yaml` | `templates/sssf.config.yaml`    | yes, it is your agent roster          |
-| `adws/adw_*.ts`                         | `templates/adws/`               | yes, eight starter workflows          |
-| `adws/adw_modules/`                     | `templates/adws/adw_modules/`   | yes, all low-level logic              |
+| `adws/adw_*.ts`                         | `templates/adws/`               | yes, registered workflow entrypoints  |
+| `adws/adw_modules/`                     | `templates/adws/adw_modules/`   | yes, current runtime implementation   |
 | `adws/adw_data/prompt_engineering/`     | `templates/prompt_engineering/` | yes, **your prompts live here**       |
 | `.env.sample`                           | `templates/env.sample`          | yes                                   |
 | `justfile`                              | `templates/justfile`            | yes, starter recipes to run and watch |
@@ -214,7 +216,7 @@ There is no DSL here. No framework to learn. It is TypeScript, YAML, agents, and
 
 ```yaml
 defaults:
-  coding_agent: pi # Pi is the supported coding agent
+  coding_agent: pi # Pi is the default Agent Runtime adapter
   model: google/gemini-3.6-flash # provider/model-id, a bare id can match several providers
   thinking: medium # off | minimal | low | medium | high | xhigh | max
   protected_files: # no agent may edit the machinery that grades it
@@ -359,15 +361,15 @@ super-simple-software-factory/          # the deployable factory, and nothing el
         ├── sssf.config.yaml            # the starter roster
         ├── prompt_engineering/{agent}/ # system.md + user.md per agent
         └── adws/
-            ├── adw_*.ts                # the eight starter workflows
-            └── adw_modules/            # ALL low-level logic, ADW scripts stay thin
+            ├── adw_*.ts                # registered workflow entrypoints
+            └── adw_modules/            # current runtime implementation
 ```
 
 The skill is also what an agent reads to _operate_ the factory. `SKILL.md` is the central idea, and the cookbooks are lazily loaded recipes it pulls in one at a time: set up the factory, create an ADW, modify a chain, add an agent, run and monitor. If you can teach an agent to do something, teach it, then go build the thing it cannot.
 
 ---
 
-## The nine starter workflows
+## Registered workflows
 
 Every ADW takes the same shape:
 
@@ -386,6 +388,10 @@ bun adws/adw_*.ts "<prompt or path/to/prompt.md>" [--config adws/adw_sssf_config
 | `adw_double_tdd`             | outer and inner TDD loops              | drive implementation from acceptance scenarios               |
 | `adw_document`               | code(git diff), documenter             | write up what just shipped                                   |
 | `adw_prd_oriented_discovery` | research, PRD, technical design        | discover and design from evidence                            |
+| `adw_prd_oriented_design`    | research, PRD, technical design        | turn existing research into a technical design               |
+| `adw_research`               | researcher                             | gather evidence for a problem before planning                |
+| `adw_prewalk`                | planner, builder                       | hand off one Pi session from planning to implementation      |
+| `adw_ship`                   | builder, repository handoff            | implement an outline and prepare its pull request handoff    |
 
 The repository-only composition examples are documented in [`docs/adw-examples/`](docs/adw-examples/). They are not installed into target repositories.
 
@@ -417,7 +423,7 @@ Honest edges, because knowing them is cheaper than discovering them.
 | The test phase reports green on a fresh install | `quality.ts` ships placeholder commands that exit 0. Three ADWs run them as their test phase                                              | Wire your real commands into `quality.ts` before trusting the repository-only composition examples. This is the first thing to customize |
 | A bare model pattern                            | The same model sits under several providers, so `gemini-3.6-flash` matches three catalog entries and `agents.validate()` refuses to spawn | Always write `provider/model-id`                                                                                                         |
 | `just` is not installed                         | The stamped `justfile` is a convenience wrapper, nothing depends on it                                                                    | Every recipe is a one-line `bun` or `sqlite3` command. Open the justfile and run the line yourself                                       |
-| The source directory is not a Git repository    | Agent-only workflows use a disposable directory copy, without Git integrity or commit guarantees                                          | Use `adw_prompt`, `adw_scout`, `adw_plan`, `adw_build`, or `adw_quality`; initialise Git for diff, change-capture, and commit workflows  |
+| The source directory is not a Git repository    | The target design rejects source-changing work before any agent or command runs                                                           | Initialise Git and provide a clean expected revision before requesting a source-changing workflow                                        |
 | A coding agent hangs silently                   | No events, no tokens, an empty `raw_output.jsonl`. The trace goes quiet rather than red                                                   | Query `processes` for what is alive and kill it children-first. A killed run finalizes its own trace to `fail`                           |
 | The synced triad drifts                         | Type, `## Report` example, and `output_type=` disagree, so every call burns correction rounds                                             | Grep the type name and fix all three in one edit                                                                                         |
 | Gates pass, output is bad                       | Gates check what a predicate can check, not plan quality or code taste                                                                    | Run the `reviewer`, or read it yourself                                                                                                  |
@@ -426,7 +432,7 @@ Honest edges, because knowing them is cheaper than discovering them.
 | `install.ts --force`                            | Overwrites **all** stamped files, config and prompts included                                                                             | Commit before you force                                                                                                                  |
 | `coding_agent: pi`                              | Supported coding agent                                                                                                                    | Use Pi                                                                                                                                   |
 
-The runtime uses Git when available: it requires a clean source commit, creates a disposable clone, rechecks the source after completion, and stops at a manual review result. A non-Git directory is also supported for agent-only workflows. It is copied to a disposable workspace, but there is no source integrity check, Git diff/change capture, or commit phase; use `adw_prompt`, `adw_scout`, `adw_plan`, `adw_build`, and `adw_quality`. Git-dependent workflows such as `adw_document` and change-capture steps still require Git. The factory never merges, pushes, deploys, or integrates the workspace automatically.
+The canonical runtime path requires a clean Git source commit at the expected revision, creates a disposable clone, rechecks the source after completion, and stops at a manual review result. The source-architecture migration removes the non-Git copy path rather than treating weaker source safety as a second workflow mode. The factory never merges, pushes, deploys, or integrates the workspace automatically.
 
 **Is this overkill for a one-off feature?** Yes. Prompt an agent and move on. This earns its keep when the same workflow runs a hundred times, when validation is the only thing standing between you and a bad merge, and when you need the thousandth run to look like the first.
 

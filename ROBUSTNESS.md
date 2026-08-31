@@ -24,13 +24,44 @@ The agent must not silently insert the suggestion into `PRD.md`, turn it into a 
 
 ## Current minimum policy
 
-The owner selected only three safeguards for the first release:
+The owner selected three product safeguards for the first release:
 
 - require a clean source repository at the expected commit;
 - run agent and command steps in a disposable local clone;
 - require a human to integrate the result.
 
-Everything else in this file remains optional.
+The architecture also requires legible interfaces, bounded evidence, and a single execution kernel so an agent can inspect and control the system accurately. Those are design constraints, not an invitation to add speculative infrastructure. Everything else in this file remains optional.
+
+# Agent legibility and safe accretion
+
+## Canonical maps and executable contracts
+
+**Consider when:** agents repeatedly search across duplicate trees, infer a hidden coupling, or change one member of a synced contract without discovering the others.
+
+Possible improvements:
+
+- give every module a short guide with its public interface, invariant, verification command, and next document;
+- publish one source-to-package manifest and reject stale generated output;
+- check document links, workflow inventory, output-contract triads, and source/package mappings in CI;
+- make one execution kernel and one Factory facade the only runtime seams;
+- expose deterministic contract tests for every capability port.
+
+Prefer a small executable check over a prose rule that every agent must rediscover.
+
+## Evidence manifest and knowledge promotion
+
+**Consider when:** later runs need prior evidence, but raw transcripts and free-form notes make retrieval expensive or unsafe.
+
+Possible improvements:
+
+- generate one bounded Evidence Manifest per run that indexes artifacts, hashes, source revision, workflow version, agent route, budgets, and outcomes;
+- distinguish Observation, Decision, Proposal, and Regression Case records;
+- quarantine agent proposals until a person or deterministic policy promotes them;
+- scope every retained record by repository, path, workflow, role, and expiry;
+- label retrieved records as evidence and preserve their provenance and status;
+- record acceptance, rejection, acceptance with changes, or abandonment at the human integration seam.
+
+Do not turn agent output into permanent instruction because it was written to disk. Do not add retrieval before a repeated need proves that it lowers cost or improves correctness.
 
 # Reliability and execution control
 

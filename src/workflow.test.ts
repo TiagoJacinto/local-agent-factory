@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { executeWithAgentFix } from "./workflow";
+import { executeWithAgentFix } from "./modules/workflow-execution";
 
 describe("executeWithAgentFix", () => {
   test("passes an execution error to the agent before retrying", async () => {
