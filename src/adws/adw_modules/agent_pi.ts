@@ -132,6 +132,7 @@ export async function run(
     "-p",
     "--mode",
     "json",
+    "--no-extensions",
     "--provider",
     provider,
     "--model",
