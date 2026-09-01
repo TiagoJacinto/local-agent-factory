@@ -1,8 +1,9 @@
 export {};
 
 const roots = [
-  "src/modules/change-delivery/operational",
   "src/modules/factory-distribution/application",
+  "src/modules/workflow-execution",
+  "src/modules/change-delivery",
 ];
 const files = roots.flatMap((root) =>
   [...new Bun.Glob("**/*.ts").scanSync(root)].map((file) => `${root}/${file}`),

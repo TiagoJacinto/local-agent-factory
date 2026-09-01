@@ -1,81 +1,13 @@
-# SSSF Overview
+# SSSF architecture
 
-The system map the orchestrator reads on startup — what SSSF is, how a stamped repo is laid out, and which cookbook to load next.
+The installed runtime contains thin `adw_<workflow>.ts` wrappers, `run.ts`, canonical Factory modules under `factory/modules`, workflow skills, configuration, evidence, and SQLite trace data.
 
-## What SSSF is
+A workflow is a registered `WorkflowDefinition` with a local controller. Controllers compose `WorkflowContext` operations:
 
-Super Simple Software Factory builds repeatable **agents plus code** workflows. Deterministic TypeScript (an ADW script) owns sequencing, retries, and acceptance; agents are bounded nodes inside that graph. Agent proposes, code disposes.
+- `phase` records intent and lifecycle.
+- `ai` invokes the configured agent runtime and records typed artifacts.
+- `gate` validates required evidence.
+- `command` runs deterministic checks in the disposable workspace.
+- `review` waits for an explicit human integration decision.
 
-Your job as orchestrator: **run the system, observe the system, help the engineer interact with it.** You do not do the work an ADW exists to do.
-
-The installed `adws/` tree is runtime code. It is generated from the factory repository's canonical `src/adws/` and `src/skills/sssf/` sources. `adws/adw_data/` is run evidence. Do not infer factory-package authority from either installed path.
-
-## Layout of a stamped repo
-
-```
-adws/
-├── adw_sssf_config/
-│   └── sssf.config.yaml         the agent roster — one agent, one prompt, one purpose
-├── adw_prompt.ts                smallest ADW: one agent, one prompt, traced end-to-end
-├── adw_plan.ts                  planner only — write the plan before code
-├── adw_scout.ts                 read-only recon
-├── adw_build.ts                 implement an existing plan
-├── adw_build_review.ts          build → review: is this what was asked for?
-├── adw_quality.ts               deterministic lint, typecheck, and build checks
-├── adw_document.ts              write up the work just done, from git diff vs main
-└── adw_modules/                 current runtime implementation — ADW scripts stay thin
-```
-
-**The factory supports Pi and OpenCode CLI workers.** Set `coding_agent: pi` or `coding_agent: opencode`; both use the same phase, envelope, and Prewalk orchestration.
-
-## The phase model
-
-Every ADW run is a sequence of **phases**, each one `await run.phase({...}, handler)`. The target architecture names the effectful operations inside them Workflow Primitives. Three current phase kinds map to three swim lanes:
-
-- **engineer** — the human lane; today the system-input phase (who asked, and for what).
-- **agent** — `ph.call(AgentCall(...))`: prompt in → typed envelope out → gates verified.
-- **code** — deterministic steps that stand alone (git branch, git commit, migrate). Never buried inside an agent phase.
-
-A phase owns one purpose, owner, evidence trail, and execution budget. A malformed envelope, failed gate, command error, or exhausted budget is recorded as evidence, not smoothed over as progress.
-
-**Success must be earned — every phase defaults to `fail`.** A clean exit flips it to success; agent phases additionally require the envelope to parse and all gates to come back green. A raise keeps it failed, records an error event, and aborts the run. `retries=N` on an agent phase buys extra gate-correction rounds through the same session before that raise happens.
-
-## Envelopes
-
-Agents have exactly two output channels: reference files written into `context_handoff/`, and a **final valid-JSON response** parsed against the output type the call declared. Code persists it as `envelope.json` and injects it into the next agent's `user.md` via `{{previous_envelope}}`. Bad JSON is never a restart — the harness re-prompts the _same session, context intact_, until it parses (bounded). See `references/handoff.md`.
-
-**The output contract is a synced triad**: the type in `data_types.ts` ↔ the `## Report` JSON example in the agent's `user.md` ↔ `output_type=` at the call site. Editing any one means editing all three in the same change. The target repository check will verify this triad instead of asking agents to rediscover it by grep.
-
-## Running an ADW
-
-```bash
-bun adws/adw_plan.ts "add a /health endpoint"
-bun adws/adw_plan.ts requests/health.md --adw-id a1b2c3d4
-```
-
-The prompt is inline text or a file path. `--adw-id` is optional on every ADW: given one, the run joins that session (same dirs, same `context_handoff/`, agents resume their existing context windows); omitted, a fresh id is minted and printed. Read the Evidence Manifest first when inspecting a previous run, then open only the raw artifact needed to answer the current question.
-
-## Composition examples live in `docs/adw-examples/` in the factory repository. They are documentation only and are not stamped into target repositories
-
-When you have finished reading this
-
-You are done with startup. List the ADWs (`ls adws/adw_*.ts`, plus each `Phases:` docstring line) as a table, and **wait for the engineer's request.**
-
-Do not survey anything else — not the trace db, not the config, not past runs, not the repo tree. You do not yet know what the request is, so anything you gather now is a guess about what will matter, spent from the context the real work needs. Every cookbook and reference below is lazy-loaded, one per request, and that is the whole design.
-
-## Where to go next
-
-Load one cookbook per request — this overview is the only one you read up front.
-
-| Request                                    | Cookbook                                                      |
-| ------------------------------------------ | ------------------------------------------------------------- |
-| Turn a request into the prompt an ADW gets | `how_to_prompt_for_the_eng.md` — **read before every launch** |
-| Set the system up in a repo                | `install.md`                                                  |
-| Write a new ADW script                     | `create_adw.md`                                               |
-| Change an existing ADW chain               | `update_adw.md`                                               |
-| Generate `sssf.config.yaml`                | `create_config.md`                                            |
-| Add or retune an agent                     | `update_config.md`                                            |
-| Add low-level logic or a gate              | `update_modules.md`                                           |
-| Run and monitor a workflow                 | `how_to_prompt_for_the_eng.md`, then `run_adw.md`             |
-
-References, loaded when you need the spec: `references/config.md` (full config schema), `references/handoff.md` (envelope + session layout), `references/observability.md` (events, db tables, polling).
+The supported change-delivery IDs are prompt, scout, plan, prewalk, build, quality, build-review, double-tdd, document, research, prd-oriented-design, and prd-oriented-discovery. Source-changing workflows require a clean Git source and expected revision; execution happens in an independent clone. The evidence manifest and SQLite trace are the durable run record.

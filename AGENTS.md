@@ -6,6 +6,7 @@
 - Use `CONTEXT.md` for domain language only. It is not a plan, run log, or implementation reference.
 - Use `docs/plans/agent-native-source-architecture.md` when changing the source layout or execution kernel. It defines the target and migration completion checks.
 - `src/` and `src/skills/` are canonical source. `dist/` is generated package output. A stamped target repository's `adws/` tree is installed output, and `adws/adw_data/` is runtime evidence.
+- Modules are deep modules: read [`src/modules/README.md`](./src/modules/README.md) before adding or importing one.
 
 ### Issue tracker
 

@@ -1,1 +1,2 @@
-export { getChangeDeliveryWorkflow } from "../../index";
+export { prdOrientedDiscoveryWorkflow } from "./controller";
+export type { PrdOrientedDiscoveryRequest, PrdOrientedDiscoveryResult } from "./request";

@@ -1,5 +1,5 @@
-# Change-delivery workflow
+# PRD-oriented design
 
-Registration lives in the change-delivery module. The workflow executes through the canonical Factory and records its proposal as untrusted evidence.
+Runs `request`, `prd`, and `tdd` through the canonical Factory. The typed controller requires `problemFolder`, compiles the RPI skills locally, gates each output artifact, and hands the PRD artifact to TDD. Owners are `prd` and `tdd`.
 
-Focused verification: `bun run test -- src/modules/workflow-execution/workflow-execution.test.ts`.
+Run with `bun adws/adw_prd_oriented_design.ts "request" --problem-folder .rpi/problems/request`.

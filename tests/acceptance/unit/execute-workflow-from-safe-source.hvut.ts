@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { WorkflowExecutor, type WorkflowDefinition } from "../../../src/modules/workflow-execution";
+import { Factory, type WorkflowDefinition } from "../../../src/modules/workflow-execution";
 
 function createRepository(): { path: string; revision: string; head: string } {
   const path = mkdtempSync(join(tmpdir(), "safe-source-"));
@@ -34,14 +34,15 @@ describe("Execute a workflow from a safe source repository", () => {
     const source = createRepository();
     const workspaceRoot = mkdtempSync(join(tmpdir(), "safe-workspaces-"));
     let workerWorkspace: string | undefined;
-    const executor = new WorkflowExecutor([workflow()], {
+    const executor = new Factory([workflow()], {
       harness: ({ workspacePath, input }) => {
         workerWorkspace = workspacePath;
         writeFileSync(join(workspacePath!, "README.md"), `${input}\n`);
         return undefined;
       },
     });
-    const run = await executor.executeWorkflow("update-readme", {
+    const run = await executor.execute({
+      workflowId: "update-readme",
       sourceRepository: source.path,
       expectedSourceRevision: source.revision,
       workspaceRoot,
@@ -76,13 +77,14 @@ describe("Execute a workflow from a safe source repository", () => {
   test("rejects a source that changes during worker activity", async () => {
     const source = createRepository();
     const workspaceRoot = mkdtempSync(join(tmpdir(), "safe-workspaces-"));
-    const executor = new WorkflowExecutor([workflow()], {
+    const executor = new Factory([workflow()], {
       harness: () => {
         writeFileSync(join(source.path, "tampered.txt"), "changed outside workspace\n");
         return undefined;
       },
     });
-    const run = await executor.executeWorkflow("update-readme", {
+    const run = await executor.execute({
+      workflowId: "update-readme",
       sourceRepository: source.path,
       expectedSourceRevision: source.revision,
       workspaceRoot,
@@ -101,13 +103,14 @@ describe("Execute a workflow from a safe source repository", () => {
     const source = createRepository();
     writeFileSync(join(source.path, "uncommitted.txt"), "dirty\n");
     let workerCalled = false;
-    const executor = new WorkflowExecutor([workflow()], {
+    const executor = new Factory([workflow()], {
       harness: () => {
         workerCalled = true;
         return undefined;
       },
     });
-    const run = await executor.executeWorkflow("update-readme", {
+    const run = await executor.execute({
+      workflowId: "update-readme",
       sourceRepository: source.path,
       expectedSourceRevision: source.revision,
     });
@@ -126,13 +129,14 @@ describe("Execute a workflow from a safe source repository", () => {
   test("rejects an unexpected source revision before workspace or worker execution", async () => {
     const source = createRepository();
     let workerCalled = false;
-    const executor = new WorkflowExecutor([workflow()], {
+    const executor = new Factory([workflow()], {
       harness: () => {
         workerCalled = true;
         return undefined;
       },
     });
-    const run = await executor.executeWorkflow("update-readme", {
+    const run = await executor.execute({
+      workflowId: "update-readme",
       sourceRepository: source.path,
       expectedSourceRevision: "unexpected-revision",
     });
@@ -151,13 +155,14 @@ describe("Execute a workflow from a safe source repository", () => {
   test("retains the disposable workspace when worker activity fails", async () => {
     const source = createRepository();
     const workspaceRoot = mkdtempSync(join(tmpdir(), "safe-workspaces-"));
-    const executor = new WorkflowExecutor([workflow()], {
+    const executor = new Factory([workflow()], {
       harness: ({ workspacePath }) => {
         writeFileSync(join(workspacePath!, "failure.txt"), "inspect me\n");
         return { status: "Failed" };
       },
     });
-    const run = await executor.executeWorkflow("update-readme", {
+    const run = await executor.execute({
+      workflowId: "update-readme",
       sourceRepository: source.path,
       expectedSourceRevision: source.revision,
       workspaceRoot,

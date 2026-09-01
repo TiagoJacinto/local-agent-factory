@@ -33,7 +33,7 @@ Run from the **target repo root** — the cwd is where everything lands. If the 
 - `adws/adw_sssf_config/sssf.config.yaml` comes from `templates/sssf.config.yaml` and is tracked as the agent roster.
 - `.env.sample` comes from `templates/env.sample` and is tracked.
 - `adws/adw_*.ts` comes from `templates/adws/` and is tracked as registered workflow entrypoints. Composition examples remain in the factory repository.
-- `adws/adw_modules/` comes from `templates/adws/adw_modules/` and is tracked as the current runtime implementation.
+- `factory/modules/` comes from `templates/factory/modules/` and is tracked as the current runtime implementation.
 - `adws/adw_data/prompt_engineering/{planner,builder,scout,reviewer,documenter}/` comes from `templates/prompt_engineering/` and is tracked as the **user-owned** prompt home.
 - `justfile` comes from `templates/justfile` and is tracked with starter run and trace recipes.
 - `adws/adw_sssf_config/sssf.lock.yaml` records the resolved release version and is tracked.

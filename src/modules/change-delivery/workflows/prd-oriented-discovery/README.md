@@ -1,5 +1,5 @@
-# Change-delivery workflow
+# PRD-oriented discovery
 
-Registration lives in the change-delivery module. The workflow executes through the canonical Factory and records its proposal as untrusted evidence.
+Composes the complete RPI graph in order: `request`, `research_questions`, `research`, `prd`, and `tdd`. It validates `problemFolder`, compiles each workflow skill, preserves explicit owner handoffs, and gates all four artifacts.
 
-Focused verification: `bun run test -- src/modules/workflow-execution/workflow-execution.test.ts`.
+Run with `bun adws/adw_prd_oriented_discovery.ts "request" --problem-folder .rpi/problems/request`.

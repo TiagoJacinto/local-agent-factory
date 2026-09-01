@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { compileSkill } from "../../change-delivery/operational/adw_modules/skill_compiler";
+import { compileSkill } from "./skill-compilation";
 
 const repositoryRoot = resolve(import.meta.dir, "../../../..");
 const sourceRoot = join(repositoryRoot, "src");
@@ -44,10 +44,52 @@ function additionalSkillNames(): string[] {
 }
 
 function copyRuntime(): void {
+  const runtimeRoot = join(outputRoot, "templates/adws");
+  const canonicalRuntimeRoot = join(runtimeRoot, "factory/modules");
   copyTree(
-    join(sourceRoot, "modules/change-delivery/operational"),
-    join(outputRoot, "templates/adws"),
+    join(sourceRoot, "modules/workflow-execution"),
+    join(canonicalRuntimeRoot, "workflow-execution"),
   );
+  copyTree(
+    join(sourceRoot, "modules/change-delivery"),
+    join(canonicalRuntimeRoot, "change-delivery"),
+  );
+  copyTree(
+    join(sourceRoot, "modules/factory-distribution/application/skill-compilation"),
+    join(canonicalRuntimeRoot, "factory-distribution/application/skill-compilation"),
+  );
+  copyTree(
+    join(sourceRoot, "modules/factory-distribution/skill-compilation.ts"),
+    join(canonicalRuntimeRoot, "factory-distribution/skill-compilation.ts"),
+  );
+  writeFileSync(
+    join(runtimeRoot, "run.ts"),
+    readFileSync(join(sourceRoot, "entrypoints/workflows/run.ts"), "utf8").replaceAll(
+      '"../../modules/',
+      '"./factory/modules/',
+    ),
+  );
+  const workflowEntrypoints = [
+    "prompt",
+    "scout",
+    "plan",
+    "prewalk",
+    "build",
+    "quality",
+    "build-review",
+    "double-tdd",
+    "document",
+    "research",
+    "prd-oriented-design",
+    "prd-oriented-discovery",
+  ] as const;
+  for (const id of workflowEntrypoints) {
+    const filename = id.replaceAll("-", "_");
+    writeFileSync(
+      join(runtimeRoot, `adw_${filename}.ts`),
+      `#!/usr/bin/env bun\nimport { runWorkflowCli } from "./run";\nprocess.exitCode = await runWorkflowCli("${id}", Bun.argv.slice(2));\n`,
+    );
+  }
   for (const script of ["make_adw.ts", "make_config.ts"]) {
     copyTree(
       join(sourceRoot, `modules/factory-distribution/application/${script}`),
@@ -76,7 +118,12 @@ function files(root: string, result: string[] = []): string[] {
 
 function staleFiles(source: string, destination: string, projectSkill = false): string[] {
   return files(source).filter((path) => {
-    if (path === join(sssfSource, "VERSION")) return false;
+    if (
+      path === join(sssfSource, "VERSION") ||
+      path.endsWith("/scripts/make_adw.ts") ||
+      path.endsWith("/scripts/make_config.ts")
+    )
+      return false;
     const output = join(destination, relative(source, path));
     const sourceText = readFileSync(path, "utf8");
     const expected =
@@ -88,12 +135,65 @@ function staleFiles(source: string, destination: string, projectSkill = false): 
 }
 
 function check(): void {
+  const runtimeRoot = join(outputRoot, "templates/adws");
+  const canonicalRoot = join(runtimeRoot, "factory/modules");
+  const workflowEntrypoints = [
+    "prompt",
+    "scout",
+    "plan",
+    "prewalk",
+    "build",
+    "quality",
+    "build-review",
+    "double-tdd",
+    "document",
+    "research",
+    "prd-oriented-design",
+    "prd-oriented-discovery",
+  ] as const;
+  const expectedRun = readFileSync(
+    join(sourceRoot, "entrypoints/workflows/run.ts"),
+    "utf8",
+  ).replaceAll('"../../modules/', '"./factory/modules/');
+  const staleWrappers = workflowEntrypoints.flatMap((id) => {
+    const filename = id.replaceAll("-", "_");
+    const path = join(runtimeRoot, `adw_${filename}.ts`);
+    const expected = `#!/usr/bin/env bun\nimport { runWorkflowCli } from "./run";\nprocess.exitCode = await runWorkflowCli("${id}", Bun.argv.slice(2));\n`;
+    return existsSync(path) && readFileSync(path, "utf8") === expected ? [] : [path];
+  });
+  const expectedWrapperNames = new Set(
+    workflowEntrypoints.map((id) => `adw_${id.replaceAll("-", "_")}.ts`),
+  );
+  const extraWrappers = files(runtimeRoot).filter(
+    (path) =>
+      path.startsWith(`${runtimeRoot}/adw_`) &&
+      path.endsWith(".ts") &&
+      !expectedWrapperNames.has(path.slice(runtimeRoot.length + 1)),
+  );
   const stale = [
-    ...staleFiles(sssfSource, outputRoot),
+    ...extraWrappers,
     ...staleFiles(
-      join(sourceRoot, "modules/change-delivery/operational"),
-      join(outputRoot, "templates/adws"),
+      join(sourceRoot, "modules/workflow-execution"),
+      join(canonicalRoot, "workflow-execution"),
     ),
+    ...staleFiles(
+      join(sourceRoot, "modules/change-delivery"),
+      join(canonicalRoot, "change-delivery"),
+    ),
+    ...staleFiles(
+      join(sourceRoot, "modules/factory-distribution/application/skill-compilation"),
+      join(canonicalRoot, "factory-distribution/application/skill-compilation"),
+    ),
+    ...(existsSync(join(canonicalRoot, "factory-distribution/skill-compilation.ts")) &&
+    readFileSync(join(canonicalRoot, "factory-distribution/skill-compilation.ts"), "utf8") ===
+      readFileSync(join(sourceRoot, "modules/factory-distribution/skill-compilation.ts"), "utf8")
+      ? []
+      : [join(canonicalRoot, "factory-distribution/skill-compilation.ts")]),
+    ...(readFileSync(join(runtimeRoot, "run.ts"), "utf8") === expectedRun
+      ? []
+      : [join(runtimeRoot, "run.ts")]),
+    ...staleWrappers,
+    ...staleFiles(sssfSource, outputRoot),
     ...additionalSkillNames().flatMap((name) => [
       ...staleFiles(join(skillsSource, name), join(outputSkillsRoot, name), true),
       ...staleFiles(join(skillsSource, name), join(outputRoot, "templates/workflow_skills", name)),

@@ -1,1 +1,2 @@
-export { getChangeDeliveryWorkflow } from "../../index";
+export { researchWorkflow } from "./controller";
+export type { ResearchRequest, ResearchResult } from "./request";

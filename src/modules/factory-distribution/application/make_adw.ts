@@ -1,47 +1,41 @@
 #!/usr/bin/env bun
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-const a = process.argv.slice(2);
-const get = (k: string) => {
-  const i = a.indexOf(k);
-  return i >= 0 ? a[i + 1] : undefined;
+
+const args = process.argv.slice(2);
+const value = (name: string) => {
+  const index = args.indexOf(name);
+  return index >= 0 ? args[index + 1] : undefined;
 };
-const name = get("--name"),
-  raw = get("--agents"),
-  force = a.includes("--force");
-if (!name || !raw) {
-  console.error("--name and --agents are required");
-  process.exit(1);
-}
-const agents = raw
+const name = value("--name");
+const rawAgents = value("--agents");
+const force = args.includes("--force");
+if (!name || !rawAgents) throw new Error("--name and --agents are required");
+const agents = rawAgents
   .split(",")
-  .map((x) => x.trim())
+  .map((agent) => agent.trim())
   .filter(Boolean);
-if (!agents.length) {
-  console.error("no agents given");
-  process.exit(1);
-}
-const types: any = {
-  planner: "PlanOutput",
-  builder: "BuildOutput",
-  scout: "ScoutOutput",
-  reviewer: "ReviewOutput",
-  documenter: "DocumentOutput",
-};
-const seen: any = {};
+if (!agents.length) throw new Error("no agents given");
+const destination = join(process.cwd(), "adws", `adw_${name}.ts`);
+if (existsSync(destination) && !force)
+  throw new Error(`${destination} already exists — use --force to overwrite`);
 const phases = agents
-  .map((agent) => {
-    seen[agent] = (seen[agent] || 0) + 1;
-    const n = seen[agent] === 1 ? agent : `${agent}_${seen[agent]}`;
-    return `  await run.phase({name:"${n}",kind:"agent",owner:"${agent}",description:"Run ${agent} over the request and hand its envelope on"},async ph => previous = await ph.call(new AgentCall("${types[agent] || "GenericOutput"}", prompt, previous, [gates.artifactsExist])));`;
-  })
+  .map(
+    (owner, index) => `
+    await context.phase({ name: ${JSON.stringify(`${owner}_${index + 1}`)}, kind: "agent", owner: ${JSON.stringify(owner)}, description: ${JSON.stringify(`Runs the ${owner} decision phase and records its output artifact.`)} }, async () => {
+      await context.ai(${JSON.stringify(`${name}-${owner}-${index + 1}`)}, context.request ?? "", context.request ?? "", { outputArtifact: ${JSON.stringify(`${owner}-${index + 1}`)}, agentOwner: ${JSON.stringify(owner)} });
+    });`,
+  )
   .join("\n");
-const body = `#!/usr/bin/env bun\nimport { agents, gates, session } from "./adw_modules";\nimport { AgentCall } from "./adw_modules/data_types";\nimport { args } from "./adw_modules/cli";\nconst x=args(); const cfg=agents.loadConfig(String(x.options.config||"adws/adw_sssf_config/sssf.config.yaml")); agents.validate(cfg, ${JSON.stringify([...new Set(agents)])}); const run=session.ensure(cfg,x.options["adw-id"] as string); let previous:any;\nawait run.phase({name:"request",kind:"engineer",owner:run.engineer,description:"Capture the incoming ask"},ph=>ph.log({input:x.positional[0]}));\n${phases}\nprocess.exitCode=run.finish();\n`;
-const dest = join(process.cwd(), "adws", `adw_${name}.ts`);
-if (existsSync(dest) && !force) {
-  console.error(`${dest} already exists — use --force to overwrite`);
-  process.exit(1);
-}
-mkdirSync(join(dest, ".."), { recursive: true });
-writeFileSync(dest, body);
-console.log(`wrote ${dest}`);
+const body = `#!/usr/bin/env bun
+import { Factory, type WorkflowDefinition } from "./factory/modules/workflow-execution";
+import { ConfiguredAgentRuntime } from "./factory/modules/change-delivery/configured-agent-runtime";
+const workflow: WorkflowDefinition = { id: ${JSON.stringify(name)}, capability: "change-delivery", controller: async (context) => {${phases}\n} };
+const request = Bun.argv.slice(2).filter((arg) => !arg.startsWith("--")).join(" ");
+if (!request) process.exit(2);
+const run = await new Factory([workflow], { agentRuntime: new ConfiguredAgentRuntime(process.env.SSSF_CONFIG ?? "adws/adw_sssf_config/sssf.config.yaml") }).execute({ workflowId: ${JSON.stringify(name)}, request });
+process.exitCode = run.status === "Succeeded" ? 0 : 1;
+`;
+mkdirSync(join(destination, ".."), { recursive: true });
+writeFileSync(destination, body);
+console.log(`wrote ${destination}`);

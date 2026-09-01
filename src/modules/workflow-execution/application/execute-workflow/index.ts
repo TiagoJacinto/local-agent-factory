@@ -20,15 +20,20 @@ import type {
   WorkflowRun,
 } from "../../domain/workflow";
 import type { ArtifactStorePort } from "../../ports/artifact-store";
+import type { AgentRuntimePort } from "../../ports/agent-runtime";
+import type { HumanGatePort } from "../../ports/human-gate";
 import type { CommandRequest, CommandResult, CommandRunnerPort } from "../../ports/command-runner";
 import type { TraceEvent, TraceSinkPort } from "../../ports/trace-sink";
 import type { WorkspaceLease, WorkspacePort } from "../../ports/workspace";
 import { GitWorkspaceAdapter } from "../../adapters/git-workspace";
 import { FilesystemArtifactStore } from "../../adapters/filesystem-artifacts";
-import { InMemoryTraceSink } from "../../adapters/sqlite-trace";
+import { DeterministicTraceSink } from "../../adapters/deterministic-trace";
+import { RunLedger } from "../run-ledger";
 
 export interface WorkflowExecutionAdapters {
   readonly ai?: PrimitiveAdapter;
+  readonly agentRuntime?: AgentRuntimePort;
+  readonly humanGate?: HumanGatePort;
   readonly harness?: PrimitiveAdapter;
   readonly gate?: PrimitiveAdapter;
   readonly workspace?: WorkspacePort;
@@ -40,6 +45,12 @@ export interface WorkflowExecutionAdapters {
 }
 
 const deterministic: PrimitiveAdapter = ({ input }) => ({ value: input });
+const requiredArtifactGate: PrimitiveAdapter = ({ inputArtifact }) => {
+  const value = inputArtifact?.value;
+  const present =
+    value !== undefined && value !== null && (typeof value !== "string" || value.trim().length > 0);
+  return { passed: inputArtifact ? present : true, value: inputArtifact?.id };
+};
 const nowIso = () => new Date().toISOString();
 
 class MissingCommandRunner implements CommandRunnerPort {
@@ -57,11 +68,12 @@ class MissingCommandRunner implements CommandRunnerPort {
 
 export class WorkflowExecutor {
   private readonly workflows: ReadonlyMap<string, WorkflowDefinition>;
-  private readonly runs = new Map<string, WorkflowRun>();
+  private readonly ledger: RunLedger;
   private readonly adapters: Required<
     Pick<
       WorkflowExecutionAdapters,
       | "ai"
+      | "humanGate"
       | "harness"
       | "gate"
       | "workspace"
@@ -75,9 +87,10 @@ export class WorkflowExecutor {
   constructor(workflows: readonly WorkflowDefinition[], adapters: WorkflowExecutionAdapters = {}) {
     this.workflows = new Map(workflows.map((workflow) => [workflow.id, workflow]));
     this.adapters = {
-      ai: adapters.ai ?? deterministic,
+      ai: adapters.ai ?? adapters.agentRuntime?.invoke.bind(adapters.agentRuntime) ?? deterministic,
+      humanGate: adapters.humanGate ?? { awaitDecision: async () => undefined },
       harness: adapters.harness ?? deterministic,
-      gate: adapters.gate ?? deterministic,
+      gate: adapters.gate ?? requiredArtifactGate,
       workspace: adapters.workspace ?? new GitWorkspaceAdapter(),
       commandRunner: adapters.commandRunner ?? new MissingCommandRunner(),
       artifactStore:
@@ -85,9 +98,10 @@ export class WorkflowExecutor {
         new FilesystemArtifactStore(
           adapters.dataRoot ?? join(tmpdir(), "local-agent-factory", "runs"),
         ),
-      traceSink: adapters.traceSink ?? new InMemoryTraceSink(),
+      traceSink: adapters.traceSink ?? new DeterministicTraceSink(),
       now: adapters.now ?? nowIso,
     };
+    this.ledger = new RunLedger(this.adapters.artifactStore, this.adapters.now);
   }
 
   async execute(
@@ -105,6 +119,9 @@ export class WorkflowExecutor {
     let sourceRevision: string | undefined;
     let sourceIntegrity: "Verified" | "Changed" | undefined;
     let failure: WorkflowFailure | string | undefined;
+    let integration: IntegrationDecision | undefined = undefined;
+    let awaitingReview = false;
+    let completedRun: WorkflowRun | undefined;
     const signalController = new AbortController();
     const timeout =
       budget.timeoutMs === undefined
@@ -121,7 +138,7 @@ export class WorkflowExecutor {
 
     const base = (): WorkflowRun => ({
       workflowId: workflow.id,
-      status: failure ? "Failed" : "Succeeded",
+      status: failure ? "Failed" : awaitingReview ? "AwaitingReview" : "Succeeded",
       invocations,
       context: runContext,
       phases,
@@ -130,11 +147,13 @@ export class WorkflowExecutor {
       ...(lease ? { workspacePath: lease.path, workspaceIsolation: lease.isolation } : {}),
       ...(sourceIntegrity ? { sourceIntegrity } : {}),
       ...(failure ? { failure, workspaceDisposition: "Retained" as const } : {}),
+      ...(integration ? { integration } : {}),
       evidenceManifest: {
         runIdentifier,
         workflowId: workflow.id,
-        status: failure ? "Failed" : "Succeeded",
+        status: failure ? "Failed" : awaitingReview ? "AwaitingReview" : "Succeeded",
         artifacts: evidence,
+        ...(integration ? { integration } : {}),
         ...(sourceRevision && request.sourceRepository
           ? {
               source: {
@@ -206,6 +225,7 @@ export class WorkflowExecutor {
             options,
             inputArtifact,
             workspacePath: lease?.path,
+            runIdentifier,
             signal: signalController.signal,
           };
           trace({ type: "invocation_start", name, payload: { invocationId, primitiveType } });
@@ -330,6 +350,8 @@ export class WorkflowExecutor {
         workflowId: workflow.id,
         runIdentifier,
         request: request.request,
+        agentOwner: request.agentOwner,
+        problemFolder: request.problemFolder,
         workspacePath: lease?.path,
         artifacts: runContext.artifacts,
         context: runContext,
@@ -337,6 +359,17 @@ export class WorkflowExecutor {
         harness: invoke("Harness", this.adapters.harness),
         gate: invoke("Gate", this.adapters.gate),
         phase,
+        review: async () => {
+          awaitingReview = true;
+          const decision = await this.adapters.humanGate.awaitDecision(base());
+          if (decision) {
+            integration = decision;
+            awaitingReview = decision.outcome !== "Accepted";
+            if (decision.outcome === "Rejected") failure = "IntegrationRejected";
+            evidence.push({ kind: "review", reference: runIdentifier, summary: decision.outcome });
+          }
+          return decision;
+        },
         command: async (commandRequest) => {
           if (
             budget.maxCommands !== undefined &&
@@ -381,35 +414,24 @@ export class WorkflowExecutor {
         status: run.status,
         artifacts: evidence,
       };
-      const path = this.adapters.artifactStore.writeManifest(runIdentifier, manifest);
-      const finalRun = { ...run, evidenceManifest: manifest, evidenceManifestPath: path };
-      this.runs.set(runIdentifier, finalRun);
+      completedRun = {
+        ...run,
+        evidenceManifest: manifest,
+        evidenceManifestPath: this.ledger.persist({ ...run, evidenceManifest: manifest }),
+      };
     }
-    return this.runs.get(runIdentifier)!;
+    return completedRun!;
   }
 
   executeWorkflow(workflowId: string, options: Omit<WorkflowExecutionRequest, "workflowId"> = {}) {
     return this.execute({ ...options, workflowId });
   }
 
-  inspect(runIdentifier: string): WorkflowRun | undefined {
-    return (
-      this.runs.get(runIdentifier) ??
-      (this.adapters.artifactStore.readManifest(runIdentifier) as WorkflowRun | undefined)
-    );
+  inspect(runIdentifier: string) {
+    return this.ledger.inspect(runIdentifier);
   }
 
-  decide(runIdentifier: string, decision: Omit<IntegrationDecision, "decidedAt">): WorkflowRun {
-    const existing = this.runs.get(runIdentifier);
-    if (!existing) throw new Error(`Workflow run not found: ${runIdentifier}`);
-    const integration = { ...decision, decidedAt: this.adapters.now() };
-    const updated: WorkflowRun = {
-      ...existing,
-      integration,
-      evidenceManifest: { ...existing.evidenceManifest, integration, status: existing.status },
-    };
-    this.runs.set(runIdentifier, updated);
-    this.adapters.artifactStore.writeManifest(runIdentifier, updated.evidenceManifest);
-    return updated;
+  decide(runIdentifier: string, decision: Omit<IntegrationDecision, "decidedAt">) {
+    return this.ledger.decide(runIdentifier, decision);
   }
 }

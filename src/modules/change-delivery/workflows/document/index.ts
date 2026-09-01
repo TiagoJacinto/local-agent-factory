@@ -1,1 +1,2 @@
-export { getChangeDeliveryWorkflow } from "../../index";
+export { documentWorkflow } from "./controller";
+export type { DocumentRequest, DocumentResult } from "./request";

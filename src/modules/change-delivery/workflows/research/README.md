@@ -1,5 +1,7 @@
-# Change-delivery workflow
+# Research
 
-Registration lives in the change-delivery module. The workflow executes through the canonical Factory and records its proposal as untrusted evidence.
+Runs the RPI research graph through the canonical Factory: `request`, `research_questions`, and `research`.
 
-Focused verification: `bun run test -- src/modules/workflow-execution/workflow-execution.test.ts`.
+The controller requires `problemFolder`, compiles the two workflow skills from the operator repository, hands the questions artifact into research, and gates both declared artifacts. Agent ownership is explicit (`research_questions` then `research`).
+
+Run with `bun adws/adw_research.ts "question" --problem-folder .rpi/problems/question`.

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describeFeature, loadFeature } from "@amiceli/vitest-cucumber";
 import { expect } from "vitest";
-import { WorkflowExecutor, type WorkflowDefinition } from "../../../src/modules/workflow-execution";
+import { Factory, type WorkflowDefinition } from "../../../src/modules/workflow-execution";
 
 const feature = await loadFeature(
   "docs/guess-points/2-solution/1-features/execute-workflow.feature",
@@ -13,12 +13,12 @@ type Row = Record<string, string>;
 const workflowStep = "Workflow{id: {string}, name: {string}}";
 const executeStep = "I executeWorkflow\\(workflowId: {string}\\)";
 
-function invocationSummary(run: Awaited<ReturnType<WorkflowExecutor["executeWorkflow"]>>) {
+function invocationSummary(run: Awaited<ReturnType<Factory["execute"]>>) {
   return run.invocations.map(({ input: _input, ...invocation }) => invocation);
 }
 
 function expectRun(
-  run: Awaited<ReturnType<WorkflowExecutor["executeWorkflow"]>>,
+  run: Awaited<ReturnType<Factory["execute"]>>,
   id: string,
   status: string,
   rows: Row[],
@@ -53,8 +53,8 @@ function expectRun(
 describeFeature(feature, ({ Rule }) => {
   Rule("Record primitive invocations in controller order", ({ RuleScenario }) => {
     RuleScenario("Execute AI, Harness, and Gate primitives", ({ Given, When, Then }) => {
-      let executor: WorkflowExecutor;
-      let workflowRun: Awaited<ReturnType<WorkflowExecutor["executeWorkflow"]>>;
+      let executor: Factory;
+      let workflowRun: Awaited<ReturnType<Factory["execute"]>>;
       Given(workflowStep, (_ctx: unknown, id: string, name: string, rows: Row[]) => {
         const repo = mkdtempSync(join(tmpdir(), "workflow-executor-"));
         execFileSync("git", ["init", "--quiet", repo]);
@@ -70,7 +70,7 @@ describeFeature(feature, ({ Rule }) => {
             }
           },
         };
-        executor = new WorkflowExecutor([workflow], {
+        executor = new Factory([workflow], {
           harness: ({ input }) => {
             writeFileSync(`${repo}/README.md`, `${input}\n`);
             return Promise.resolve(undefined);
@@ -78,7 +78,7 @@ describeFeature(feature, ({ Rule }) => {
         });
       });
       When(executeStep, async (_ctx: unknown, id: string) => {
-        workflowRun = await executor.executeWorkflow(id);
+        workflowRun = await executor.execute({ workflowId: id });
       });
       Then(
         "I view WorkflowRun{workflowId: {string}, status: {word}} in Workflow Execution: Primitive invocations follow controller order",
@@ -90,8 +90,8 @@ describeFeature(feature, ({ Rule }) => {
 
   Rule("Carry artifacts between primitive invocations", ({ RuleScenario }) => {
     RuleScenario("Harness receives an artifact produced by AI", ({ Given, When, Then, And }) => {
-      let executor: WorkflowExecutor;
-      let run: Awaited<ReturnType<WorkflowExecutor["executeWorkflow"]>>;
+      let executor: Factory;
+      let run: Awaited<ReturnType<Factory["execute"]>>;
       let consumedArtifactValue: unknown;
       let expectedArtifactValue: string;
       Given(workflowStep, (_ctx: unknown, id: string, name: string, rows: Row[]) => {
@@ -109,7 +109,7 @@ describeFeature(feature, ({ Rule }) => {
             }
           },
         };
-        executor = new WorkflowExecutor([workflow], {
+        executor = new Factory([workflow], {
           ai: ({ input }) => ({ value: input }),
           harness: ({ inputArtifact }) => {
             consumedArtifactValue = inputArtifact?.value;
@@ -118,7 +118,7 @@ describeFeature(feature, ({ Rule }) => {
         });
       });
       When(executeStep, async (_ctx: unknown, id: string) => {
-        run = await executor.executeWorkflow(id);
+        run = await executor.execute({ workflowId: id });
       });
       Then(
         "I view WorkflowRun{workflowId: {string}, status: {word}} in Workflow Execution: Artifact workflow succeeds",
@@ -143,8 +143,8 @@ describeFeature(feature, ({ Rule }) => {
     RuleScenario(
       "Pure computation supplies input without creating an invocation",
       ({ Given, When, Then, And, But }) => {
-        let executor: WorkflowExecutor;
-        let run: Awaited<ReturnType<WorkflowExecutor["executeWorkflow"]>>;
+        let executor: Factory;
+        let run: Awaited<ReturnType<Factory["execute"]>>;
         Given(workflowStep, (_ctx: unknown, id: string, name: string, rows: Row[]) => {
           const pure = rows[0];
           const primitive = rows[1];
@@ -158,10 +158,10 @@ describeFeature(feature, ({ Rule }) => {
               });
             },
           };
-          executor = new WorkflowExecutor([workflow]);
+          executor = new Factory([workflow]);
         });
         When(executeStep, async (_ctx: unknown, id: string) => {
-          run = await executor.executeWorkflow(id);
+          run = await executor.execute({ workflowId: id });
         });
         Then(
           "I view WorkflowRun{workflowId: {string}, status: {word}} in Workflow Execution: Only the primitive call creates an invocation result",
@@ -189,8 +189,8 @@ describeFeature(feature, ({ Rule }) => {
     RuleScenario(
       "A composite function calls a primitive without becoming an invocation",
       ({ Given, When, Then, And, But }) => {
-        let executor: WorkflowExecutor;
-        let run: Awaited<ReturnType<WorkflowExecutor["executeWorkflow"]>>;
+        let executor: Factory;
+        let run: Awaited<ReturnType<Factory["execute"]>>;
         Given(workflowStep, (_ctx: unknown, id: string, name: string, rows: Row[]) => {
           const row = rows[0];
           const verifyThatREADMEFollowsRepoRules = async (
@@ -203,10 +203,10 @@ describeFeature(feature, ({ Rule }) => {
               await verifyThatREADMEFollowsRepoRules(harness);
             },
           };
-          executor = new WorkflowExecutor([workflow]);
+          executor = new Factory([workflow]);
         });
         When(executeStep, async (_ctx: unknown, id: string) => {
-          run = await executor.executeWorkflow(id);
+          run = await executor.execute({ workflowId: id });
         });
         Then(
           "I view WorkflowRun{workflowId: {string}, status: {word}} in Workflow Execution: Called primitive creates the invocation result",

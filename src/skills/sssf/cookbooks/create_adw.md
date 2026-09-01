@@ -1,101 +1,48 @@
-# Create ADW
+# Create a workflow
 
-Compose a new ADW script — a thin, deterministic TypeScript workflow over agents already in the config. Design the chain first, then generate or hand-write it.
+Create a workflow module under `src/modules/change-delivery/workflows/<id>/` (or use the installed factory script for a local generated definition). Keep the workflow definition local and typed:
 
-## Step 1 — Design the chain
+```ts
+import type { WorkflowDefinition } from "../../workflow-execution";
 
-Answer four questions, in order:
-
-1. **What agents, in what order?** Pick from the roster (`adws/adw_sssf_config/sssf.config.yaml`). The starter six cover most chains:
-
-| Agent                  | Use when                                                                        | Output type                     | Typical gates                           |
-| ---------------------- | ------------------------------------------------------------------------------- | ------------------------------- | --------------------------------------- |
-| `scout`                | you need to FIND something first — read-only recon                              | `ScoutOutput`                   | `artifacts_exist`                       |
-| `planner`              | the work needs a plan before code changes                                       | `PlanOutput`                    | `artifacts_exist`, `files_non_empty`    |
-| `builder`              | code must change                                                                | `BuildOutput`                   | `diff_matches_claims`                   |
-| `reviewer`             | the change must be confirmed to BE what was asked for                           | `ReviewOutput`                  | `artifacts_exist`, `verdict_consistent` |
-| _(no tester)_          | verifying that it RUNS is a `kind="code"` phase over `quality.ts`, not an agent | `QualityResult` → `as_envelope` | the exit code is the check              |
-| `documenter`           | finished work needs a write-up (runs after a build, off the diff)               | `DocumentOutput`                | `artifacts_exist`, `files_non_empty`    |
-| any agent, generic ask | one-off prompt, no special shape                                                | `GenericOutput`                 | as needed                               |
-
-A new kind of agent needs a config entry + prompt pair + output type first — see `update_config.md`.
-
-**The suite and the reviewer answer different questions.** "Does it run" is a test, and code can ask that. "Is this the thing that was asked for" is a review, and only an agent can. A green suite over a feature nobody requested is still a failed request, and neither one covers for the other.
-
-2. **Where does code act?** Git branch/commit, migrations, deploys each get their own `kind="code"` phase — never buried inside an agent phase.
-
-   **Running the suite is one of these — there is no tester agent.** The command is written down in `quality.ts`, so a `kind="code"` phase runs it (`quality.run_tests(run)` → `quality.as_envelope(result, "tests")` back into the builder) and the bounded repair loop is unchanged. An agent rediscovering `bun test` on every run buys nothing a subprocess does not already know. Capturing what changed is one of these: `changes.capture(run, ChangeCapture(base="main"))` diffs the working tree against a resolved base, writes `context_handoff/changes.diff`, and `changes.as_envelope(...)` hands it to the next agent. A diff is two git commands, not a judgement call.
-
-3. **Does anything loop?** Test-fix cycles are bounded fix loops (see `update_adw.md`), not phase retries.
-
-4. **What does each call need to prove?** Pick gates per call from `gates.ts`: `artifacts_exist`, `files_non_empty`, `json_parses`, `diff_matches_claims`, `tests_pass("cmd")` — or an inline one-off.
-
-## Step 2 — Ownership rules (the swim lanes depend on these)
-
-- `kind="agent"` → `owner` MUST be an agent name from the config — it selects the harness (model, thinking, tools, prompts) AND the lane. `ph.call()` runs whoever owns the phase.
-- `kind="engineer"` → `owner=run.engineer`. Every ADW opens with the engineer request phase — it is the system input record.
-- `kind="code"` → `owner` is a short actor label (`"git"`, `"db"`); all code phases share the code lane.
-- Phase `name` must be unique within the run (`plan`, `build`, `test_1`, `fix_1`, …) — the UI keys blocks on it.
-- **`description` is required and must earn its place.** The name identifies the phase; the description explains it — what this phase does and why, in one sentence. It rides the `phase_start` event and is the only line of intent the trace, the console, and the phase block ever show. `PhaseParams` raises at construction on a blank description _or_ one that merely restates the name (`commit_plan: "Commit the plan"`), so the rule fails before the phase opens rather than leaving an unreadable run in the db. Write `"Put the spec on record before any code exists to blur it"` instead.
-- `retries=N` on an **agent** phase = extra gate-correction rounds re-sent into the same session (pi's `--session-id` creates-or-continues, so context stays intact). Code-phase re-execution is not implemented in v1.
-
-## Step 3 — Generate or write it
-
-```bash
-bun .pi/skills/sssf/scripts/make_adw.ts --name review_docs --agents scout,builder
+export const reviewWorkflow: WorkflowDefinition = {
+  id: "review",
+  capability: "change-delivery",
+  controller: async (context) => {
+    await context.phase(
+      {
+        name: "request",
+        kind: "engineer",
+        owner: "engineer",
+        description: "Records the operator request before review.",
+      },
+      () => undefined,
+    );
+    await context.phase(
+      {
+        name: "review",
+        kind: "agent",
+        owner: "reviewer",
+        description: "Checks the requested change and records review evidence.",
+      },
+      async () => {
+        await context.ai("review-agent", context.request ?? "", context.request ?? "", {
+          outputArtifact: "review",
+          agentOwner: "reviewer",
+        });
+        await context.gate(
+          "review-artifact",
+          "Rejects a missing or empty review artifact.",
+          context.request ?? "",
+          { inputArtifact: "review" },
+        );
+      },
+    );
+    await context.review();
+  },
+};
 ```
 
-Writes `adws/adw_review_docs.ts`: one agent phase per name, chained by `previous=`, starter agents mapped to their output types, unknown agents to `GenericOutput`. It does NOT create config entries or prompt files — do that first (`update_config.md`), or `agents.validate()` will stop the run and tell you what's missing.
+Use `WorkflowContext.phase`, `ai`, `gate`, `command`, and `review`. Agent owners select configured providers; controllers never invoke providers directly. Register the definition in the change-delivery registry and colocate request/result types, README, and characterization tests.
 
-## The canonical skeleton
-
-Every `adw_*.ts` is a thin Bun entrypoint. The reusable runtime lives in `adw_modules/`:
-
-```typescript
-#!/usr/bin/env bun
-import { main } from "./adw_modules/cli";
-import { agents, gates, session } from "./adw_modules";
-import { AgentCall } from "./adw_modules/data_types";
-
-main(async ({ prompt, config, adwId }) => {
-  const cfg = agents.loadConfig(config);
-  agents.validate(cfg, ["planner", "builder"]);
-  const run = session.ensure(cfg, adwId);
-  await run.phase(
-    {
-      name: "request",
-      kind: "engineer",
-      owner: run.engineer,
-      description: "Capture the incoming ask",
-    },
-    (ph) => ph.log({ input: prompt }),
-  );
-  let plan: any;
-  await run.phase(
-    {
-      name: "plan",
-      kind: "agent",
-      owner: "planner",
-      description: "Turn the request into an implementable plan",
-    },
-    async (ph) => {
-      plan = await ph.call(
-        new AgentCall("PlanOutput", prompt, undefined, [gates.artifactsExist, gates.filesNonEmpty]),
-      );
-    },
-  );
-  await run.phase(
-    {
-      name: "build",
-      kind: "agent",
-      owner: "builder",
-      retries: 1,
-      description: "Implement the plan exactly",
-    },
-    (ph) => ph.call(new AgentCall("BuildOutput", prompt, plan, [gates.diffMatchesClaims])),
-  );
-  return run.finish();
-});
-```
-
-Run it with `bun adws/adw_review_docs.ts "your request"`. Every phase is awaited, and a failed phase cannot be reported as a successful run.
+Installed wrappers are generated by the canonical `runWorkflowCli` entrypoint. Source-changing workflows receive clean Git admission, revision verification, and a disposable workspace. Runs persist an evidence manifest and SQLite trace.

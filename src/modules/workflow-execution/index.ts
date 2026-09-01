@@ -4,6 +4,7 @@ import type {
   WorkflowExecutionRequest,
   WorkflowFactory,
   WorkflowRun,
+  RunSnapshot,
 } from "./domain/workflow";
 
 export class Factory implements WorkflowFactory {
@@ -19,15 +20,14 @@ export class Factory implements WorkflowFactory {
   ): Promise<WorkflowRun> {
     return this.executor.execute(request);
   }
-  inspect(runIdentifier: string): WorkflowRun | undefined {
+  inspect(runIdentifier: string): RunSnapshot | undefined {
     return this.executor.inspect(runIdentifier);
   }
-  decide(runIdentifier: string, decision: Parameters<WorkflowFactory["decide"]>[1]): WorkflowRun {
+  decide(runIdentifier: string, decision: Parameters<WorkflowFactory["decide"]>[1]): RunSnapshot {
     return this.executor.decide(runIdentifier, decision);
   }
 }
 
-export { WorkflowExecutor } from "./application/execute-workflow";
 export type { WorkflowExecutionAdapters } from "./application/execute-workflow";
 export * from "./domain/workflow";
 export * from "./domain/phase";
@@ -51,6 +51,3 @@ export type {
   PrewalkOptions,
   PrewalkRun,
 } from "./application/run-prewalk";
-
-export { inspectRun } from "./application/inspect-run";
-export { decideIntegration } from "./application/decide-integration";

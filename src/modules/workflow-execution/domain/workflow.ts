@@ -36,6 +36,7 @@ export interface RunContext {
 export interface PrimitiveCallOptions {
   readonly inputArtifact?: string;
   readonly outputArtifact?: string;
+  readonly agentOwner?: string;
 }
 
 export interface InvocationResult<T extends PrimitiveType = PrimitiveType> {
@@ -59,6 +60,7 @@ export type GateInvocationResult = InvocationResult<"Gate">;
 
 export interface PrimitiveInvocationArguments {
   readonly invocationId: string;
+  readonly runIdentifier?: string;
   readonly name: string;
   readonly input: string;
   readonly options?: PrimitiveCallOptions;
@@ -95,9 +97,12 @@ export interface WorkflowContext extends WorkflowPrimitives {
   readonly artifacts: Map<string, Artifact>;
   readonly runIdentifier: string;
   readonly request?: string;
+  readonly agentOwner?: string;
+  readonly problemFolder?: string;
   readonly workspacePath?: string;
   readonly phase: (definition: PhaseDefinition, body: () => Promise<void> | void) => Promise<void>;
   readonly command: (request: CommandRequest) => Promise<CommandResult>;
+  readonly review: () => Promise<IntegrationDecision | undefined>;
 }
 
 export type WorkflowController = (context: WorkflowContext) => Promise<void> | void;
@@ -117,6 +122,8 @@ export interface WorkflowExecutionRequest {
   readonly workspaceRoot?: string;
   readonly runIdentifier?: string;
   readonly request?: string;
+  readonly agentOwner?: string;
+  readonly problemFolder?: string;
   readonly budget?: Budget;
 }
 
@@ -146,6 +153,16 @@ export interface IntegrationDecision {
   readonly reason?: string;
 }
 
+export interface RunSnapshot {
+  readonly runIdentifier: string;
+  readonly workflowId: WorkflowId;
+  readonly status: "Succeeded" | "Failed" | "AwaitingReview";
+  readonly evidenceManifest: EvidenceManifest;
+  readonly source?: EvidenceManifest["source"];
+  readonly integration?: IntegrationDecision;
+  readonly evidenceManifestPath?: string;
+}
+
 export interface WorkflowRun {
   readonly workflowId: WorkflowId;
   readonly status: "Succeeded" | "Failed" | "AwaitingReview";
@@ -168,6 +185,6 @@ export interface WorkflowFactory {
   execute(
     request: WorkflowExecutionRequest & { readonly workflowId: WorkflowId },
   ): Promise<WorkflowRun>;
-  inspect(runIdentifier: string): WorkflowRun | undefined;
-  decide(runIdentifier: string, decision: Omit<IntegrationDecision, "decidedAt">): WorkflowRun;
+  inspect(runIdentifier: string): RunSnapshot | undefined;
+  decide(runIdentifier: string, decision: Omit<IntegrationDecision, "decidedAt">): RunSnapshot;
 }

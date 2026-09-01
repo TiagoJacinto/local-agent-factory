@@ -5,11 +5,12 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 import {
   enforce,
+  executionEnv,
   PermissionBreach,
+  redactSecrets,
+  runProcess,
   snapshot,
-} from "./modules/workflow-execution/adapters/local-process";
-import { runProcess } from "./modules/workflow-execution/adapters/local-process";
-import { executionEnv, redactSecrets } from "./modules/workflow-execution/adapters/local-process";
+} from "./modules/workflow-execution/process-runtime";
 
 test("keeps ambient environment variables out of managed processes", async () => {
   const name = "SSSF_ROBUSTNESS_SECRET";

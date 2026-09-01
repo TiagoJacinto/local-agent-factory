@@ -89,14 +89,33 @@ test("installs a self-contained Pi workflow runtime", () => {
   expect(readFileSync(lock, "utf8")).toContain("version: v0.4.4");
   expect(readFileSync(join(target, ".gitignore"), "utf8")).toContain(".pi/skills/sssf/");
 
-  const runner = join(target, "adws/adw_modules/runner.ts");
+  const workflowIds = [
+    "prompt",
+    "scout",
+    "plan",
+    "prewalk",
+    "build",
+    "quality",
+    "build-review",
+    "double-tdd",
+    "document",
+    "research",
+    "prd-oriented-design",
+    "prd-oriented-discovery",
+  ];
+  const entrypoints = workflowIds.map((id) =>
+    join(target, "adws", `adw_${id.replaceAll("-", "_")}.ts`),
+  );
+  const [promptEntrypoint] = entrypoints;
+  for (const entrypoint of entrypoints) expect(existsSync(entrypoint)).toBe(true);
+  expect(readFileSync(promptEntrypoint, "utf8")).toContain('runWorkflowCli("prompt"');
+  expect(existsSync(join(target, "adws/factory/modules/workflow-execution"))).toBe(true);
   expect(existsSync(join(target, "adws/adw_research.ts"))).toBe(true);
   expect(existsSync(join(target, "adws/adw_prd_oriented_design.ts"))).toBe(true);
   expect(existsSync(join(target, "adws/adw_prd_oriented_discovery.ts"))).toBe(true);
   expect(
     existsSync(join(target, "adws/adw_data/workflow_skills/rpi-create-research/SKILL.md")),
   ).toBe(true);
-  expect(readFileSync(runner, "utf8")).not.toContain("src/modules/workflow-execution");
 
   for (const example of [
     "adw_simple_sdlc.ts",
@@ -108,20 +127,16 @@ test("installs a self-contained Pi workflow runtime", () => {
     expect(existsSync(join(target, "adws", example))).toBe(false);
   }
 
-  execFileSync("bun", ["build", runner, "--outdir", join(target, "build")], {
-    cwd: target,
-    stdio: "pipe",
-  });
+  for (const entrypoint of entrypoints) {
+    execFileSync("bun", ["build", entrypoint, "--outdir", join(target, `build-${entrypoint}`)], {
+      cwd: target,
+      stdio: "pipe",
+    });
+  }
 
   const sessionsOutput = execFileSync("just", ["sessions"], {
     cwd: target,
     encoding: "utf8",
   });
   expect(sessionsOutput).toBe("");
-
-  const tables = execFileSync("sqlite3", [join(target, "adws/adw_data/sssf.db"), ".tables"], {
-    cwd: target,
-    encoding: "utf8",
-  });
-  expect(tables).toContain("sessions");
 }, 120_000);

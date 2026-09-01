@@ -4,12 +4,12 @@ Modify an existing ADW chain — add phases, add gates, add a bounded fix loop.
 
 ## Add a phase
 
-Insert a `await run.phase(...)` block where it belongs in the sequence. Pick the right `kind`: `agent` for a `ph.call(...)`, `code` for a deterministic step, `engineer` for a human touchpoint. If the new phase names an agent not already in `REQUIRED_AGENTS`, add it there too — otherwise validation passes and the run dies mid-flight instead of at startup.
+Insert a `await context.phase(...)` block where it belongs in the sequence. Pick the right `kind`: `agent` for a `context.ai(...)`, `code` for a deterministic step, `engineer` for a human touchpoint. If the new phase names an agent not already in `REQUIRED_AGENTS`, add it there too — otherwise validation passes and the run dies mid-flight instead of at startup.
 
 ```typescript
-    await run.phase(PhaseParams(name="scout", kind="agent", owner="scout",
+    await context.phase(PhaseParams(name="scout", kind="agent", owner="scout",
                                description="Locate the code the request touches")), async ph => {
-        found = ph.call(AgentCall(output_type=ScoutOutput, prompt=prompt))
+        found = context.ai(context.ai(output_type=ScoutOutput, prompt=prompt))
 ```
 
 Phase `name` must be unique within the run — that is what the UI keys blocks on. In a loop, suffix it (`f"test_{i}"`).
@@ -19,7 +19,7 @@ Phase `name` must be unique within the run — that is what the UI keys blocks o
 A code phase does its work in the block body and logs what it did. A commit phase in a supported workflow is the pattern:
 
 ```typescript
-    await run.phase(PhaseParams(name="commit", kind="code", owner="git",
+    await context.phase(PhaseParams(name="commit", kind="code", owner="git",
                                description="Land the builder's changes, using the message it wrote")), async ph => {
         message = build.commit_message or f"sssf({run.adw_id}): {build.summary}"
         ph.log(sha=git_helper.commit_all(message), message=message)
@@ -36,8 +36,8 @@ Delete the block, drop any now-unused agent from `REQUIRED_AGENTS`, and re-threa
 Gates are callables over the finished envelope — `gate(envelope, run) -> GateReport`, recording one `check(item, ok, note)` per thing they looked at, with violations derived from the failed ones. Compose them per call:
 
 ```typescript
-build = ph.call(
-  AgentCall(
+build = context.ai(
+  context.ai(
     (output_type = BuildOutput),
     (prompt = prompt),
     (previous = plan),
@@ -48,7 +48,7 @@ build = ph.call(
 
 On violations the harness does **not** restart the agent — it sends the violation list back into the **same session** as a correction (pi's `--session-id` creates-or-continues, so the context window is intact), bounded by that phase's `retries`. Every gate result is traced to the `gate_results` table. Exhausting the retries raises `GateFailure` and fails the phase.
 
-Gate claims, not guesses: declared artifacts exist and are non-empty, declared JSON parses, declared changes appear in the diff, declared test commands pass. Never hardcode counts — express quantity as a property of the declared list ("at least one artifact", "ALL declared paths valid"). Plan quality and code taste are not gateable; that is a reviewer agent or a human. New reusable gates go in `adw_modules/gates.ts` (`update_modules.md`).
+Gate claims, not guesses: declared artifacts exist and are non-empty, declared JSON parses, declared changes appear in the diff, declared test commands pass. Never hardcode counts — express quantity as a property of the declared list ("at least one artifact", "ALL declared paths valid"). Plan quality and code taste are not gateable; that is a reviewer agent or a human. New reusable gates go in `canonical gate adapter` (`update_modules.md`).
 
 ## Add a bounded fix loop
 
@@ -59,18 +59,18 @@ MAX_FIX_LOOPS = 3
 
     test = None
     for i in range(1, MAX_FIX_LOOPS + 1):
-        await run.phase(PhaseParams(name=f"test_{i}", kind="code", owner="quality",
+        await context.phase(PhaseParams(name=f"test_{i}", kind="code", owner="quality",
                                    description="Run the suite — a known command, so code runs it")), async ph => {
-            test = quality.run_tests(run)          # QualityResult, not an envelope
+            test = canonical quality checks(run)          # QualityResult, not an envelope
             ph.log(passed=test.passed, artifacts=", ".join(test.artifacts))
 
         if test.passed:
             break
 
-        await run.phase(PhaseParams(name=f"fix_{i}", kind="agent", owner="builder", retries=1,
+        await context.phase(PhaseParams(name=f"fix_{i}", kind="agent", owner="builder", retries=1,
                                    description="Repair what the suite reported, from its verbatim output")), async ph => {
-            previous = ph.call(AgentCall(output_type=BuildOutput, prompt=prompt,
-                                         previous=quality.as_envelope(test, "tests"),
+            previous = context.ai(context.ai(output_type=BuildOutput, prompt=prompt,
+                                         previous=quality evidence(test, "tests"),
                                          gates=[gates.diff_matches_claims]))
 
     return run.finish(accepted=test is not None and test.passed,
@@ -83,14 +83,14 @@ runner did its job — so phases alone would report a green run that never passe
 its tests, in the db and the UI as well as the terminal. Pass `accepted=` and
 the exit code, the session status, and the banner are decided together.
 
-`quality.as_envelope` is the adapter: a deterministic result shaped as an envelope, so the builder cannot tell it came from code. Wire the real command in `quality.ts` first — the stamped blocks are `echo` placeholders that announce themselves.
+`quality evidence` is the adapter: a deterministic result shaped as an envelope, so the builder cannot tell it came from code. Wire the real command in `canonical quality workflow` first — the stamped blocks are `echo` placeholders that announce themselves.
 
 Three distinctions worth keeping straight:
 
-- **Gate retries vs. JSON retries.** `retries` buys extra _gate_-correction rounds. Malformed final JSON is handled separately and always — `JSON_FIX_ATTEMPTS` in `adw_modules/agents.ts` (2 by default) re-prompts the same session for a valid object even on a phase with `retries=0`. Raising the phase's `retries` does not buy more JSON attempts, and vice versa.
+- **Gate retries vs. JSON retries.** `retries` buys extra _gate_-correction rounds. Malformed final JSON is handled separately and always — `JSON_FIX_ATTEMPTS` in `factory/modules/agents.ts` (2 by default) re-prompts the same session for a valid object even on a phase with `retries=0`. Raising the phase's `retries` does not buy more JSON attempts, and vice versa.
 - **Phase retries vs. fix loops.** `retries=N` on `PhaseParams` re-attempts one agent phase's gate corrections, re-sent into the same session with its context intact. (Code-phase re-execution is not implemented in v1.) A fix loop is a _chain_ of phases repeated — different agents, new envelopes each pass.
 - **The test phase succeeds when it runs and reports correctly.** A failing suite does not fail that phase; it fails the run, checked at the end. The runner did its job; the code didn't.
 
 ## Keep scripts thin
 
-An ADW is sequencing and acceptance — nothing else. The moment you are writing parsing, subprocess handling, retry mechanics, or a reusable predicate inside `adw_*.ts`, it belongs in `adw_modules/`. See `update_modules.md`.
+An ADW is sequencing and acceptance — nothing else. The moment you are writing parsing, subprocess handling, retry mechanics, or a reusable predicate inside `adw_*.ts`, it belongs in `factory/modules/`. See `update_modules.md`.

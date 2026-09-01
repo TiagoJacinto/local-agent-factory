@@ -1,1 +1,2 @@
-export { getChangeDeliveryWorkflow } from "../../index";
+export { scoutWorkflow } from "./controller";
+export type { ScoutRequest, ScoutResult } from "./request";

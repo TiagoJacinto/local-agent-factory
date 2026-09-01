@@ -1,6 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
-type AgentConfig = { name: string; writes?: string[] | null };
+export interface PermissionPolicy {
+  readonly name: string;
+  readonly writes?: string[] | null;
+  readonly protectedFiles?: readonly string[];
+}
 import { operatorEnv } from "./utils";
 
 export class PermissionBreach extends Error {}
@@ -73,13 +77,13 @@ function rollbackPath(run: any, path: string) {
 export function enforce(
   run: any,
   before: Record<string, string>,
-  agent: AgentConfig,
-  _envelope: any,
+  agent: PermissionPolicy,
+  _envelope: unknown,
 ) {
   const after = snapshot(run);
   const paths = changedPaths(before, after);
   const allowed = agent.writes;
-  const protectedFiles = run.cfg.defaults.protected_files || [];
+  const protectedFiles = agent.protectedFiles ?? run.cfg.defaults.protected_files ?? [];
   const bad = paths.filter((path) => {
     if (alwaysWritable(run, path)) return false;
     if (
