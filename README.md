@@ -129,6 +129,23 @@ bun run package:skill
 
 This creates `dist/sssf.tar.gz` and its checksum for a GitHub Release asset.
 
+To publish selected changes, wait for the tagged release workflow, and install that
+exact release into another checkout, use the deterministic factory script:
+
+```bash
+bun run release:skill -- \\
+  --path src/modules/factory-distribution/application/release.ts \\
+  --message "Publish release automation" \\
+  --target /path/to/target-repository
+```
+
+Repeat `--path` for each intended change. The script stages only those paths,
+commits and pushes the current branch, creates and pushes the package-version tag,
+polls `release.yml` until it succeeds, then runs the tagged `install.sh` in the
+target repository. Use `--version`, `--repo`, `--branch`, `--remote`, and the timeout
+flags when the defaults do not fit. The release package includes this script at
+`.pi/skills/sssf/scripts/release.ts`.
+
 Releases are published automatically when a tag matches the package version:
 
 ```bash

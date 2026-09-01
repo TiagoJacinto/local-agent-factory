@@ -1,6 +1,6 @@
 {
   "name": "local-agent-factory",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "private": true,
   "bin": {
     "local-agent-factory": "./src/entrypoints/cli.ts"
@@ -27,6 +27,7 @@
     "build:skill": "bun run src/modules/factory-distribution/application/build_skill.ts",
     "check:skill": "bun run src/modules/factory-distribution/application/build_skill.ts --check",
     "package:skill": "bun run build:skill && bun run src/modules/factory-distribution/application/package_skill.ts",
+    "release:skill": "bun run src/modules/factory-distribution/application/release.ts",
     "start": "bun run src/entrypoints/cli.ts greet",
     "dev": "bun --watch run src/entrypoints/cli.ts greet",
     "typecheck:factory": "bun run typecheck.ts",

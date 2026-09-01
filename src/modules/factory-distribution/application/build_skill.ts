@@ -96,10 +96,12 @@ function copyRuntime(): void {
       join(outputRoot, `scripts/${script}`),
     );
   }
-  copyIfExists(
-    join(sourceRoot, "modules/factory-distribution/application/install.ts"),
-    join(outputRoot, "scripts/install.ts"),
-  );
+  for (const script of ["install.ts", "release.ts"]) {
+    copyIfExists(
+      join(sourceRoot, `modules/factory-distribution/application/${script}`),
+      join(outputRoot, `scripts/${script}`),
+    );
+  }
 }
 
 function copyIfExists(from: string, to: string): void {
