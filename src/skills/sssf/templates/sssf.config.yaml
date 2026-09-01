@@ -1,7 +1,7 @@
 # sssf.config.yaml — the factory's agent roster. One agent, one prompt, one purpose.
 defaults:
   coding_agent: pi # pi or opencode
-  model: opencode-go/mimo-v2.5 # provider/model for the selected coding agent
+  model: openai-codex/gpt-5.6-luna # provider/model for the selected coding agent
   thinking: medium # off | minimal | low | medium | high | xhigh | max
   # Roster-wide allowlist of built-in Pi tools; any agent may override it.
   tools:
@@ -75,7 +75,7 @@ agents:
     model: fireworks/accounts/fireworks/models/kimi-k3
     thinking: high
     prewalk:
-      implementation_model: opencode-go/mimo-v2.5
+      implementation_model: openai-codex/gpt-5.6-luna
       implementation_thinking: medium
     color: "#60a5fa"
     purpose: Plan with a strong model, then continue the same Pi session on the implementation model after the first edit or write.
