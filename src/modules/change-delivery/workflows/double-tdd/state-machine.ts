@@ -1,4 +1,3 @@
-import { z } from "zod";
 export type DoubleTddStateName =
   | "S0_SCOPE"
   | "S1_SELECT_OUTER"
@@ -52,12 +51,7 @@ export interface DoubleTddOutput {
   [key: string]: unknown;
 }
 
-const argvSchema = z.array(z.string().trim().min(1)).min(1);
-const inventoryEntrySchema = z.object({
-  path: z.string().trim().min(1),
-  kind: z.string().trim().min(1),
-});
-const stateNameSchema = z.enum([
+const STATE_NAMES: ReadonlySet<string> = new Set([
   "S0_SCOPE",
   "S1_SELECT_OUTER",
   "S2_WRITE_OUTER",
@@ -69,7 +63,35 @@ const stateNameSchema = z.enum([
   "S9_FULL_ACCEPTANCE",
   "S10_COVERAGE",
 ]);
-const outputSchema = z.object({ status: z.literal("success") }).passthrough();
+
+function requireObject(value: unknown, field: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${field} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function requireNonEmptyString(value: unknown, field: string): void {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`${field} must be a non-empty string`);
+  }
+}
+
+function requireArgv(value: unknown, field: string): void {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${field} must be a non-empty array`);
+  }
+  value.forEach((item) => requireNonEmptyString(item, field));
+}
+
+function requireInventory(value: unknown): void {
+  if (!Array.isArray(value)) throw new Error("inventory must be an array");
+  value.forEach((entry) => {
+    const object = requireObject(entry, "inventory entry");
+    requireNonEmptyString(object.path, "path");
+    requireNonEmptyString(object.kind, "kind");
+  });
+}
 
 /** Classifies paths that represent tests or acceptance specifications. */
 export function isTestPath(path: string): boolean {
@@ -81,37 +103,49 @@ export function validateOutputForState(
   state: DoubleTddStateName,
   output: unknown,
 ): DoubleTddOutput {
-  const validState = stateNameSchema.parse(state);
-  const parsed = outputSchema.parse(output) as DoubleTddOutput & Record<string, unknown>;
-  const required = (field: string, schema: z.ZodType) => {
+  if (!STATE_NAMES.has(state)) throw new Error(`Invalid state: ${state}`);
+  const parsed = requireObject(output, "output");
+  if (parsed.status !== "success") throw new Error('status must be "success"');
+  const required = (field: string, validate: (value: unknown, field: string) => void) => {
     const value = parsed[field];
     if (value === undefined) throw new Error(`${field} is required`);
-    schema.parse(value);
+    validate(value, field);
   };
-  if (validState === "S0_SCOPE") {
+  if (state === "S0_SCOPE") {
     for (const field of [
       "acceptance_full_command",
       "unit_full_command",
       "focused_outer_command",
       "focused_inner_command",
     ])
-      required(field, argvSchema);
-    required("inventory", z.array(inventoryEntrySchema));
+      required(field, requireArgv);
+    required("inventory", (value) => requireInventory(value));
   }
-  if (validState === "S1_SELECT_OUTER") {
+  if (state === "S1_SELECT_OUTER") {
     for (const field of ["selected_example", "criterion", "oracle"])
-      required(field, z.string().trim().min(1));
-    if (parsed.acceptance_gap === true) required("artifacts", z.array(z.string()).min(1));
+      required(field, requireNonEmptyString);
+    if (parsed.acceptance_gap === true)
+      required("artifacts", (value, field) => {
+        if (!Array.isArray(value) || value.length === 0)
+          throw new Error(`${field} must be a non-empty array`);
+        value.forEach((item) => {
+          if (typeof item !== "string") throw new Error(`${field} must contain strings`);
+        });
+      });
   }
-  if (validState === "S2_WRITE_OUTER") {
-    required("high_value_test", z.string().trim().min(1));
-    required("focused_outer_command", argvSchema);
+  if (state === "S2_WRITE_OUTER") {
+    required("high_value_test", requireNonEmptyString);
+    required("focused_outer_command", requireArgv);
   }
-  if (validState === "S4_SELECT_INNER") required("inner_responsibility", z.string().trim().min(1));
-  if (validState === "S5_INNER_RED") {
-    required("inner_test", z.string().trim().min(1));
-    required("focused_inner_command", argvSchema);
+  if (state === "S4_SELECT_INNER") required("inner_responsibility", requireNonEmptyString);
+  if (state === "S5_INNER_RED") {
+    required("inner_test", requireNonEmptyString);
+    required("focused_inner_command", requireArgv);
   }
-  if (validState === "S10_COVERAGE") required("handled", z.boolean());
-  return parsed;
+  if (state === "S10_COVERAGE") {
+    required("handled", (value, field) => {
+      if (typeof value !== "boolean") throw new Error(`${field} must be a boolean`);
+    });
+  }
+  return parsed as DoubleTddOutput;
 }
