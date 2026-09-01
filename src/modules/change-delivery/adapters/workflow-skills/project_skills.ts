@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { compileSkill } from "../../../factory-distribution/skill-compilation";
 
@@ -8,7 +8,9 @@ export function compileWorkflowSkill(
   variables: Readonly<Record<string, string>> = {},
   root = process.cwd(),
 ): string {
-  const path = resolve(root, "adws", "adw_data", "workflow_skills", name, "SKILL.md");
+  const installedPath = resolve(root, "adws", "adw_data", "workflow_skills", name, "SKILL.md");
+  const sourcePath = resolve(root, "src", "skills", name, "SKILL.md");
+  const path = existsSync(installedPath) ? installedPath : sourcePath;
   try {
     return compileSkill(readFileSync(path, "utf8"), { target: "workflow", variables });
   } catch (error) {
