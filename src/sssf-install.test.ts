@@ -86,7 +86,7 @@ test("installs a self-contained Pi workflow runtime", () => {
   expect(updatedConfig).toContain("# local roster customization");
 
   execFileSync("bun", [installer], { cwd: target, stdio: "pipe" });
-  expect(readFileSync(lock, "utf8")).toContain("version: v0.4.3");
+  expect(readFileSync(lock, "utf8")).toContain("version: v0.4.4");
   expect(readFileSync(join(target, ".gitignore"), "utf8")).toContain(".pi/skills/sssf/");
 
   const runner = join(target, "adws/adw_modules/runner.ts");
