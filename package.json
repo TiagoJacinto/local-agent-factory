@@ -1,6 +1,6 @@
 {
   "name": "local-agent-factory",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "private": true,
   "bin": {
     "local-agent-factory": "./src/entrypoints/cli.ts"

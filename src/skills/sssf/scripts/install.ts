@@ -84,19 +84,24 @@ function agentBlocks(config: string): Map<string, string> {
   return blocks;
 }
 
-function removeObsoleteRuntime(): void {
-  if (!existsSync(join(root, "adws"))) return;
-  for (const entry of readdirSync(join(root, "adws"))) {
+function removeObsoleteRuntimeAt(runtimeRoot: string): void {
+  if (!existsSync(runtimeRoot)) return;
+  for (const entry of readdirSync(runtimeRoot)) {
     if (!/^adw_.+\.ts$/.test(entry)) continue;
-    const path = join(root, "adws", entry);
+    const path = join(runtimeRoot, entry);
     rmSync(path);
     updated.push(`${path} (obsolete workflow wrapper removed)`);
   }
-  const modules = join(root, "adws/adw_modules");
+  const modules = join(runtimeRoot, "adw_modules");
   if (existsSync(modules)) {
     rmSync(modules, { recursive: true });
     updated.push(`${modules} (obsolete runtime removed)`);
   }
+}
+
+function removeObsoleteRuntime(): void {
+  removeObsoleteRuntimeAt(join(root, "adws"));
+  removeObsoleteRuntimeAt(join(templates, "adws"));
 }
 
 function mergeMissingAgents(source: string, destination: string): void {
