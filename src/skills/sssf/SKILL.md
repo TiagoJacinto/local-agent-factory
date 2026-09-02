@@ -1,6 +1,6 @@
 # SSSF
 
-SSSF runs registered change-delivery workflows through the canonical Factory. Start by listing installed `adws/adw_*.ts` wrappers and choose one workflow for the operator request.
+SSSF runs registered change-delivery workflows through the canonical Factory. Start by listing installed `adws/factory/modules/change-delivery/workflows/` definitions and choose one workflow ID for the operator request.
 
 ## Supported workflows
 
@@ -21,7 +21,7 @@ SSSF runs registered change-delivery workflows through the canonical Factory. St
 
 ## Operating contract
 
-Workflows are local typed `WorkflowDefinition` modules with request/result contracts, controller, README, and tests. Controllers compose `WorkflowContext.phase`, `ai`, `gate`, `command`, and `review`. The `runWorkflowCli` entrypoint is shared by tiny wrappers and maps Factory status to process exit code.
+Workflows are local typed `WorkflowDefinition` modules with request/result contracts, controller, README, and tests. Controllers compose `WorkflowContext.phase`, `ai`, `gate`, `command`, and `review`. The distributed `run.ts` entrypoint invokes the selected workflow ID and maps Factory status to process exit code.
 
 AI calls use configured agent owners and generic success/fail envelopes. Artifact handoffs are explicit and appear in the evidence manifest. Deterministic checks use `command`; human decisions use `review`. Source-changing workflows require a clean Git source, expected revision, and an independent disposable workspace. Agent permissions enforce configured writes and protected paths.
 

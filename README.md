@@ -211,15 +211,15 @@ There are three actors here, and the design keeps them separate on purpose: **th
 
 The skill package lives in `.pi/skills/sssf/`. It contains the hard rules, cookbooks, references, scripts, and templates. `SKILL.md` routes each request to one of nine cookbooks; `templates/` holds exactly what gets stamped.
 
-| What lands in your repo                 | Where it comes from             | Tracked                               |
-| --------------------------------------- | ------------------------------- | ------------------------------------- |
-| `adws/adw_sssf_config/sssf.config.yaml` | `templates/sssf.config.yaml`    | yes, it is your agent roster          |
-| `adws/adw_*.ts`                         | `templates/adws/`               | yes, registered workflow entrypoints  |
-| `adws/adw_modules/`                     | `templates/adws/adw_modules/`   | yes, current runtime implementation   |
-| `adws/adw_data/prompt_engineering/`     | `templates/prompt_engineering/` | yes, **your prompts live here**       |
-| `.env.sample`                           | `templates/env.sample`          | yes                                   |
-| `justfile`                              | `templates/justfile`            | yes, starter recipes to run and watch |
-| `adws/adw_data/sessions/`, `sssf.db`    | created at runtime              | no, gitignored                        |
+| What lands in your repo                           | Where it comes from               | Tracked                               |
+| ------------------------------------------------- | --------------------------------- | ------------------------------------- |
+| `adws/adw_sssf_config/sssf.config.yaml`           | `templates/sssf.config.yaml`      | yes, it is your agent roster          |
+| `adws/factory/modules/change-delivery/workflows/` | `templates/adws/`                 | yes, registered workflow definitions  |
+| `adws/factory/modules/`                           | `templates/adws/factory/modules/` | yes, current runtime implementation   |
+| `adws/adw_data/prompt_engineering/`               | `templates/prompt_engineering/`   | yes, **your prompts live here**       |
+| `.env.sample`                                     | `templates/env.sample`            | yes                                   |
+| `justfile`                                        | `templates/justfile`              | yes, starter recipes to run and watch |
+| `adws/adw_data/sessions/`, `sssf.db`              | created at runtime                | no, gitignored                        |
 
 The prompts are yours the moment they land. Edit them in `adws/adw_data/prompt_engineering/{agent}/`, never back inside the skill.
 
@@ -237,9 +237,9 @@ defaults:
   model: google/gemini-3.6-flash # provider/model-id, a bare id can match several providers
   thinking: medium # off | minimal | low | medium | high | xhigh | max
   protected_files: # no agent may edit the machinery that grades it
-    - adws/adw_modules/
+    - adws/factory/modules/
     - adws/adw_sssf_config/
-    - adws/adw_*.ts
+    - adws/factory/modules/change-delivery/workflows/
   data_dir: adws/adw_data
 
 agents:
@@ -372,14 +372,14 @@ super-simple-software-factory/          # the deployable factory, and nothing el
     ├── SKILL.md                        # hard rules + request routing table
     ├── cookbooks/                      # 9 orchestrator playbooks, loaded lazily
     ├── references/                     # config / handoff / observability specs
-    ├── scripts/                        # install.ts, make_config.ts, make_adw.ts
+    ├── scripts/                        # install.ts, make_config.ts
     ├── apps/visualizer/                # the read-only trace UI (Vue + Vite on Bun)
     └── templates/                      # EXACTLY what install.ts stamps
         ├── sssf.config.yaml            # the starter roster
         ├── prompt_engineering/{agent}/ # system.md + user.md per agent
         └── adws/
-            ├── adw_*.ts                # registered workflow entrypoints
-            └── adw_modules/            # current runtime implementation
+            ├── run.ts                  # single workflow invocation entrypoint
+            └── factory/modules/        # runtime and canonical workflow definitions
 ```
 
 The skill is also what an agent reads to _operate_ the factory. `SKILL.md` is the central idea, and the cookbooks are lazily loaded recipes it pulls in one at a time: set up the factory, create an ADW, modify a chain, add an agent, run and monitor. If you can teach an agent to do something, teach it, then go build the thing it cannot.
@@ -391,32 +391,32 @@ The skill is also what an agent reads to _operate_ the factory. `SKILL.md` is th
 Every ADW takes the same shape:
 
 ```bash
-bun adws/adw_*.ts "<prompt or path/to/prompt.md>" [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
+bun adws/run.ts <workflow-id> "<prompt or path/to/prompt.md>" [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
 ```
 
-| ADW                          | Chain                                  | Reach for it when                                            |
-| ---------------------------- | -------------------------------------- | ------------------------------------------------------------ |
-| `adw_prompt`                 | engineer to \<agent\>                  | one agent, one prompt, `--agent NAME` picks who              |
-| `adw_scout`                  | engineer to scout                      | read-only recon, nothing changes                             |
-| `adw_plan`                   | engineer to planner                    | you want the spec before any code                            |
-| `adw_build`                  | engineer to builder                    | the plan already exists                                      |
-| `adw_quality`                | engineer to code(quality)              | lint, typecheck, build, no agents at all                     |
-| `adw_build_review`           | builder, reviewer, bounded revise loop | "is this what was asked for" matters more than "does it run" |
-| `adw_double_tdd`             | outer and inner TDD loops              | drive implementation from acceptance scenarios               |
-| `adw_document`               | code(git diff), documenter             | write up what just shipped                                   |
-| `adw_prd_oriented_discovery` | research, PRD, technical design        | discover and design from evidence                            |
-| `adw_prd_oriented_design`    | research, PRD, technical design        | turn existing research into a technical design               |
-| `adw_research`               | researcher                             | gather evidence for a problem before planning                |
-| `adw_prewalk`                | planner, builder                       | hand off one Pi session from planning to implementation      |
-| `adw_ship`                   | builder, repository handoff            | implement an outline and prepare its pull request handoff    |
+| ADW                             | Chain                                  | Reach for it when                                            |
+| ------------------------------- | -------------------------------------- | ------------------------------------------------------------ |
+| `run.ts prompt`                 | engineer to \<agent\>                  | one agent, one prompt, `--agent NAME` picks who              |
+| `run.ts scout`                  | engineer to scout                      | read-only recon, nothing changes                             |
+| `run.ts plan`                   | engineer to planner                    | you want the spec before any code                            |
+| `run.ts build`                  | engineer to builder                    | the plan already exists                                      |
+| `run.ts quality`                | engineer to code(quality)              | lint, typecheck, build, no agents at all                     |
+| `run.ts build-review`           | builder, reviewer, bounded revise loop | "is this what was asked for" matters more than "does it run" |
+| `run.ts double-tdd`             | outer and inner TDD loops              | drive implementation from acceptance scenarios               |
+| `run.ts document`               | code(git diff), documenter             | write up what just shipped                                   |
+| `run.ts prd-oriented-discovery` | research, PRD, technical design        | discover and design from evidence                            |
+| `run.ts prd-oriented-design`    | research, PRD, technical design        | turn existing research into a technical design               |
+| `run.ts research`               | researcher                             | gather evidence for a problem before planning                |
+| `run.ts prewalk`                | planner, builder                       | hand off one Pi session from planning to implementation      |
+| `run.ts ship`                   | builder, repository handoff            | implement an outline and prepare its pull request handoff    |
 
 The repository-only composition examples are documented in [`docs/adw-examples/`](docs/adw-examples/). They are not installed into target repositories.
 
 `--adw-id` is optional everywhere. Omit it and a fresh id is minted and printed. Supply it and the run joins that session: same dirs, same `context_handoff/`, and each agent **resumes its existing context window** through `agent_map.json` instead of starting cold. That is how you chain workflows.
 
 ```bash
-bun adws/adw_plan.ts "add a /health endpoint"              # prints adw_id a1b2c3d4
-bun adws/adw_build.ts "implement the plan" --adw-id a1b2c3d4
+bun adws/run.ts plan "add a /health endpoint"              # prints adw_id a1b2c3d4
+bun adws/run.ts build "implement the plan" --adw-id a1b2c3d4
 ```
 
 Watch a run with the trace db directly:
@@ -463,14 +463,14 @@ The tests it ships are not your tests. The prompts it ships describe a demo app,
 
 Where to start, roughly in the order that pays off fastest:
 
-| Change                  | File                                        | Why                                                                                              |
-| ----------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Your real commands      | `adws/adw_modules/quality.ts`               | The shipped blocks are placeholders that exit 0. Until you wire this, your test phase is theater |
-| Your prompts            | `adws/adw_data/prompt_engineering/{agent}/` | Where your standards live: what a good plan looks like, what a review has to catch               |
-| Your roster             | `adws/adw_sssf_config/sssf.config.yaml`     | Models, thinking levels, tools, and what each agent is allowed to write                          |
-| Your chains             | `adws/adw_*.ts`                             | Copy the closest workflow and edit the phase list. They are 40 to 180 lines on purpose           |
-| Your definition of done | `adws/adw_modules/gates.ts`                 | A gate is one function. Whatever "done" means where you work, write it here                      |
-| Your agent capabilities | `adws/adw_sssf_config/sssf.config.yaml`     | Built-in Pi tools and write boundaries, configured per agent                                     |
+| Change                  | File                                              | Why                                                                                              |
+| ----------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Your real commands      | `adws/factory/modules/quality.ts`                 | The shipped blocks are placeholders that exit 0. Until you wire this, your test phase is theater |
+| Your prompts            | `adws/adw_data/prompt_engineering/{agent}/`       | Where your standards live: what a good plan looks like, what a review has to catch               |
+| Your roster             | `adws/adw_sssf_config/sssf.config.yaml`           | Models, thinking levels, tools, and what each agent is allowed to write                          |
+| Your chains             | `adws/factory/modules/change-delivery/workflows/` | Copy the closest workflow and edit the phase list. They are 40 to 180 lines on purpose           |
+| Your definition of done | `adws/factory/modules/gates.ts`                   | A gate is one function. Whatever "done" means where you work, write it here                      |
+| Your agent capabilities | `adws/adw_sssf_config/sssf.config.yaml`           | Built-in Pi tools and write boundaries, configured per agent                                     |
 
 It still does not provide cloud workers, distributed scheduling, or automatic integration. The local safety boundary is the clean source check, disposable clone, bounded process runner, isolated environment, durable evidence, and manual review Gate.
 

@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -83,6 +84,21 @@ function agentBlocks(config: string): Map<string, string> {
   return blocks;
 }
 
+function removeObsoleteRuntime(): void {
+  if (!existsSync(join(root, "adws"))) return;
+  for (const entry of readdirSync(join(root, "adws"))) {
+    if (!/^adw_.+\.ts$/.test(entry)) continue;
+    const path = join(root, "adws", entry);
+    rmSync(path);
+    updated.push(`${path} (obsolete workflow wrapper removed)`);
+  }
+  const modules = join(root, "adws/adw_modules");
+  if (existsSync(modules)) {
+    rmSync(modules, { recursive: true });
+    updated.push(`${modules} (obsolete runtime removed)`);
+  }
+}
+
 function mergeMissingAgents(source: string, destination: string): void {
   if (!options.update || options.force || !existsSync(destination)) return;
   const current = readFileSync(destination, "utf8");
@@ -124,6 +140,7 @@ function writeLock(version: string): void {
   stamped.push(lockPath);
 }
 
+removeObsoleteRuntime();
 stamp(join(templates, "adws"), join(root, "adws"));
 stamp(join(templates, "prompt_engineering"), join(root, "adws/adw_data/prompt_engineering"));
 stamp(join(templates, "workflow_skills"), join(root, "adws/adw_data/workflow_skills"));
@@ -162,5 +179,5 @@ if (skipped.length) {
   );
 }
 console.log(
-  '\nnext steps:\n  1. cp .env.sample .env\n  2. just demo\n  3. just sessions\n  4. just obs\n\n  no just? bun adws/adw_prompt.ts "say hello" --agent scout',
+  '\nnext steps:\n  1. cp .env.sample .env\n  2. just demo\n  3. just sessions\n  4. just obs\n\n  no just? bun adws/run.ts prompt "say hello" --agent scout',
 );

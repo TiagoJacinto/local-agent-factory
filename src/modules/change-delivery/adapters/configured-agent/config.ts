@@ -53,11 +53,7 @@ export function loadConfig(path = "adws/adw_sssf_config/sssf.config.yaml"): SSSF
     thinking: d.thinking || "medium",
     color: d.color || "",
     tools: d.tools ?? null,
-    protected_files: d.protected_files || [
-      "adws/factory/",
-      "adws/adw_sssf_config/",
-      "adws/adw_*.ts",
-    ],
+    protected_files: d.protected_files || ["adws/factory/", "adws/adw_sssf_config/", "adws/run.ts"],
     data_dir: d.data_dir || "adws/adw_data",
     allowed_env: d.allowed_env || [],
     harness_timeout_seconds: Number(d.harness_timeout_seconds || 600),

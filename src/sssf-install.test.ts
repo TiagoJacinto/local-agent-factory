@@ -87,7 +87,7 @@ test("installs a self-contained Pi workflow runtime", () => {
   expect(updatedConfig).toContain("# local roster customization");
 
   execFileSync("bun", [installer], { cwd: target, stdio: "pipe" });
-  expect(readFileSync(lock, "utf8")).toContain("version: v0.4.8");
+  expect(readFileSync(lock, "utf8")).toContain("version: v0.4.9");
   expect(readFileSync(join(target, ".gitignore"), "utf8")).toContain(".pi/skills/sssf/");
 
   const workflowIds = [
@@ -104,16 +104,22 @@ test("installs a self-contained Pi workflow runtime", () => {
     "prd-oriented-design",
     "prd-oriented-discovery",
   ];
-  const entrypoints = workflowIds.map((id) =>
-    join(target, "adws", `adw_${id.replaceAll("-", "_")}.ts`),
-  );
-  const [promptEntrypoint] = entrypoints;
-  for (const entrypoint of entrypoints) expect(existsSync(entrypoint)).toBe(true);
-  expect(readFileSync(promptEntrypoint, "utf8")).toContain('runWorkflowCli("prompt"');
+  const runEntrypoint = join(target, "adws/run.ts");
+  expect(existsSync(runEntrypoint)).toBe(true);
+  expect(readFileSync(runEntrypoint, "utf8")).toContain("runWorkflowCli");
   expect(existsSync(join(target, "adws/factory/modules/workflow-execution"))).toBe(true);
-  expect(existsSync(join(target, "adws/adw_research.ts"))).toBe(true);
-  expect(existsSync(join(target, "adws/adw_prd_oriented_design.ts"))).toBe(true);
-  expect(existsSync(join(target, "adws/adw_prd_oriented_discovery.ts"))).toBe(true);
+  expect(existsSync(join(target, "adws/factory/modules/change-delivery/workflows"))).toBe(true);
+  for (const id of workflowIds) {
+    expect(
+      existsSync(join(target, "adws/factory/modules/change-delivery/workflows", id, "index.ts")),
+    ).toBe(true);
+  }
+  expect(
+    readFileSync(
+      join(target, "adws/factory/modules/change-delivery/workflows/research/README.md"),
+      "utf8",
+    ),
+  ).toContain("adws/run.ts research");
   expect(
     existsSync(join(target, "adws/adw_data/workflow_skills/rpi-create-research/SKILL.md")),
   ).toBe(true);
@@ -128,12 +134,10 @@ test("installs a self-contained Pi workflow runtime", () => {
     expect(existsSync(join(target, "adws", example))).toBe(false);
   }
 
-  for (const entrypoint of entrypoints) {
-    execFileSync("bun", ["build", entrypoint, "--outdir", join(target, `build-${entrypoint}`)], {
-      cwd: target,
-      stdio: "pipe",
-    });
-  }
+  execFileSync("bun", ["build", runEntrypoint, "--outdir", join(target, "build-run")], {
+    cwd: target,
+    stdio: "pipe",
+  });
 
   const sessionsOutput = execFileSync("just", ["sessions"], {
     cwd: target,

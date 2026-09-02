@@ -24,7 +24,7 @@ defaults:
   protected_files:
     - adws/factory/
     - adws/adw_sssf_config/
-    - adws/adw_*.ts
+    - adws/run.ts
   data_dir: adws/adw_data # runtime home: {data_dir}/sessions/{adw_id}/{agent_name}/
   allowed_env: [] # extra environment names allowed for agents and commands
   harness_timeout_seconds: 600 # one agent process maximum

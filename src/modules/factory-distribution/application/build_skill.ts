@@ -69,28 +69,7 @@ function copyRuntime(): void {
       '"./factory/modules/',
     ),
   );
-  const workflowEntrypoints = [
-    "prompt",
-    "scout",
-    "plan",
-    "prewalk",
-    "build",
-    "quality",
-    "build-review",
-    "double-tdd",
-    "document",
-    "research",
-    "prd-oriented-design",
-    "prd-oriented-discovery",
-  ] as const;
-  for (const id of workflowEntrypoints) {
-    const filename = id.replaceAll("-", "_");
-    writeFileSync(
-      join(runtimeRoot, `adw_${filename}.ts`),
-      `#!/usr/bin/env bun\nimport { runWorkflowCli } from "./run";\nprocess.exitCode = await runWorkflowCli("${id}", Bun.argv.slice(2));\n`,
-    );
-  }
-  for (const script of ["make_adw.ts", "make_config.ts"]) {
+  for (const script of ["make_config.ts"]) {
     copyTree(
       join(sourceRoot, `modules/factory-distribution/application/${script}`),
       join(outputRoot, `scripts/${script}`),
@@ -120,11 +99,7 @@ function files(root: string, result: string[] = []): string[] {
 
 function staleFiles(source: string, destination: string, projectSkill = false): string[] {
   return files(source).filter((path) => {
-    if (
-      path === join(sssfSource, "VERSION") ||
-      path.endsWith("/scripts/make_adw.ts") ||
-      path.endsWith("/scripts/make_config.ts")
-    )
+    if (path === join(sssfSource, "VERSION") || path.endsWith("/scripts/make_config.ts"))
       return false;
     const output = join(destination, relative(source, path));
     const sourceText = readFileSync(path, "utf8");
@@ -139,41 +114,15 @@ function staleFiles(source: string, destination: string, projectSkill = false): 
 function check(): void {
   const runtimeRoot = join(outputRoot, "templates/adws");
   const canonicalRoot = join(runtimeRoot, "factory/modules");
-  const workflowEntrypoints = [
-    "prompt",
-    "scout",
-    "plan",
-    "prewalk",
-    "build",
-    "quality",
-    "build-review",
-    "double-tdd",
-    "document",
-    "research",
-    "prd-oriented-design",
-    "prd-oriented-discovery",
-  ] as const;
   const expectedRun = readFileSync(
     join(sourceRoot, "entrypoints/workflows/run.ts"),
     "utf8",
   ).replaceAll('"../../modules/', '"./factory/modules/');
-  const staleWrappers = workflowEntrypoints.flatMap((id) => {
-    const filename = id.replaceAll("-", "_");
-    const path = join(runtimeRoot, `adw_${filename}.ts`);
-    const expected = `#!/usr/bin/env bun\nimport { runWorkflowCli } from "./run";\nprocess.exitCode = await runWorkflowCli("${id}", Bun.argv.slice(2));\n`;
-    return existsSync(path) && readFileSync(path, "utf8") === expected ? [] : [path];
-  });
-  const expectedWrapperNames = new Set(
-    workflowEntrypoints.map((id) => `adw_${id.replaceAll("-", "_")}.ts`),
-  );
-  const extraWrappers = files(runtimeRoot).filter(
-    (path) =>
-      path.startsWith(`${runtimeRoot}/adw_`) &&
-      path.endsWith(".ts") &&
-      !expectedWrapperNames.has(path.slice(runtimeRoot.length + 1)),
+  const obsoleteWrappers = files(runtimeRoot).filter(
+    (path) => path.startsWith(`${runtimeRoot}/adw_`) && path.endsWith(".ts"),
   );
   const stale = [
-    ...extraWrappers,
+    ...obsoleteWrappers,
     ...staleFiles(
       join(sourceRoot, "modules/workflow-execution"),
       join(canonicalRoot, "workflow-execution"),
@@ -194,7 +143,6 @@ function check(): void {
     ...(readFileSync(join(runtimeRoot, "run.ts"), "utf8") === expectedRun
       ? []
       : [join(runtimeRoot, "run.ts")]),
-    ...staleWrappers,
     ...staleFiles(sssfSource, outputRoot),
     ...additionalSkillNames().flatMap((name) => [
       ...staleFiles(join(skillsSource, name), join(outputSkillsRoot, name), true),

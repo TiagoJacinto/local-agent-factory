@@ -28,9 +28,9 @@ default:
 # start here: two cheap read-only runs, end to end
 demo:
     @echo "1/2  adw_prompt: one agent, one prompt"
-    bun adws/adw_prompt.ts --config {{config}} --agent scout "reply with a one-line summary of this repo"
+    bun adws/run.ts prompt --config {{config}} --agent scout "reply with a one-line summary of this repo"
     @echo "\n2/2  adw_scout: read-only recon"
-    bun adws/adw_scout.ts --config {{config}} "list the top-level directories in this repo and what each is for. change nothing."
+    bun adws/run.ts scout --config {{config}} "list the top-level directories in this repo and what each is for. change nothing."
     @echo "\nboth done. now run:  just sessions    (or: just obs)"
 
 # ── run a workflow ──────────────────────────────────────────────────────────
@@ -40,19 +40,19 @@ demo:
 
 # one agent, one prompt: just prompt "summarize this repo"
 prompt *ARGS:
-    bun adws/adw_prompt.ts --config {{config}} "$@"
+    bun adws/run.ts prompt --config {{config}} "$@"
 
 # read-only recon: just scout "where is auth handled"
 scout *ARGS:
-    bun adws/adw_scout.ts --config {{config}} "$@"
+    bun adws/run.ts scout --config {{config}} "$@"
 
 # research questions then codebase research (requires --problem-folder)
 research *ARGS:
-    bun adws/adw_research.ts --config {{config}} "$@"
+    bun adws/run.ts research --config {{config}} "$@"
 
 # plan only: just plan "add a /health endpoint"
 plan *ARGS:
-    bun adws/adw_plan.ts --config {{config}} "$@"
+    bun adws/run.ts plan --config {{config}} "$@"
 
 # ── watch it ────────────────────────────────────────────────────────────────
 # Reads never block a running workflow, the db is WAL. Poll as hard as you like.

@@ -1,6 +1,6 @@
 # SSSF architecture
 
-The installed runtime contains thin `adw_<workflow>.ts` wrappers, `run.ts`, canonical Factory modules under `factory/modules`, workflow skills, configuration, evidence, and SQLite trace data.
+The installed runtime contains `run.ts`, canonical Factory modules under `factory/modules`, workflow skills, configuration, evidence, and SQLite trace data.
 
 A workflow is a registered `WorkflowDefinition` with a local controller. Controllers compose `WorkflowContext` operations:
 

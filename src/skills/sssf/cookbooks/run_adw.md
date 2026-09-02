@@ -12,21 +12,21 @@ The ADW is the worker. Your job is to launch it, watch the trace, and tell the e
 
 ## Launch
 
-Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the ADW the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read `ls adws/adw_*.ts` and the `Phases:` line in each docstring to see what this repo has; the names below are shape, not a menu.
+Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the ADW the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read `ls adws/factory/modules/change-delivery/workflows/` and the `Phases:` line in each docstring to see what this repo has; the names below are shape, not a menu.
 
 ```bash
-bun adws/<end-to-end-chain>.ts "add a /health endpoint"
-bun adws/<plan-build-verify-chain>.ts requests/health.md
-bun adws/<build-first-chain>.ts "implement the plan" --adw-id a1b2c3d4
-bun adws/<recon-chain>.ts "where is auth handled" --config path/to/other.config.yaml
+bun adws/run.ts <workflow-id> "add a /health endpoint"
+bun adws/run.ts <workflow-id> requests/health.md
+bun adws/run.ts <workflow-id> "implement the plan" --adw-id a1b2c3d4
+bun adws/run.ts <workflow-id> "where is auth handled" --config path/to/other.config.yaml
 ```
 
 The prompt is inline text or a file path. Launch in the background so you can poll while it works; the `adw_id` is printed on startup — capture it, everything else keys off it.
 
-RPI workflows (`adw_research.ts`, `adw_prd_oriented_design.ts`, and `adw_prd_oriented_discovery.ts`) require the problem directory explicitly:
+RPI workflows (`adws/run.ts research`, `adws/run.ts prd-oriented-design`, and `adws/run.ts prd-oriented-discovery`) require the problem directory explicitly:
 
 ```bash
-bun adws/adw_research.ts "research this request" --problem-folder .rpi/problems/<slug>
+bun adws/run.ts research "research this request" --problem-folder .rpi/problems/<slug>
 ```
 
 ### Listen for the roster
@@ -60,7 +60,7 @@ They will rarely say `--config`. Treat any of these as naming a roster, then res
 `--config` takes the path directly; the justfile recipes read `SSSF_CONFIG` instead:
 
 ```bash
-bun adws/<chain>.ts "<prompt>" --config adws/adw_sssf_config/sssf.frontier.config.yaml
+bun adws/run.ts <workflow-id> "<prompt>" --config adws/adw_sssf_config/sssf.frontier.config.yaml
 SSSF_CONFIG=adws/adw_sssf_config/sssf.frontier.config.yaml just <recipe> "<prompt>"
 ```
 

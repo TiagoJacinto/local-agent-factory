@@ -93,4 +93,4 @@ Three distinctions worth keeping straight:
 
 ## Keep scripts thin
 
-An ADW is sequencing and acceptance — nothing else. The moment you are writing parsing, subprocess handling, retry mechanics, or a reusable predicate inside `adw_*.ts`, it belongs in `factory/modules/`. See `update_modules.md`.
+An ADW is sequencing and acceptance — nothing else. The moment you are writing parsing, subprocess handling, retry mechanics, or a reusable predicate inside `adws/run.ts`, it belongs in `factory/modules/`. See `update_modules.md`.

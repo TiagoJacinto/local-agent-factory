@@ -34,7 +34,3 @@ adws/adw_data/runs/
 .pi-subagents
 # Generated project runtime (created by the skill installer)
 adws/
-!src/adws/
-!src/adws/adw_modules/
-!src/adws/adw_modules/agent_runtime.ts
-!src/adws/adw_modules/agent_opencode.ts

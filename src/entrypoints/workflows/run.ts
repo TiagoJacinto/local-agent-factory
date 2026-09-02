@@ -10,20 +10,21 @@ export async function runWorkflowCli(workflowId: string, argv: readonly string[]
     const index = args.indexOf(name);
     return index >= 0 ? args[index + 1] : undefined;
   };
+  const optionsWithValues = new Set([
+    "--agent",
+    "--revision",
+    "--problem-folder",
+    "--config",
+    "--adw-id",
+  ]);
   const request = args
-    .filter(
-      (arg, index) =>
-        !arg.startsWith("--") &&
-        args[index - 1] !== "--agent" &&
-        args[index - 1] !== "--revision" &&
-        args[index - 1] !== "--problem-folder",
-    )
+    .filter((arg, index) => !arg.startsWith("--") && !optionsWithValues.has(args[index - 1] ?? ""))
     .join(" ");
   const workflow = changeDeliveryWorkflows.find((candidate) => candidate.id === workflowId);
   if (!workflow || !request) return 2;
   const run = await new Factory(changeDeliveryWorkflows, {
     agentRuntime: new ConfiguredAgentRuntime(
-      process.env.SSSF_CONFIG ?? "adws/adw_sssf_config/sssf.config.yaml",
+      option("--config") ?? process.env.SSSF_CONFIG ?? "adws/adw_sssf_config/sssf.config.yaml",
     ),
     traceSink: new SqliteTraceSink(process.env.SSSF_DB ?? "adws/adw_data/sssf.db"),
   }).execute({

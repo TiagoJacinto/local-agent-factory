@@ -60,7 +60,13 @@ export function releaseAndInstall(
     command("gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], root).trim();
   if (!repo) throw new Error("could not determine GitHub repository");
 
-  command("git", ["add", "--", ...options.paths], root);
+  const existingPaths = options.paths.filter((path) => existsSync(join(root, path)));
+  if (existingPaths.length) command("git", ["add", "--", ...existingPaths], root);
+  const stagedPaths = new Set(
+    command("git", ["diff", "--cached", "--name-only"], root).split("\n").filter(Boolean),
+  );
+  const unstagedPaths = options.paths.filter((path) => !stagedPaths.has(path));
+  if (unstagedPaths.length) command("git", ["add", "-u", "--", ...unstagedPaths], root);
   if (!command("git", ["diff", "--cached", "--name-only"], root).trim())
     throw new Error("intended paths produced no staged changes");
   command("git", ["commit", "--only", "-m", options.message, "--", ...options.paths], root);

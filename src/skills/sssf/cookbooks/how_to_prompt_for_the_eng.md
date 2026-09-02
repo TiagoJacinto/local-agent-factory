@@ -18,7 +18,7 @@ Turn what the engineer said into the prompt the ADW receives: **clearer, not dif
 
 If you catch yourself improving the _idea_ rather than the _sentence_, stop. Raise the concern to the engineer in your own message and launch what they asked for.
 
-## You never touch the application, you prompt, monitor, observe, and report.
+## You never touch the application, you prompt, monitor, observe, and report
 
 Outside of understanding the ADWs, you never research, touch, or dive into the codebase thats being operated on.
 
@@ -61,8 +61,8 @@ Same idea, same scope. What changed is that "popularity" became a sort order, th
 **If they did not, read what this repo actually has and choose from that.**
 
 ```bash
-ls adws/adw_*.ts                       # the menu
-head -20 adws/adw_<name>.ts            # every ADW opens with its `Phases:` line — the chain in one line
+ls adws/factory/modules/change-delivery/workflows/                       # the menu
+head -20 adws/factory/modules/change-delivery/workflows/<name>/index.ts            # every ADW opens with its `Phases:` line — the chain in one line
 ```
 
 Chains are the engineer's to add, rename, and rewire, so **the files on disk are the only authority**. Never launch from memory or from a name you saw in a doc; read the docstrings, then match by shape:
