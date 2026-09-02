@@ -31,7 +31,8 @@ test("installs a self-contained Pi workflow runtime", () => {
   });
   expect(archiveEntries.split("\n")).toContain(".pi/skills/sssf/");
   const distributionSkills = join(repositoryRoot, "dist/.pi/skills");
-  expect(existsSync(join(distributionSkills, "sssf/SKILL.md"))).toBe(true);
+  const sssfSkill = readFileSync(join(distributionSkills, "sssf/SKILL.md"), "utf8");
+  expect(sssfSkill).toMatch(/^---\nname: sssf\ndescription: .+\n---\n/m);
   expect(existsSync(join(distributionSkills, "rpi-create-research/SKILL.md"))).toBe(true);
   expect(existsSync(join(distributionSkills, "rpi-create-prd/SKILL.md"))).toBe(true);
   expect(existsSync(join(distributionSkills, "rpi-create-tdd/SKILL.md"))).toBe(true);
@@ -87,7 +88,7 @@ test("installs a self-contained Pi workflow runtime", () => {
   expect(updatedConfig).toContain("# local roster customization");
 
   execFileSync("bun", [installer], { cwd: target, stdio: "pipe" });
-  expect(readFileSync(lock, "utf8")).toContain("version: v0.4.10");
+  expect(readFileSync(lock, "utf8")).toContain("version: v0.4.11");
   expect(readFileSync(join(target, ".gitignore"), "utf8")).toContain(".pi/skills/sssf/");
 
   const workflowIds = [

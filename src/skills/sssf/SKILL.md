@@ -1,3 +1,8 @@
+---
+name: sssf
+description: Run and monitor registered change-delivery workflows through the local factory runtime.
+---
+
 # SSSF
 
 SSSF runs registered change-delivery workflows through the canonical Factory. Start by listing installed `adws/factory/modules/change-delivery/workflows/` definitions and choose one workflow ID for the operator request.
