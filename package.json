@@ -1,6 +1,6 @@
 {
   "name": "local-agent-factory",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": false,
   "bin": {
     "laf": "./src/entrypoints/cli.ts"
@@ -32,7 +32,7 @@
     "lint:staged": "oxlint",
     "lint:fix": "oxlint src tests --fix",
     "build:skill": "bun run src/modules/factory-distribution/application/build_skill.ts",
-    "build:visualizer": "cd src/skills/sssf/apps/visualizer && bun install --frozen-lockfile && bun run build",
+    "build:visualizer": "cd src/skills/sssf/apps/visualizer && bun install --frozen-lockfile && bun run build && rm -rf node_modules",
     "build:package": "bun run build:visualizer && bun run build:skill",
     "prepublishOnly": "bun run build:package",
     "check:skill": "bun run src/modules/factory-distribution/application/build_skill.ts --check",
