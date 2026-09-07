@@ -5,7 +5,6 @@ import { z } from "zod";
 import {
   INSTALLABLE_SKILLS,
   initFactoryConfig,
-  installFactory,
   installSkill,
   listWorkflows,
   runVisualizer,
@@ -165,10 +164,19 @@ export function createCli(output: Output = console.log): Command {
     });
 
   program
-    .command("install")
-    .description("Install factory workflows into a target repository")
+    .command("init")
+    .description("Create local or global factory configuration")
+    .option("--local", "write configuration in the target repository")
+    .option("--global", "write configuration in the user config directory")
+    .option("--force", "overwrite an existing configuration")
     .option("--cwd <path>", "target repository", process.cwd())
-    .action((options: CwdOptions) => output(installFactory({ cwd: cwdOf(options) })));
+    .action((options: CwdOptions & { global?: boolean; force?: boolean }) => {
+      const path = initFactoryConfig(options.global ? "global" : "local", {
+        cwd: cwdOf(options),
+        force: options.force,
+      });
+      output(`Created ${path}`);
+    });
 
   return program;
 }

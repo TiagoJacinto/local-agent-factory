@@ -4,9 +4,10 @@ This module distributes the Bun-based CLI, repository runtime, visualizer, confi
 
 ## Public interface
 
-Import from `index.ts` for `installFactory`, workflow/skill listing and installation,
-configuration initialization/resolution, and `runVisualizer`. The executable adapter
-is `src/entrypoints/cli.ts`; it owns argument parsing only.
+Import from `index.ts` for workflow/skill listing and installation, configuration
+initialization/resolution, and `runVisualizer`. Repository runtime installation remains the
+responsibility of the npm-free release installer. The executable adapter is
+`src/entrypoints/cli.ts`; it owns argument parsing only.
 
 ## Invariants
 

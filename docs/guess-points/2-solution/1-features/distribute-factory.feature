@@ -1,6 +1,18 @@
 Feature: Distribute and operate the Local Agent Factory
   A Factory Operator can install the Bun-based factory, run its capabilities, install approved skills, and configure behavior by scope.
 
+  Scenario: Initialize local factory configuration without installing runtime files
+    Given the Local Agent Factory CLI is installed
+    And the Factory Operator is in a target repository
+    When the Factory Operator runs "laf init"
+    Then a local factory configuration file is created
+    And no factory runtime files are installed
+
+  Scenario: Initialize global factory configuration
+    Given the Local Agent Factory CLI is installed
+    When the Factory Operator runs "laf init --global"
+    Then a global factory configuration file is created
+
   Scenario: Install the global CLI with Bun
     Given Bun is installed
     When the Factory Operator runs "bun add --global local-agent-factory"

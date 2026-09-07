@@ -1,12 +1,4 @@
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
@@ -27,83 +19,6 @@ function packageRoot(): string {
   // The source tree is deliberately supported for local development. Published
   // packages retain the same source layout so Bun can execute the entrypoint.
   return fileURLToPath(new URL("../../../..", import.meta.url));
-}
-
-function packagedSkillRoot(): string {
-  return join(packageRoot(), "dist", ".pi", "skills", "sssf");
-}
-
-function sourceSkillRoot(): string {
-  return join(packageRoot(), "src", "skills", "sssf");
-}
-
-function stageSourceSkill(destination: string): void {
-  const source = sourceSkillRoot();
-  copyTree(source, destination);
-  rmSync(join(destination, "apps/visualizer/node_modules"), { recursive: true, force: true });
-
-  // build_skill.ts normally creates this generated runtime. Recreate its
-  // source-to-package mapping here so `laf install` also works from a checkout
-  // and from a package that was built without the archive step.
-  const runtimeRoot = join(destination, "templates", "adws");
-  const modulesRoot = join(runtimeRoot, "factory", "modules");
-  copyTree(
-    join(packageRoot(), "src/modules/workflow-execution"),
-    join(modulesRoot, "workflow-execution"),
-  );
-  copyTree(
-    join(packageRoot(), "src/modules/change-delivery"),
-    join(modulesRoot, "change-delivery"),
-  );
-  copyTree(
-    join(packageRoot(), "src/modules/factory-distribution/application/skill-compilation"),
-    join(modulesRoot, "factory-distribution/application/skill-compilation"),
-  );
-  copyTree(
-    join(packageRoot(), "src/modules/factory-distribution/skill-compilation.ts"),
-    join(modulesRoot, "factory-distribution/skill-compilation.ts"),
-  );
-  const runSource = join(packageRoot(), "src/entrypoints/workflows/run.ts");
-  const runTarget = join(runtimeRoot, "run.ts");
-  mkdirSync(dirname(runTarget), { recursive: true });
-  writeFileSync(
-    runTarget,
-    readFileSync(runSource, "utf8").replaceAll('"../../modules/', '"./factory/modules/'),
-  );
-  for (const entry of readdirSync(join(packageRoot(), "src/skills"), { withFileTypes: true })) {
-    if (entry.isDirectory() && entry.name !== "sssf") {
-      copyTree(
-        join(packageRoot(), "src/skills", entry.name),
-        join(destination, "templates/workflow_skills", entry.name),
-      );
-    }
-  }
-  for (const script of ["install.ts", "make_config.ts", "release.ts"]) {
-    copyTree(
-      join(packageRoot(), `src/modules/factory-distribution/application/${script}`),
-      join(destination, "scripts", script),
-    );
-  }
-}
-
-function skillPackageRoot(): string {
-  return existsSync(packagedSkillRoot()) ? packagedSkillRoot() : sourceSkillRoot();
-}
-
-export function installFactory(options: { cwd?: string } = {}): string {
-  const target = resolve(options.cwd ?? process.cwd());
-  const destination = join(target, ".pi", "skills", "sssf");
-  if (skillPackageRoot() === sourceSkillRoot()) stageSourceSkill(destination);
-  else copyTree(skillPackageRoot(), destination);
-  const result = Bun.spawnSync(["bun", join(destination, "scripts/install.ts")], {
-    cwd: target,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  if (!result.success) {
-    throw new Error(new TextDecoder().decode(result.stderr) || "factory installation failed");
-  }
-  return new TextDecoder().decode(result.stdout);
 }
 
 export function listWorkflows(workflows: readonly { id: string }[]): string {

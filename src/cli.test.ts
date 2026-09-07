@@ -35,14 +35,16 @@ describe("CLI", () => {
     expect(messages).toEqual(["mock-reviewer\nmock-researcher"]);
   });
 
-  test("initializes local config and installs a mock skill in the target repository", async () => {
+  test("initializes local config without installing runtime files", async () => {
     const directory = mkdtempSync(join(tmpdir(), "laf-cli-"));
     try {
       const messages: string[] = [];
       const cli = createCli((message) => messages.push(message));
 
-      await cli.parseAsync(["node", "laf", "config", "init", "--local", "--cwd", directory]);
+      await cli.parseAsync(["node", "laf", "init", "--local", "--cwd", directory]);
       expect(existsSync(join(directory, "local-agent-factory.config.yaml"))).toBe(true);
+      expect(existsSync(join(directory, "adws"))).toBe(false);
+      expect(existsSync(join(directory, ".pi/skills/sssf"))).toBe(false);
       expect(readFileSync(join(directory, "local-agent-factory.config.yaml"), "utf8")).toContain(
         "visualizer:",
       );

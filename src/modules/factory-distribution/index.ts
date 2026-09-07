@@ -4,7 +4,6 @@ export {
   formatResolvedConfig,
   initFactoryConfig,
   initializeConfig,
-  installFactory,
   installSkill,
   listWorkflows,
   resolveConfig,

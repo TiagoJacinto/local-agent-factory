@@ -86,15 +86,16 @@ not required. Install the CLI globally, then use it from any target repository:
 ```bash
 bun add --global local-agent-factory
 
-laf config init --global
-laf install
+laf init --global
 laf workflow list
 laf workflow run prompt "say hello"
 laf app run visualizer
 ```
 
 The CLI keeps workflow and application assets inside the package, so it does not
-depend on this source checkout.
+depend on this source checkout. `laf init` only creates factory configuration; it does
+not install repository runtime files. Use the one-command installer below when the
+target repository needs the runtime.
 
 Install one of the two currently approved mock skills locally or globally:
 
