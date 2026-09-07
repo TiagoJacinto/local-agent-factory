@@ -55,6 +55,14 @@ function copyRuntime(): void {
     join(canonicalRuntimeRoot, "change-delivery"),
   );
   copyTree(
+    join(sourceRoot, "modules/factory-distribution/application/configuration.ts"),
+    join(canonicalRuntimeRoot, "factory-distribution/application/configuration.ts"),
+  );
+  copyTree(
+    join(sourceRoot, "modules/factory-distribution/configuration.ts"),
+    join(canonicalRuntimeRoot, "factory-distribution/configuration.ts"),
+  );
+  copyTree(
     join(sourceRoot, "modules/factory-distribution/application/skill-compilation"),
     join(canonicalRuntimeRoot, "factory-distribution/application/skill-compilation"),
   );
@@ -90,6 +98,7 @@ function copyIfExists(from: string, to: string): void {
 function files(root: string, result: string[] = []): string[] {
   if (!existsSync(root)) return result;
   for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (entry.name === "node_modules") continue;
     const path = join(root, entry.name);
     if (entry.isDirectory()) files(path, result);
     else result.push(path);
@@ -111,6 +120,13 @@ function staleFiles(source: string, destination: string, projectSkill = false): 
   });
 }
 
+function staleFile(source: string, destination: string): string[] {
+  return !existsSync(destination) ||
+    readFileSync(source, "utf8") !== readFileSync(destination, "utf8")
+    ? [destination]
+    : [];
+}
+
 function check(): void {
   const runtimeRoot = join(outputRoot, "templates/adws");
   const canonicalRoot = join(runtimeRoot, "factory/modules");
@@ -130,6 +146,14 @@ function check(): void {
     ...staleFiles(
       join(sourceRoot, "modules/change-delivery"),
       join(canonicalRoot, "change-delivery"),
+    ),
+    ...staleFile(
+      join(sourceRoot, "modules/factory-distribution/application/configuration.ts"),
+      join(canonicalRoot, "factory-distribution/application/configuration.ts"),
+    ),
+    ...staleFile(
+      join(sourceRoot, "modules/factory-distribution/configuration.ts"),
+      join(canonicalRoot, "factory-distribution/configuration.ts"),
     ),
     ...staleFiles(
       join(sourceRoot, "modules/factory-distribution/application/skill-compilation"),
@@ -163,6 +187,7 @@ if (checkOnly) {
   mkdirSync(outputSkillsRoot, { recursive: true });
   if (!keepOutput) removeGeneratedSkills();
   copyTree(sssfSource, outputRoot);
+  rmSync(join(outputRoot, "apps/visualizer/node_modules"), { recursive: true, force: true });
   copyRuntime();
   for (const name of additionalSkillNames()) {
     const source = join(skillsSource, name);

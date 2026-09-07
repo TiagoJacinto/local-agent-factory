@@ -1,6 +1,22 @@
-export const distributionApplication = {
-  buildSkill: "application/build_skill.ts",
-  packageSkill: "application/package_skill.ts",
-  install: "application/install.ts",
-  release: "application/release.ts",
-};
+export {
+  INSTALLABLE_SKILLS,
+  configPaths,
+  formatResolvedConfig,
+  initFactoryConfig,
+  initializeConfig,
+  installFactory,
+  installSkill,
+  listWorkflows,
+  resolveConfig,
+  runVisualizer,
+  showFactoryConfig,
+  visualizerServerPath,
+} from "./application/distribution";
+export type {
+  FactoryConfig,
+  ResolvedFactoryConfig,
+  ConfigSource,
+} from "./application/configuration";
+export type { InstallationScope, SkillName } from "./application/distribution";
+export { parseReleaseOptions, releaseAndInstall } from "./application/release";
+export type { ReleaseOptions } from "./application/release";

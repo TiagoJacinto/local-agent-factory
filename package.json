@@ -1,10 +1,17 @@
 {
   "name": "local-agent-factory",
-  "version": "0.4.11",
-  "private": true,
+  "version": "0.5.0",
+  "private": false,
   "bin": {
-    "local-agent-factory": "./src/entrypoints/cli.ts"
+    "laf": "./src/entrypoints/cli.ts"
   },
+  "files": [
+    "src",
+    "src/skills/sssf/apps/visualizer/dist",
+    "install.sh",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
   "scripts": {
     "bootstrap": "bun install --frozen-lockfile",
@@ -25,6 +32,9 @@
     "lint:staged": "oxlint",
     "lint:fix": "oxlint src tests --fix",
     "build:skill": "bun run src/modules/factory-distribution/application/build_skill.ts",
+    "build:visualizer": "cd src/skills/sssf/apps/visualizer && bun install --frozen-lockfile && bun run build",
+    "build:package": "bun run build:visualizer && bun run build:skill",
+    "prepublishOnly": "bun run build:package",
     "check:skill": "bun run src/modules/factory-distribution/application/build_skill.ts --check",
     "package:skill": "bun run build:skill && bun run src/modules/factory-distribution/application/package_skill.ts",
     "release:skill": "bun run src/modules/factory-distribution/application/release.ts",
@@ -47,6 +57,9 @@
     "oxlint": "^1.76.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
+  },
+  "engines": {
+    "bun": ">=1.3.0"
   },
   "packageManager": "bun@1.3.14"
 }

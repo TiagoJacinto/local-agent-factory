@@ -1,5 +1,31 @@
 # Factory distribution
 
-Public entrypoints are the application scripts under `application/`: build/check the skill, package it, release selected changes, install it, and generate configuration or workflow assets. Generated package output is written to `dist/` and verified with `bun run check:skill`.
+This module distributes the Bun-based CLI, repository runtime, visualizer, configuration, and the two currently approved mock skills.
 
-`release.ts` is the deterministic release boundary. It accepts explicit `--path` values, commits only those paths, pushes the branch and version tag, polls the GitHub Actions release workflow, and installs the tagged release into `--target`. The packaged copy is distributed as `.pi/skills/sssf/scripts/release.ts`.
+## Public interface
+
+Import from `index.ts` for `installFactory`, workflow/skill listing and installation,
+configuration initialization/resolution, and `runVisualizer`. The executable adapter
+is `src/entrypoints/cli.ts`; it owns argument parsing only.
+
+## Invariants
+
+- Bun is the only supported runtime and package manager.
+- The npm-free GitHub Release installer remains checksummed and repository-scoped.
+- Skill installation accepts only `mock-reviewer` and `mock-researcher`.
+- Local configuration overrides global configuration, which overrides built-in defaults.
+- Generated repository runtime remains self-contained and does not import package dependencies.
+
+## Verification
+
+```bash
+bun run test -- src/cli.test.ts src/modules/factory-distribution/tests/distribution.test.ts
+bun run build:visualizer
+bun run check:skill
+```
+
+Generated package output is written to `dist/` and verified with `bun run check:skill`.
+`release.ts` is the deterministic release boundary. It accepts explicit `--path` values,
+commits only those paths, pushes the branch and version tag, polls the GitHub Actions
+release workflow, and installs the tagged release into `--target`. The packaged copy is
+distributed as `.pi/skills/sssf/scripts/release.ts`.

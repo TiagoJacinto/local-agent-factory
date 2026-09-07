@@ -1,10 +1,15 @@
 import { Factory } from "../../modules/workflow-execution";
 import { changeDeliveryWorkflows } from "../../modules/change-delivery";
 import { ConfiguredAgentRuntime } from "../../modules/change-delivery/configured-agent-runtime";
+import { resolveConfig } from "../../modules/factory-distribution/configuration";
 import { SqliteTraceSink } from "../../modules/workflow-execution/trace-runtime";
 
 /** Executes a registered workflow from installed-style command arguments. */
-export async function runWorkflowCli(workflowId: string, argv: readonly string[]): Promise<number> {
+export async function runWorkflowCli(
+  workflowId: string,
+  argv: readonly string[],
+  output: (message: string) => void = console.log,
+): Promise<number> {
   const args = [...argv];
   const option = (name: string) => {
     const index = args.indexOf(name);
@@ -22,15 +27,16 @@ export async function runWorkflowCli(workflowId: string, argv: readonly string[]
     .join(" ");
   const workflow = changeDeliveryWorkflows.find((candidate) => candidate.id === workflowId);
   if (!workflow || !request) return 2;
+  const config = resolveConfig();
   const run = await new Factory(changeDeliveryWorkflows, {
     agentRuntime: new ConfiguredAgentRuntime(
-      option("--config") ?? process.env.SSSF_CONFIG ?? "adws/adw_sssf_config/sssf.config.yaml",
+      option("--config") ?? process.env.SSSF_CONFIG ?? config.value.workflow.config,
     ),
-    traceSink: new SqliteTraceSink(process.env.SSSF_DB ?? "adws/adw_data/sssf.db"),
+    traceSink: new SqliteTraceSink(process.env.SSSF_DB ?? config.value.workflow.database),
   }).execute({
     workflowId,
     request,
-    agentOwner: option("--agent"),
+    agentOwner: option("--agent") ?? (workflowId === "prompt" ? "scout" : undefined),
     problemFolder: option("--problem-folder"),
     ...(option("--revision") ? { expectedSourceRevision: option("--revision") } : {}),
     ...(workflow.changesSource ? { sourceRepository: process.cwd() } : {}),
@@ -39,7 +45,7 @@ export async function runWorkflowCli(workflowId: string, argv: readonly string[]
     console.error(run.failure ?? `${workflowId} failed`);
     return 1;
   }
-  console.log(run.runIdentifier);
+  output(run.runIdentifier);
   return 0;
 }
 

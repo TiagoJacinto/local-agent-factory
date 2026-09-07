@@ -78,6 +78,37 @@ Ask it to scout the repository, create a plan, or run a complete workflow. Start
 
 ## Install
 
+### Bun package and CLI
+
+The factory is distributed as a Bun package. Bun is the only required runtime; npm is
+not required. Install the CLI globally, then use it from any target repository:
+
+```bash
+bun add --global local-agent-factory
+
+laf config init --global
+laf install
+laf workflow list
+laf workflow run prompt "say hello"
+laf app run visualizer
+```
+
+The CLI keeps workflow and application assets inside the package, so it does not
+depend on this source checkout.
+
+Install one of the two currently approved mock skills locally or globally:
+
+```bash
+laf skill list
+laf skill install mock-reviewer --local
+laf skill install mock-researcher --global
+```
+
+Configuration is merged in this order: command-line options, the target repository's
+`local-agent-factory.config.yaml`, the global
+`~/.config/local-agent-factory/config.yaml`, then built-in defaults. Inspect the
+resolved values and their source with `laf config show`.
+
 ### One-command install
 
 Run this from the root of the target repository:
@@ -86,7 +117,7 @@ Run this from the root of the target repository:
 curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash
 ```
 
-The installer downloads the skill, copies it to `.pi/skills/`, stamps the factory into the repository, and creates `.env` from `.env.sample` when needed. It requires [`Bun`](https://bun.sh), `git`, and [`Gitleaks`](https://github.com/gitleaks/gitleaks#installing). Gitleaks blocks secrets before commit and push; GitHub Actions provides the final backstop.
+The installer downloads the skill, copies it to `.pi/skills/`, stamps the factory into the repository, and creates `.env` from `.env.sample` when needed. It requires [`Bun`](https://bun.sh), `curl`, `tar`, and a SHA-256 utility (`sha256sum` or `shasum`). The generated workflows may additionally use Git and Gitleaks when they validate source changes.
 
 Add your API key to the created `.env`, then smoke-test it:
 
@@ -100,6 +131,13 @@ In Pi, the installed skill is available as `/skill:sssf`. Ask it to run a scout,
 ### Release versions
 
 The skill package is built from `src/` and published as a GitHub Release. The generated `.pi/skills/sssf/` tree is local build output and is not a source directory.
+
+The Bun CLI package is published to the npm registry for Bun consumers. Before publishing a version, build the visualizer and generated runtime, then publish the package:
+
+```bash
+bun run build:package
+bun publish
+```
 
 New installs use the latest stable release:
 

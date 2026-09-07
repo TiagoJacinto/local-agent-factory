@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { parseReleaseOptions, releaseAndInstall } from "../application/release";
+import { parseReleaseOptions, releaseAndInstall } from "../index";
 
 describe("release automation", () => {
   test("parses repeatable intended paths and defaults", () => {
