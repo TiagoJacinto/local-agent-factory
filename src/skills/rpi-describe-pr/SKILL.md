@@ -28,9 +28,9 @@ Create or update exactly one pull request for the current branch. Keep the descr
    - Read `gh pr diff {number}` in full and inspect context required to explain each change.
    - Get repository metadata with `gh repo view --json owner,name`.
    - Derive a ticket link only when it is evident from the branch name, PR title, commits, or linked issue; otherwise omit it.
-   - Identify user-facing behavior, implementation choices, breaking changes, and verification evidence.
+   - Identify user-facing behavior, implementation choices, breaking changes, verification evidence, and whether the PR changes the project's UI.
 
-   **Done:** every changed file is accounted for in the PR description.
+   **Done:** every changed file is accounted for in the PR description, and the PR is classified as UI-changing or non-UI-changing.
 
 4. **Compose the description**
 
@@ -50,7 +50,13 @@ Create or update exactly one pull request for the current branch. Keep the descr
 
    **Done:** GitHub contains the completed description for that PR.
 
-6. **Report**
+6. **Add UI evidence**
+
+   When the PR changes the project's UI, invoke the `before-and-after` skill to capture representative screenshots and put them in the PR description.
+
+   **Done:** every UI-changing PR shows its screenshots in the rendered PR description; non-UI-changing PRs skip this step.
+
+7. **Report**
 
    Read `{SKILLBASE}/references/describe_pr_final_answer.md` and respond with the PR URL, title, and concise verification summary. Do not report local artifacts or saved description paths.
 
