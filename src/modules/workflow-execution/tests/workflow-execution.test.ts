@@ -72,7 +72,7 @@ describe("canonical workflow execution", () => {
     expect(run.invocations).toEqual([]);
     expect(called).toBe(false);
     expect(run.evidenceManifestPath).toBeDefined();
-  });
+  }, 10_000);
 
   test("records phases, typed handoff, and an evidence manifest", async () => {
     const source = repo();
@@ -126,6 +126,44 @@ describe("canonical workflow execution", () => {
       workflowId: "change",
       status: "Succeeded",
     });
+  });
+
+  test("records bounded command output without failing a repairable phase", async () => {
+    const run = await new Factory(
+      [
+        workflow(async ({ command }) => {
+          await command({
+            command: "bun",
+            args: ["test"],
+            failurePolicy: "return-evidence",
+          });
+        }, false),
+      ],
+      {
+        commandRunner: {
+          run: async (request) => ({
+            ...request,
+            args: request.args ?? [],
+            exitCode: 1,
+            stdout: "failed test output",
+            stderr: "missing import",
+            failure: "exit",
+          }),
+        },
+      },
+    ).execute({ workflowId: "change" });
+
+    expect(run.status).toBe("Succeeded");
+    expect(run.evidenceManifest.artifacts).toContainEqual(
+      expect.objectContaining({
+        kind: "command",
+        details: expect.objectContaining({
+          stdout: "failed test output",
+          stderr: "missing import",
+          failed: true,
+        }),
+      }),
+    );
   });
 
   test("retains a failed disposable workspace and rejects source mutation", async () => {

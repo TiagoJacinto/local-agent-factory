@@ -1,5 +1,5 @@
 Feature: Distribute and operate the Local Agent Factory
-  A Factory Operator can install the Bun-based factory, run its capabilities, install approved skills, and configure behavior by scope.
+  A Factory Operator can install the Bun-based CLI, run its capabilities, install approved skills, and configure behavior by scope.
 
   Scenario: Initialize local factory configuration without installing runtime files
     Given the Local Agent Factory CLI is installed
@@ -20,18 +20,9 @@ Feature: Distribute and operate the Local Agent Factory
     And "laf --version" reports the installed package version
     And Node and npm are not required
 
-  Scenario: Install the factory into a repository without npm
-    Given Bun, curl, and tar are installed
-    And the Factory Operator is in a target repository
-    When the Factory Operator runs the one-command installer
-    Then the installer downloads the latest GitHub Release archive
-    And the installer verifies the archive checksum
-    And the factory is installed into the target repository
-    And npm is not invoked
-
   Scenario: Run packaged workflows and applications
     Given the Local Agent Factory CLI is installed
-    And the Factory Operator is in an installed target repository
+    And the Factory Operator is in a target repository with configured workflow paths
     When the Factory Operator uses the available capabilities
       | command                          | outcome                           |
       | laf workflow list                | registered workflows are listed   |

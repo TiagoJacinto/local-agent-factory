@@ -4,6 +4,7 @@ export interface CommandRequest {
   readonly cwd?: string;
   readonly timeoutMs?: number;
   readonly maxOutputBytes?: number;
+  readonly failurePolicy?: "fail-run" | "return-evidence";
   readonly signal?: AbortSignal;
 }
 

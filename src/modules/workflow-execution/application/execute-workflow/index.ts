@@ -381,12 +381,20 @@ export class WorkflowExecutor {
             cwd: commandRequest.cwd ?? lease?.path,
             signal: commandRequest.signal ?? signalController.signal,
           });
+          const failed = Boolean(result.failure) || result.exitCode !== 0;
           evidence.push({
             kind: "command",
             reference: result.command,
             summary: result.failure ?? `exit ${result.exitCode}`,
+            details: {
+              args: result.args,
+              stdout: result.stdout,
+              stderr: result.stderr,
+              failed,
+            },
           });
-          if (result.failure || result.exitCode !== 0) failure = "CommandFailed";
+          if (failed && commandRequest.failurePolicy !== "return-evidence")
+            failure = "CommandFailed";
           return result;
         },
       };

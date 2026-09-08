@@ -42,9 +42,11 @@ function makeContext(
   const agent = resolveAgent(config, owner);
   const runtime = agent.coding_agent === "opencode" ? runtimes.opencode : runtimes.pi;
   const key = `${input.runIdentifier ?? "run"}:${owner}`;
-  const sessionId =
-    sessions.get(key) ?? `factory-${input.runIdentifier ?? input.invocationId}-${owner}`;
-  sessions.set(key, sessionId);
+  const fresh = input.options?.sessionPolicy === "fresh";
+  const sessionId = fresh
+    ? `factory-${input.runIdentifier ?? "run"}-${owner}-${input.invocationId}`
+    : (sessions.get(key) ?? `factory-${input.runIdentifier ?? input.invocationId}-${owner}`);
+  if (!fresh) sessions.set(key, sessionId);
   const sessionDir = join(
     config.defaults.data_dir,
     "agent-sessions",

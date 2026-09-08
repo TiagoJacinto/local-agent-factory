@@ -1,6 +1,7 @@
 import { buildReviewWorkflow } from "./workflows/build-review";
 import { buildWorkflow } from "./workflows/build";
 import { documentWorkflow } from "./workflows/document";
+import { implementOutlineWorkflow, parseStructureOutline } from "./workflows/implement-outline";
 import { doubleTddWorkflow } from "./workflows/double-tdd";
 import { planWorkflow } from "./workflows/plan";
 import { prdOrientedDesignWorkflow } from "./workflows/prd-oriented-design";
@@ -23,10 +24,13 @@ export const changeDeliveryWorkflows: readonly WorkflowDefinition[] = [
   buildReviewWorkflow,
   doubleTddWorkflow,
   documentWorkflow,
+  implementOutlineWorkflow,
   researchWorkflow,
   prdOrientedDesignWorkflow,
   prdOrientedDiscoveryWorkflow,
 ];
+
+export { parseStructureOutline };
 
 export function getChangeDeliveryWorkflow(id: string): WorkflowDefinition {
   const workflow = changeDeliveryWorkflows.find((candidate) => candidate.id === id);

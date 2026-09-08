@@ -37,6 +37,7 @@ export interface PrimitiveCallOptions {
   readonly inputArtifact?: string;
   readonly outputArtifact?: string;
   readonly agentOwner?: string;
+  readonly sessionPolicy?: "reuse" | "fresh";
 }
 
 export interface InvocationResult<T extends PrimitiveType = PrimitiveType> {
@@ -144,6 +145,7 @@ export interface EvidenceEntry {
   readonly kind: string;
   readonly reference: string;
   readonly summary?: string;
+  readonly details?: unknown;
 }
 
 export interface IntegrationDecision {

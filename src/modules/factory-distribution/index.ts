@@ -17,5 +17,3 @@ export type {
   ConfigSource,
 } from "./application/configuration";
 export type { InstallationScope, SkillName } from "./application/distribution";
-export { parseReleaseOptions, releaseAndInstall } from "./application/release";
-export type { ReleaseOptions } from "./application/release";

@@ -9,4 +9,4 @@
 
 ## Verification
 
-Run the cheapest focused workflow-execution tests after each migration step, then run `bun run format:check`, `bun run lint`, `bun run typecheck`, `bun run test`, `bun run check:skill`, and package verification.
+Run the cheapest focused workflow-execution tests after each migration step, then run `bun run format:check`, `bun run lint`, `bun run typecheck`, `bun run test`, and package verification.

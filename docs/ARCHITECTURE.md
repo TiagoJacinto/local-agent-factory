@@ -97,12 +97,12 @@ A module guide must name its public interface, invariants, failure modes, depend
 
 ## Truth and freshness
 
-| Surface                                 | Authority                                                                |
-| --------------------------------------- | ------------------------------------------------------------------------ |
-| `src/`                                  | Canonical source                                                         |
-| `src/skills/`                           | Canonical skill source                                                   |
-| `dist/`                                 | Generated package output. Rebuild with `bun run build:skill`.            |
-| Stamped `adws/` in a target repository  | Installed copy generated from the package. Update through the installer. |
-| `adws/adw_data/` in a target repository | Runtime evidence, not source.                                            |
+| Surface                           | Authority                                                                  |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| `src/`                            | Canonical source                                                           |
+| `src/skills/`                     | Canonical skill source                                                     |
+| `dist/`                           | Generated visualizer/package output. Rebuild with `bun run build:package`. |
+| `local-agent-factory.config.yaml` | Target-repository configuration created by `laf init`.                     |
+| Configured trace database         | Runtime evidence, not source.                                              |
 
 A generated tree must identify its source and regeneration command. Checks must fail when a generated package, contract triad, workflow inventory, or document link drifts from its authority.

@@ -5,24 +5,25 @@ description: Run and monitor registered change-delivery workflows through the lo
 
 # SSSF
 
-SSSF runs registered change-delivery workflows through the canonical Factory. Start by listing installed `adws/factory/modules/change-delivery/workflows/` definitions and choose one workflow ID for the operator request.
+SSSF runs registered change-delivery workflows through the canonical Factory. Start by listing the available workflow definitions and choose one workflow ID for the operator request.
 
 ## Supported workflows
 
-| Workflow               | Purpose                             |
-| ---------------------- | ----------------------------------- |
-| prompt                 | bounded agent request               |
-| scout                  | read-only repository mapping        |
-| plan                   | implementable plan                  |
-| prewalk                | bounded planning handoff            |
-| build                  | implementation with human review    |
-| quality                | deterministic validation            |
-| build-review           | bounded build/review/revise loop    |
-| double-tdd             | acceptance and unit TDD loop        |
-| document               | diff capture and documentation      |
-| research               | scoped RPI research                 |
-| prd-oriented-design    | PRD then technical design           |
-| prd-oriented-discovery | research followed by PRD and design |
+| Workflow               | Purpose                                |
+| ---------------------- | -------------------------------------- |
+| prompt                 | bounded agent request                  |
+| scout                  | read-only repository mapping           |
+| plan                   | implementable plan                     |
+| prewalk                | bounded planning handoff               |
+| build                  | implementation with human review       |
+| quality                | deterministic validation               |
+| build-review           | bounded build/review/revise loop       |
+| double-tdd             | acceptance and unit TDD loop           |
+| document               | diff capture and documentation         |
+| implement-outline      | phased implementation with stacked PRs |
+| research               | scoped RPI research                    |
+| prd-oriented-design    | PRD then technical design              |
+| prd-oriented-discovery | research followed by PRD and design    |
 
 ## Operating contract
 
@@ -37,6 +38,5 @@ AI calls use configured agent owners and generic success/fail envelopes. Artifac
 - [references/observability.md](references/observability.md) — evidence manifests and SQLite traces.
 - [cookbooks/create_adw.md](cookbooks/create_adw.md) — add a workflow.
 - [cookbooks/update_modules.md](cookbooks/update_modules.md) — extend canonical ports/adapters.
-- [cookbooks/install.md](cookbooks/install.md) — package and install the skill.
 
 Do not inspect unrelated run history before receiving the request. Ask for the request, route it to one supported workflow, and report the resulting status and evidence.

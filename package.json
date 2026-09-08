@@ -1,6 +1,6 @@
 {
   "name": "local-agent-factory",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "private": false,
   "bin": {
     "laf": "./src/entrypoints/cli.ts"
@@ -8,7 +8,6 @@
   "files": [
     "src",
     "src/skills/sssf/apps/visualizer/dist",
-    "install.sh",
     "README.md",
     "LICENSE"
   ],
@@ -24,20 +23,15 @@
     "format:check": "oxfmt --check",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
-    "test:hvut": "bunx vitest run --project hvut tests/acceptance/unit/execute-workflow.hvut.ts",
-    "test:e2e:quick-start": "playwright test tests/e2e/quick-start.spec.ts",
+    "test:hvut": "bunx vitest run --project hvut tests/acceptance/unit/*.hvut.ts",
     "typecheck": "bun run typecheck:factory && bun run typecheck:app",
     "lint": "oxlint src tests",
     "lint:boundaries": "depcruise src tests",
     "lint:staged": "oxlint",
     "lint:fix": "oxlint src tests --fix",
-    "build:skill": "bun run src/modules/factory-distribution/application/build_skill.ts",
     "build:visualizer": "cd src/skills/sssf/apps/visualizer && bun install --frozen-lockfile && bun run build && rm -rf node_modules",
-    "build:package": "bun run build:visualizer && bun run build:skill",
+    "build:package": "bun run build:visualizer",
     "prepublishOnly": "bun run build:package",
-    "check:skill": "bun run src/modules/factory-distribution/application/build_skill.ts --check",
-    "package:skill": "bun run build:skill && bun run src/modules/factory-distribution/application/package_skill.ts",
-    "release:skill": "bun run src/modules/factory-distribution/application/release.ts",
     "start": "bun run src/entrypoints/cli.ts greet",
     "dev": "bun --watch run src/entrypoints/cli.ts greet",
     "typecheck:factory": "bun run typecheck.ts",
@@ -49,7 +43,6 @@
   },
   "devDependencies": {
     "@amiceli/vitest-cucumber": "^7.0.0",
-    "@playwright/test": "^1.52.0",
     "@types/bun": "^1.3.4",
     "dependency-cruiser": "^18.2.0",
     "lefthook": "^2.1.10",

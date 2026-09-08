@@ -1,9 +1,9 @@
 # Super Simple Software Factory
 
-> **Repeatable agents-plus-code workflows, packaged as one skill, stamped into any repo.**
+> **Repeatable agents-plus-code workflows, packaged as a Bun CLI.**
 > Deterministic TypeScript owns the graph. Coding agents are bounded nodes inside it.
 
-`src/` and `src/skills/` are this repository's source of truth. `dist/` is generated package output. An installed repository receives a generated `adws/` tree and writes runtime evidence to `adws/adw_data/`. Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the canonical system map and planned source convergence.
+`src/` and `src/skills/` are this repository's source of truth. `dist/` is generated package output. Target repositories receive only configuration from `laf init`; runtime evidence is written to the database path selected by that configuration. Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the canonical system map.
 
 📺 Full breakdown on YouTube: **[Super Simple Software Factory](https://youtu.be/haUfb1ievTE)**
 
@@ -20,7 +20,8 @@ A software factory does one thing: it gives you more leverage on your prompt. Ho
 Everyone can get an agent to write code once. Almost nobody gets the same result twice. This fixes that by moving the control plane out of the prompt and into TypeScript. An ADW script (AI Developer Workflow) owns sequencing, retries, and acceptance. Agents work inside named phases. Typed JSON envelopes carry context across the seams. Every event streams into SQLite while it is still happening. **Agent proposes, code disposes.**
 
 > [!NOTE]
-> **This branch is the skill alone**, which is the thing you install. For a repo with the factory already stamped into it, a demo app it planned, built, tested, reviewed, and documented, and the real traces from those runs, see the **[`example` branch](../../tree/example)**.
+> **This branch is the Bun CLI package.** For a demo app, workflow traces, and the
+> specs and docs produced by the factory, see the **[`example` branch](../../tree/example)**.
 
 ---
 
@@ -52,27 +53,18 @@ The bill for skipping this is not only tokens. It is cost, speed, and consistenc
 
 ## Quick start
 
-Install the factory in the repository where you want to use it:
+Install the Bun CLI, then initialize configuration in the repository where you want to use it:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash
+bun add --global local-agent-factory
+cd /path/to/your-repository
+laf init
+laf config show
+laf workflow list
 ```
 
-Add a provider key to the new `.env` file, then run the two read-only smoke tests:
-
-```bash
-$EDITOR .env
-just demo
-just sessions
-```
-
-Open Pi in that repository and use the installed skill:
-
-```text
-/skill:sssf
-```
-
-Ask it to scout the repository, create a plan, or run a complete workflow. Start with read-only work before allowing changes.
+`laf init` creates only `local-agent-factory.config.yaml`. It does not create
+`adws/`, `.pi/skills/`, `.env`, `justfile`, or any other repository runtime files.
 
 ---
 
@@ -93,9 +85,8 @@ laf app run visualizer
 ```
 
 The CLI keeps workflow and application assets inside the package, so it does not
-depend on this source checkout. `laf init` only creates factory configuration; it does
-not install repository runtime files. Use the one-command installer below when the
-target repository needs the runtime.
+depend on this source checkout. `laf init` only creates factory configuration and
+never installs repository runtime files.
 
 Install one of the two currently approved mock skills locally or globally:
 
@@ -110,105 +101,18 @@ Configuration is merged in this order: command-line options, the target reposito
 `~/.config/local-agent-factory/config.yaml`, then built-in defaults. Inspect the
 resolved values and their source with `laf config show`.
 
-### One-command install
+### Publishing
 
-Run this from the root of the target repository:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash
-```
-
-The installer downloads the skill, copies it to `.pi/skills/`, stamps the factory into the repository, and creates `.env` from `.env.sample` when needed. It requires [`Bun`](https://bun.sh), `curl`, `tar`, and a SHA-256 utility (`sha256sum` or `shasum`). The generated workflows may additionally use Git and Gitleaks when they validate source changes.
-
-Add your API key to the created `.env`, then smoke-test it:
-
-```bash
-just demo
-just sessions
-```
-
-In Pi, the installed skill is available as `/skill:sssf`. Ask it to run a scout, plan work, or execute a complete workflow.
-
-### Release versions
-
-The skill package is built from `src/` and published as a GitHub Release. The generated `.pi/skills/sssf/` tree is local build output and is not a source directory.
-
-The Bun CLI package is published to the npm registry for Bun consumers. Before publishing a version, build the visualizer and generated runtime, then publish the package:
+The Bun package is published to the npm registry. Build the visualizer and publish the
+package with:
 
 ```bash
 bun run build:package
 bun publish
 ```
 
-New installs use the latest stable release:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash
-```
-
-Choose an exact release when you need repeatability:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/TiagoJacinto/local-agent-factory/main/install.sh | bash -s -- --version v0.3.0
-```
-
-The installer records the resolved version in `adws/adw_sssf_config/sssf.lock.yaml`. Existing installs keep that version until you explicitly run the installer with `--version` or `--latest`.
-
-On this migration branch, run the one-time source migration first:
-
-```bash
-bun run migrate:skill -- --force
-```
-
-Then maintainers build the package with:
-
-```bash
-bun run package:skill
-```
-
-This creates `dist/sssf.tar.gz` and its checksum for a GitHub Release asset.
-
-To publish selected changes, wait for the tagged release workflow, and install that
-exact release into another checkout, use the deterministic factory script:
-
-```bash
-bun run release:skill -- \\
-  --path src/modules/factory-distribution/application/release.ts \\
-  --message "Publish release automation" \\
-  --target /path/to/target-repository
-```
-
-Repeat `--path` for each intended change. The script stages only those paths,
-commits and pushes the current branch, creates and pushes the package-version tag,
-polls `release.yml` until it succeeds, then runs the tagged `install.sh` in the
-target repository. Use `--version`, `--repo`, `--branch`, `--remote`, and the timeout
-flags when the defaults do not fit. The release package includes this script at
-`.pi/skills/sssf/scripts/release.ts`.
-
-Releases are published automatically when a tag matches the package version:
-
-```bash
-# package.json version must be 0.3.0
-git tag v0.3.0
-git push origin v0.3.0
-```
-
-The release workflow runs formatting, lint, typecheck, and tests. It then uploads
-`sssf.tar.gz` and `sssf.tar.gz.sha256` to the GitHub Release.
-
-### Manual install
-
-If you prefer not to run a remote script:
-
-```bash
-mkdir -p .pi/skills
-cp -r /path/to/local-agent-factory/.pi/skills/sssf .pi/skills/
-bun .pi/skills/sssf/scripts/install.ts
-```
-
-Re-running `install.ts` is safe. It skips every file that already exists and reports what it skipped, so a second run doubles as a drift check. `--update` refreshes runtime files, adds missing agents from the starter roster, and preserves your existing config entries, prompts, harness extensions, and justfile. `--force` refreshes **all** stamped files, including your `sssf.config.yaml` and your prompts, so commit first.
-
-Green on the smoke test means the whole path works: config validated, session minted, Pi ran, envelope parsed, events landed in `adws/adw_data/sssf.db`. Fix it there before composing anything larger, because every multi-agent chain rides this exact path.
+`laf init` is the only repository initialization command. It writes configuration and
+never stamps runtime files into a target repository.
 
 ### Which API keys you actually need
 
@@ -236,33 +140,23 @@ Everything here is built to be **observable**, **customizable**, and **reusable*
 
 **Customizable.** One YAML file sets the core four for every agent: context, model, prompt, tools. Different models at different price and speed points, in the same run. It is not about which model is best anymore, it is about which model is right for that one phase.
 
-**Reusable.** The whole thing is a skill you stamp into any repo, then bend to fit. The tests it ships are not your tests. The prompts it ships are starters. It is designed to be edited.
+**Reusable.** The whole thing is a Bun package you can configure for any repository. The tests it ships are not your tests. The prompts it ships are starters. It is designed to be edited.
 
 There are three actors here, and the design keeps them separate on purpose: **the engineer**, **the code**, and **the agents**. The trick is not running more agents. The trick is using all three at the right moment.
 
 ---
 
-## The skill is the product
+## Package assets
 
-<p align="center">
-  <img src="images/03_skill_stamp.svg" alt="The sssf skill directory on the left stamping config, adws, and prompt_engineering into three different target repos" width="780">
-</p>
+The Bun package contains the CLI, workflow definitions, the visualizer, and approved
+mock skills. These assets stay inside the package; installing the package does not copy
+them into a target repository.
 
-The skill package lives in `.pi/skills/sssf/`. It contains the hard rules, cookbooks, references, scripts, and templates. `SKILL.md` routes each request to one of nine cookbooks; `templates/` holds exactly what gets stamped.
+`laf init` creates only the configuration file that selects workflow and visualizer
+paths. Runtime data is written only when a command is explicitly run against a
+configured database.
 
-| What lands in your repo                           | Where it comes from               | Tracked                               |
-| ------------------------------------------------- | --------------------------------- | ------------------------------------- |
-| `adws/adw_sssf_config/sssf.config.yaml`           | `templates/sssf.config.yaml`      | yes, it is your agent roster          |
-| `adws/factory/modules/change-delivery/workflows/` | `templates/adws/`                 | yes, registered workflow definitions  |
-| `adws/factory/modules/`                           | `templates/adws/factory/modules/` | yes, current runtime implementation   |
-| `adws/adw_data/prompt_engineering/`               | `templates/prompt_engineering/`   | yes, **your prompts live here**       |
-| `.env.sample`                                     | `templates/env.sample`            | yes                                   |
-| `justfile`                                        | `templates/justfile`              | yes, starter recipes to run and watch |
-| `adws/adw_data/sessions/`, `sssf.db`              | created at runtime                | no, gitignored                        |
-
-The prompts are yours the moment they land. Edit them in `adws/adw_data/prompt_engineering/{agent}/`, never back inside the skill.
-
-There is no DSL here. No framework to learn. It is TypeScript, YAML, agents, and a skill, which is exactly what these models are already trained on. Staying in distribution is a feature.
+There is no repository stamping step, remote installer, or generated `adws/` tree.
 
 ---
 
@@ -390,47 +284,38 @@ That one cursor query is the entire transport. Live view and full history are th
 
 Files stay the raw record (`raw_output.jsonl`, `envelope.json`, `agent_map.json`). The db is the queryable mirror. Losing it loses nothing you cannot rebuild.
 
-The skill ships a read-only UI for this db at `.<agent>/skills/sssf/apps/visualizer/`: Vue and Vite served by Bun on port 4600, with sessions, a trace waterfall, and per-phase tool-call detail.
+The package ships a read-only UI for the trace database. Start it through the CLI:
 
 ```bash
-# Use .pi for Pi.
-cd .pi/skills/sssf/apps/visualizer && bun install
-SSSF_DB=/abs/path/to/your-repo/adws/adw_data/sssf.db bun run server/index.ts &
-bunx vite
+laf app run visualizer --database /path/to/sssf.db
 ```
 
-It resolves its target through `--db`, then `SSSF_DB`, then `<cwd>/adws/adw_data/sssf.db`, so one instance can point at any stamped repo. Pass the db explicitly, because the server runs from the app dir.
+The visualizer listens on the configured port (4600 by default) and does not require a
+`.pi/skills/` directory or a stamped repository.
 
 ---
 
 ## What is in this branch
 
 ```text
-super-simple-software-factory/          # the deployable factory, and nothing else
-└── .pi/skills/sssf/                     # Pi skill package
-    ├── SKILL.md                        # hard rules + request routing table
-    ├── cookbooks/                      # 9 orchestrator playbooks, loaded lazily
-    ├── references/                     # config / handoff / observability specs
-    ├── scripts/                        # install.ts, make_config.ts
-    ├── apps/visualizer/                # the read-only trace UI (Vue + Vite on Bun)
-    └── templates/                      # EXACTLY what install.ts stamps
-        ├── sssf.config.yaml            # the starter roster
-        ├── prompt_engineering/{agent}/ # system.md + user.md per agent
-        └── adws/
-            ├── run.ts                  # single workflow invocation entrypoint
-            └── factory/modules/        # runtime and canonical workflow definitions
+local-agent-factory/
+├── src/entrypoints/cli.ts              # the `laf` command
+├── src/modules/                         # workflow and distribution modules
+├── src/skills/sssf/apps/visualizer/    # packaged trace UI
+└── package.json                         # Bun package metadata
 ```
 
-The skill is also what an agent reads to _operate_ the factory. `SKILL.md` is the central idea, and the cookbooks are lazily loaded recipes it pulls in one at a time: set up the factory, create an ADW, modify a chain, add an agent, run and monitor. If you can teach an agent to do something, teach it, then go build the thing it cannot.
+The package is self-contained. `laf init` creates configuration only; it does not copy
+source, workflow, skill, environment, or task-runner files into another repository.
 
 ---
 
 ## Registered workflows
 
-Every ADW takes the same shape:
+Every workflow takes the same shape:
 
 ```bash
-bun adws/run.ts <workflow-id> "<prompt or path/to/prompt.md>" [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
+laf workflow run <workflow-id> "<prompt or path/to/prompt.md>" [--config /path/to/sssf.config.yaml] [--cwd /path/to/repository]
 ```
 
 | ADW                             | Chain                                  | Reach for it when                                            |
@@ -454,8 +339,8 @@ The repository-only composition examples are documented in [`docs/adw-examples/`
 `--adw-id` is optional everywhere. Omit it and a fresh id is minted and printed. Supply it and the run joins that session: same dirs, same `context_handoff/`, and each agent **resumes its existing context window** through `agent_map.json` instead of starting cold. That is how you chain workflows.
 
 ```bash
-bun adws/run.ts plan "add a /health endpoint"              # prints adw_id a1b2c3d4
-bun adws/run.ts build "implement the plan" --adw-id a1b2c3d4
+laf workflow run plan "add a /health endpoint" --config /path/to/sssf.config.yaml
+laf workflow run build "implement the plan" --config /path/to/sssf.config.yaml
 ```
 
 Watch a run with the trace db directly:
@@ -466,7 +351,8 @@ sqlite3 adws/adw_data/sssf.db "select seq, name, kind, owner, status from phases
 sqlite3 adws/adw_data/sssf.db "select kind, name, pid, command from processes where adw_id='a1b2c3d4' and ended_at is null;"
 ```
 
-Reads never block a running workflow, the db is WAL. `install.ts` stamps a `justfile` wrapping all of the above, so in a fresh repo these are `just sessions`, `just phases <adw_id>`, `just tail <adw_id>`, and `just procs <adw_id>`.
+Reads never block a running workflow; the trace database uses WAL. Inspect it directly
+with your database tooling or point `laf app run visualizer` at it.
 
 ---
 
@@ -474,19 +360,16 @@ Reads never block a running workflow, the db is WAL. `install.ts` stamps a `just
 
 Honest edges, because knowing them is cheaper than discovering them.
 
-| Failure                                         | What actually happens                                                                                                                     | What to do                                                                                                                               |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| The test phase reports green on a fresh install | `quality.ts` ships placeholder commands that exit 0. Three ADWs run them as their test phase                                              | Wire your real commands into `quality.ts` before trusting the repository-only composition examples. This is the first thing to customize |
-| A bare model pattern                            | The same model sits under several providers, so `gemini-3.6-flash` matches three catalog entries and `agents.validate()` refuses to spawn | Always write `provider/model-id`                                                                                                         |
-| `just` is not installed                         | The stamped `justfile` is a convenience wrapper, nothing depends on it                                                                    | Every recipe is a one-line `bun` or `sqlite3` command. Open the justfile and run the line yourself                                       |
-| The source directory is not a Git repository    | The target design rejects source-changing work before any agent or command runs                                                           | Initialise Git and provide a clean expected revision before requesting a source-changing workflow                                        |
-| A coding agent hangs silently                   | No events, no tokens, an empty `raw_output.jsonl`. The trace goes quiet rather than red                                                   | Query `processes` for what is alive and kill it children-first. A killed run finalizes its own trace to `fail`                           |
-| The synced triad drifts                         | Type, `## Report` example, and `output_type=` disagree, so every call burns correction rounds                                             | Grep the type name and fix all three in one edit                                                                                         |
-| Gates pass, output is bad                       | Gates check what a predicate can check, not plan quality or code taste                                                                    | Run the `reviewer`, or read it yourself                                                                                                  |
-| An agent edits something it should not          | Detected and rolled back after the call, and the phase fails                                                                              | Expected. Widen that agent's `writes` if the change was legitimate                                                                       |
-| Commit phase has nothing to commit              | `commit_all` raises if the cwd is not a git repo or nothing changed                                                                       | `git init` with one commit first. A no-op build fails the phase rather than committing nothing                                           |
-| `install.ts --force`                            | Overwrites **all** stamped files, config and prompts included                                                                             | Commit before you force                                                                                                                  |
-| `coding_agent: pi`                              | Supported coding agent                                                                                                                    | Use Pi                                                                                                                                   |
+| Failure                                      | What actually happens                                                                                                                     | What to do                                                                                                     |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| A bare model pattern                         | The same model sits under several providers, so `gemini-3.6-flash` matches three catalog entries and `agents.validate()` refuses to spawn | Always write `provider/model-id`                                                                               |
+| The source directory is not a Git repository | The target design rejects source-changing work before any agent or command runs                                                           | Initialise Git and provide a clean expected revision before requesting a source-changing workflow              |
+| A coding agent hangs silently                | No events, no tokens, an empty `raw_output.jsonl`. The trace goes quiet rather than red                                                   | Query `processes` for what is alive and kill it children-first. A killed run finalizes its own trace to `fail` |
+| The synced triad drifts                      | Type, `## Report` example, and `output_type=` disagree, so every call burns correction rounds                                             | Grep the type name and fix all three in one edit                                                               |
+| Gates pass, output is bad                    | Gates check what a predicate can check, not plan quality or code taste                                                                    | Run the `reviewer`, or read it yourself                                                                        |
+| An agent edits something it should not       | Detected and rolled back after the call, and the phase fails                                                                              | Expected. Widen that agent's `writes` if the change was legitimate                                             |
+| Commit phase has nothing to commit           | `commit_all` raises if the cwd is not a git repo or nothing changed                                                                       | `git init` with one commit first. A no-op build fails the phase rather than committing nothing                 |
+| `coding_agent: pi`                           | Supported coding agent                                                                                                                    | Use Pi                                                                                                         |
 
 The canonical runtime path requires a clean Git source commit at the expected revision, creates a disposable clone, rechecks the source after completion, and stops at a manual review result. The source-architecture migration removes the non-Git copy path rather than treating weaker source safety as a second workflow mode. The factory never merges, pushes, deploys, or integrates the workspace automatically.
 
@@ -519,7 +402,8 @@ So take it. Fork it, strip the parts you do not need, rename the agents, throw o
 
 ## See it in a real repo
 
-The [`example` branch](../../tree/example) is this same skill with the factory already stamped in: a populated `adws/`, a `justfile`, a demo app the factory planned, built, tested, reviewed, and documented, and the specs, docs, and traces those runs produced.
+The [`example` branch](../../tree/example) contains a demo app, workflow traces, and the
+specs and docs produced by the factory.
 
 ```bash
 git clone <this-repo> sssf && cd sssf

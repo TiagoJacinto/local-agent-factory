@@ -108,6 +108,32 @@ describe("configured agent runtime fidelity", () => {
     expect(calls[1].prompt).toContain("42");
   });
 
+  test("creates a fresh session when the invocation requests it", async () => {
+    const { config } = setup();
+    const calls: any[] = [];
+    const runtime = new ConfiguredAgentRuntime(config, {
+      pi: fakeRuntime([{ text: '{"status":"success"}' }, { text: '{"status":"success"}' }], calls),
+      opencode: fakeRuntime([], []),
+    });
+    await runtime.invoke({
+      invocationId: "one",
+      runIdentifier: "run",
+      name: "a",
+      input: "first",
+      options: { agentOwner: "planner", sessionPolicy: "fresh" },
+      signal: new AbortController().signal,
+    });
+    await runtime.invoke({
+      invocationId: "two",
+      runIdentifier: "run",
+      name: "b",
+      input: "second",
+      options: { agentOwner: "planner", sessionPolicy: "fresh" },
+      signal: new AbortController().signal,
+    });
+    expect(calls[0].sessionId).not.toBe(calls[1].sessionId);
+  });
+
   test("corrects malformed envelopes in the same session", async () => {
     const { config } = setup();
     const calls: any[] = [];

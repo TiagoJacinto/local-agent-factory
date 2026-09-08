@@ -166,7 +166,7 @@ Move each `adw_*.ts` and the matching composition from `adw_modules/workflows.ts
 
 ### 5. Move distribution last
 
-Move build, package, installer, generated-sync, and template assets into `factory-distribution`. Its manifest becomes the only mapping from canonical source to generated package. Generated files carry their source and regeneration command.
+Move build, package, and generated-sync assets into `factory-distribution`. Its manifest becomes the only mapping from canonical source to generated package. Generated files carry their source and regeneration command.
 
 ### 6. Remove obsolete paths
 
@@ -182,4 +182,4 @@ The migration is complete only when:
 - source-changing workflows reject a dirty or unexpected Git source before any agent or command runs;
 - every run writes an Evidence Manifest and records an explicit integration outcome when it reaches human review;
 - contract, link, inventory, and generated-package checks run in CI;
-- `bun run format:check`, `bun run lint`, `bun run typecheck`, `bun run test`, `bun run check:skill`, and package verification pass.
+- `bun run format:check`, `bun run lint`, `bun run typecheck`, `bun run test`, and package verification pass.

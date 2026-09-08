@@ -1,4 +1,4 @@
-# SSSF starter recipes. Stamped by install.ts, then yours to edit.
+# SSSF development recipes for this repository.
 #
 # Deliberately small. These are the handful you need on day one: run something,
 # watch it, and open the trace. Add your own as your chains grow, and see the
@@ -35,8 +35,7 @@ demo:
 
 # ── run a workflow ──────────────────────────────────────────────────────────
 # Args pass straight through: "<prompt or path/to/prompt.md>" [--adw-id X]
-# Composition examples are documented in the factory repository and are not
-# stamped into target repositories.
+# Composition examples are documented in the factory repository.
 
 # one agent, one prompt: just prompt "summarize this repo"
 prompt *ARGS:
