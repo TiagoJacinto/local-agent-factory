@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { resolveConfig, installSkill } from "../index";
+import { formatResolvedConfig, resolveConfig, installSkill } from "../index";
 
 describe("factory distribution", () => {
   test("resolves local configuration over global configuration and defaults", () => {
@@ -28,6 +28,28 @@ describe("factory distribution", () => {
       expect(resolved.sources["workflow.database"]).toBe("global");
       expect(resolved.value.workflow.agents.length).toBeGreaterThan(0);
       expect(resolved.sources["workflow.agents"]).toBe("built-in");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("identifies absent configuration files in the resolved config display", () => {
+    const root = mkdtempSync(join(homedir(), "laf-config-"));
+    const cwd = join(root, "repository");
+    const xdgConfigHome = join(root, "xdg");
+    try {
+      mkdirSync(cwd, { recursive: true });
+
+      const resolved = resolveConfig({ cwd, xdgConfigHome });
+      const shown = formatResolvedConfig(resolved);
+
+      expect(shown).toContain(
+        `global config: absent (${join(xdgConfigHome, "local-agent-factory/config.yaml")})`,
+      );
+      expect(shown).toContain(
+        `local config: absent (${join(cwd, "local-agent-factory.config.yaml")})`,
+      );
+      expect(shown).toContain("workflow.database: .laf/sssf.db (built-in)");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

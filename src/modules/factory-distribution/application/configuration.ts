@@ -246,13 +246,20 @@ export function resolveConfig(
 }
 
 export function formatResolvedConfig(config: ResolvedFactoryConfig): string {
+  const globalConfig = existsSync(config.paths.global)
+    ? config.paths.global
+    : `absent (${config.paths.global})`;
+  const localConfig = existsSync(config.paths.local)
+    ? config.paths.local
+    : `absent (${config.paths.local})`;
+
   return [
     `workflow.database: ${config.value.workflow.database} (${config.sources["workflow.database"]})`,
     `workflow.defaults: inline (${config.sources["workflow.defaults"]})`,
     `workflow.observability: inline (${config.sources["workflow.observability"]})`,
     `workflow.agents: ${config.value.workflow.agents.length} inline agents (${config.sources["workflow.agents"]})`,
     `apps.visualizer.port: ${config.value.apps.visualizer.port} (${config.sources["apps.visualizer.port"]})`,
-    `global config: ${config.paths.global}`,
-    `local config: ${config.paths.local}`,
+    `global config: ${globalConfig}`,
+    `local config: ${localConfig}`,
   ].join("\n");
 }

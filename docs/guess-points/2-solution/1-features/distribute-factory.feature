@@ -54,3 +54,10 @@ Feature: Distribute and operate the Local Agent Factory
     And local values override global values
     And unspecified values retain global or built-in defaults
     And "laf config show" identifies each resolved value's source
+
+  Scenario: Identify absent configuration files
+    Given the Factory Operator has no global or local configuration file
+    When the Factory Operator runs "laf config show"
+    Then the output identifies the global configuration file as absent
+    And the output identifies the local configuration file as absent
+    And the resolved values use built-in defaults
