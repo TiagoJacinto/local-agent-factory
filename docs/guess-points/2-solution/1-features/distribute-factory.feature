@@ -1,11 +1,13 @@
 Feature: Distribute and operate the Local Agent Factory
   A Factory Operator can install the Bun-based CLI, run its capabilities, install approved skills, and configure behavior by scope.
 
-  Scenario: Initialize local factory configuration without installing runtime files
+  Scenario: Initialize a self-contained local factory configuration
     Given the Local Agent Factory CLI is installed
     And the Factory Operator is in a target repository
     When the Factory Operator runs "laf init"
     Then a local factory configuration file is created
+    And the file contains the workflow and agent configuration
+    And the file contains no references to external YAML configuration files
     And no factory runtime files are installed
 
   Scenario: Initialize global factory configuration
@@ -22,7 +24,7 @@ Feature: Distribute and operate the Local Agent Factory
 
   Scenario: Run packaged workflows and applications
     Given the Local Agent Factory CLI is installed
-    And the Factory Operator is in a target repository with configured workflow paths
+    And the Factory Operator is in a target repository with self-contained workflow configuration
     When the Factory Operator uses the available capabilities
       | command                          | outcome                           |
       | laf workflow list                | registered workflows are listed   |

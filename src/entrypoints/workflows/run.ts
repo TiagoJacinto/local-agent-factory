@@ -15,13 +15,7 @@ export async function runWorkflowCli(
     const index = args.indexOf(name);
     return index >= 0 ? args[index + 1] : undefined;
   };
-  const optionsWithValues = new Set([
-    "--agent",
-    "--revision",
-    "--problem-folder",
-    "--config",
-    "--adw-id",
-  ]);
+  const optionsWithValues = new Set(["--agent", "--revision", "--problem-folder", "--adw-id"]);
   const request = args
     .filter((arg, index) => !arg.startsWith("--") && !optionsWithValues.has(args[index - 1] ?? ""))
     .join(" ");
@@ -29,9 +23,7 @@ export async function runWorkflowCli(
   if (!workflow || !request) return 2;
   const config = resolveConfig();
   const run = await new Factory(changeDeliveryWorkflows, {
-    agentRuntime: new ConfiguredAgentRuntime(
-      option("--config") ?? process.env.SSSF_CONFIG ?? config.value.workflow.config,
-    ),
+    agentRuntime: new ConfiguredAgentRuntime(config.value.workflow),
     traceSink: new SqliteTraceSink(process.env.SSSF_DB ?? config.value.workflow.database),
   }).execute({
     workflowId,

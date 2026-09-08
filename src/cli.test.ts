@@ -45,9 +45,14 @@ describe("CLI", () => {
       expect(existsSync(join(directory, "local-agent-factory.config.yaml"))).toBe(true);
       expect(existsSync(join(directory, "adws"))).toBe(false);
       expect(existsSync(join(directory, ".pi/skills/sssf"))).toBe(false);
-      expect(readFileSync(join(directory, "local-agent-factory.config.yaml"), "utf8")).toContain(
-        "visualizer:",
-      );
+      const configText = readFileSync(join(directory, "local-agent-factory.config.yaml"), "utf8");
+      expect(configText).toContain("agents");
+      expect(configText).toContain("prompts");
+      expect(configText).not.toContain("adws/");
+
+      messages.length = 0;
+      await cli.parseAsync(["node", "laf", "config", "show", "--cwd", directory]);
+      expect(messages.join("\n")).toContain("workflow.agents: 11 inline agents (local)");
 
       await cli.parseAsync([
         "node",

@@ -1,7 +1,5 @@
 # Configuration
 
-The installed configuration lives at `adws/adw_sssf_config/sssf.config.yaml`. It defines defaults, protected paths, allowed environment names, timeouts, and configured agents. Each agent names a Pi or OpenCode provider, model, thinking level, tools, writes, and prompt files.
+The installed configuration lives at `local-agent-factory.config.yaml`. It defines defaults, protected files, allowed environment names, timeouts, configured agents, and each agent's inline system and user prompts. Each agent names a Pi or OpenCode provider, model, thinking level, tools, and write boundaries.
 
-Default protected paths are `adws/factory/`, `adws/adw_sssf_config/`, and `adws/factory/modules/change-delivery/workflows/`. Agent writes are enforced in the disposable Git workspace; unauthorized changes are rolled back and fail the phase. Runtime session files live under configured `data_dir` and are not part of repository write permissions.
-
-Use `--config <path>` or `SSSF_CONFIG` to select a configuration. Agent owners in workflow phase definitions must exist in the roster. Provider credentials are validated before invocation.
+Runtime session files live under the configured `data_dir` and are not part of repository write permissions. Agent owners in workflow phase definitions must exist in the roster. Provider credentials are validated before invocation.

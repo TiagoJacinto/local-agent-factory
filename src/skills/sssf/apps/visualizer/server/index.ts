@@ -7,7 +7,7 @@
  * agents → sqlite → web ui, and the UI gets there by polling.
  *
  *   bun run server/index.ts
- *   bun run server/index.ts --db /path/to/repo/adws/adw_data/sssf.db
+ *   bun run server/index.ts --db /path/to/repo/.laf/sssf.db
  *   SSSF_DB=/path/to/sssf.db PORT=4600 bun run server/index.ts
  */
 import { existsSync, statSync } from "node:fs";
@@ -72,8 +72,18 @@ function param(req: Request, key: string): string {
   );
 }
 
+function requestUrl(req: Request): URL | undefined {
+  try {
+    return new URL(req.url);
+  } catch {
+    return undefined;
+  }
+}
+
 function intQuery(req: Request, key: string, fallback: number): number {
-  const raw = new URL(req.url).searchParams.get(key);
+  const url = requestUrl(req);
+  if (!url) return fallback;
+  const raw = url.searchParams.get(key);
   if (raw === null || raw.trim() === "") return fallback;
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -81,7 +91,9 @@ function intQuery(req: Request, key: string, fallback: number): number {
 
 /** Serve the built SPA if it has been built; otherwise point at the dev server. */
 async function serveStatic(req: Request): Promise<Response> {
-  const { pathname } = new URL(req.url);
+  const url = requestUrl(req);
+  if (!url) return notFound("invalid request URL");
+  const { pathname } = url;
 
   if (!existsSync(DIST_DIR)) {
     return new Response(
@@ -183,7 +195,9 @@ const server = Bun.serve({
   },
 
   fetch(req) {
-    const { pathname } = new URL(req.url);
+    const url = requestUrl(req);
+    if (!url) return notFound("invalid request URL");
+    const { pathname } = url;
     if (pathname.startsWith("/api/")) return notFound(`no route ${pathname}`);
     return serveStatic(req);
   },

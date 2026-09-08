@@ -68,7 +68,6 @@ export function createCli(output: Output = console.log): Command {
     .option("--agent <agent>", "agent owner")
     .option("--revision <revision>", "expected source revision")
     .option("--problem-folder <path>", "problem folder")
-    .option("--config <path>", "agent configuration path")
     .option("--adw-id <id>", "run identifier")
     .option("--cwd <path>", "target repository", process.cwd())
     .action(async (workflowId: string, request: string[], options: Record<string, string>) => {

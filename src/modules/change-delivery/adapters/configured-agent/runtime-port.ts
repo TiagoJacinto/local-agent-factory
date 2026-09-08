@@ -1,11 +1,11 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentRuntimePort } from "../../../workflow-execution/ports/agent-runtime";
 import type { PrimitiveInvocationArguments } from "../../../workflow-execution/domain/workflow";
 import { loadConfig, resolveAgent } from "./config";
 import * as pi from "../pi-agent/agent_pi";
 import * as opencode from "../opencode-agent/agent_opencode";
-import { render } from "../pi-agent/prompts";
+import { renderTemplate } from "../pi-agent/prompts";
 import type { AgentRuntime } from "../pi-agent/agent_runtime";
 import { enforce, snapshot } from "../../../workflow-execution/process-runtime";
 
@@ -58,12 +58,8 @@ function makeContext(
     ? `\nPrevious handoff (${input.inputArtifact.id}):\n${JSON.stringify(input.inputArtifact.value, null, 2)}`
     : "";
   const prompt = `${input.input}${artifact}`;
-  const systemPrompt = existsSync(agent.prompt_engineering.system)
-    ? readFileSync(agent.prompt_engineering.system, "utf8")
-    : "";
-  const userPrompt = existsSync(agent.prompt_engineering.user)
-    ? render(agent.prompt_engineering.user, { prompt })
-    : prompt;
+  const systemPrompt = agent.prompts.system;
+  const userPrompt = renderTemplate(agent.prompts.user, { prompt });
   return {
     input,
     owner,
@@ -163,11 +159,8 @@ export class ConfiguredAgentRuntime implements AgentRuntimePort {
   private readonly config: ReturnType<typeof loadConfig>;
   private readonly sessions = new Map<string, string>();
   private readonly runtimes: RuntimeSet;
-  constructor(
-    configPath = "adws/adw_sssf_config/sssf.config.yaml",
-    runtimes = { pi: pi.runtime, opencode: opencode.runtime },
-  ) {
-    this.config = loadConfig(configPath);
+  constructor(config: unknown, runtimes = { pi: pi.runtime, opencode: opencode.runtime }) {
+    this.config = loadConfig(config);
     this.runtimes = runtimes;
   }
 

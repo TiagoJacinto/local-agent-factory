@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, test } from "vitest";
@@ -6,36 +6,28 @@ import { ConfiguredAgentRuntime, type AgentRuntime } from "../configured-agent-r
 
 function setup(prewalk = false) {
   const root = mkdtempSync(join(tmpdir(), "configured-agent-"));
-  const system = join(root, "system.md"),
-    user = join(root, "user.md");
-  writeFileSync(system, "system");
-  writeFileSync(user, "{{prompt}}");
-  const config = join(root, "config.yaml");
-  writeFileSync(
-    config,
-    JSON.stringify({
-      defaults: { data_dir: `${root}/data` },
-      agents: [
-        {
-          name: "planner",
-          coding_agent: "pi",
-          model: "test/model",
-          thinking: "medium",
-          tools: ["todo", "bash"],
-          writes: ["allowed.txt"],
-          ...(prewalk
-            ? {
-                prewalk: {
-                  implementation_model: "test/implementation",
-                  implementation_thinking: "high",
-                },
-              }
-            : {}),
-          prompt_engineering: { system, user },
-        },
-      ],
-    }),
-  );
+  const config = {
+    defaults: { data_dir: `${root}/data` },
+    agents: [
+      {
+        name: "planner",
+        coding_agent: "pi",
+        model: "test/model",
+        thinking: "medium",
+        tools: ["todo", "bash"],
+        writes: ["allowed.txt"],
+        ...(prewalk
+          ? {
+              prewalk: {
+                implementation_model: "test/implementation",
+                implementation_thinking: "high",
+              },
+            }
+          : {}),
+        prompts: { system: "system", user: "{{prompt}}" },
+      },
+    ],
+  };
 
   return { root, config };
 }

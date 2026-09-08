@@ -15,54 +15,30 @@ The ADW is the worker. Your job is to launch it, watch the trace, and tell the e
 Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the ADW the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read `ls adws/factory/modules/change-delivery/workflows/` and the `Phases:` line in each docstring to see what this repo has; the names below are shape, not a menu.
 
 ```bash
-bun adws/run.ts <workflow-id> "add a /health endpoint"
-bun adws/run.ts <workflow-id> requests/health.md
-bun adws/run.ts <workflow-id> "implement the plan" --adw-id a1b2c3d4
-bun adws/run.ts <workflow-id> "where is auth handled" --config path/to/other.config.yaml
+laf workflow run <workflow-id> "add a /health endpoint"
+laf workflow run <workflow-id> "implement the plan" --adw-id a1b2c3d4
+laf workflow run <workflow-id> "where is auth handled" --cwd /path/to/repository
 ```
+
+The target repository's `local-agent-factory.config.yaml` contains the complete inline roster and prompts.
 
 The prompt is inline text or a file path. Launch in the background so you can poll while it works; the `adw_id` is printed on startup — capture it, everything else keys off it.
 
-RPI workflows (`adws/run.ts research`, `adws/run.ts prd-oriented-design`, and `adws/run.ts prd-oriented-discovery`) require the problem directory explicitly:
+RPI workflows (`research`, `prd-oriented-design`, and `prd-oriented-discovery`) require the problem directory explicitly:
 
 ```bash
-bun adws/run.ts research "research this request" --problem-folder .rpi/problems/<slug>
+laf workflow run research "research this request" --problem-folder .rpi/problems/<slug>
 ```
 
 ### Listen for the roster
 
-The chain says _what runs_; the config says _who runs it_. **If the engineer references a roster, a config, or a model tier, pass it — do not fall through to the default.**
+The chain says _what runs_; `local-agent-factory.config.yaml` says _who runs it_. Inspect the resolved configuration before launching:
 
 ```bash
-just rosters                            # every roster on disk, and the model each agent runs
+laf config show
 ```
 
-That prints the path to pass and who is in it, in one read:
-
-```
-adws/adw_sssf_config/sssf.config.yaml
-    planner     fireworks/accounts/fireworks/models/kimi-k3
-    builder     google/gemini-3.6-flash (inherited)
-adws/adw_sssf_config/sssf.frontier.config.yaml
-```
-
-Read those from disk every time. Rosters are the engineer's to add, rename, and retune, so a name you remember from a doc is a guess.
-
-They will rarely say `--config`. Treat any of these as naming a roster, then resolve it to a file:
-
-| What they say                                              | What it means                                                                                                                                                     |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| "run it on the frontier config", "use the frontier roster" | the roster file whose name matches                                                                                                                                |
-| "run this with the big models", "use the sota roster"      | the non-default roster — confirm which if there is more than one. Each config's header comment lists the names it answers to, so `head -3` on the file settles it |
-| "have opus plan this one"                                  | a roster whose planner is that model; if none exists, say so rather than editing the config mid-request                                                           |
-| nothing about models at all                                | the default, `adws/adw_sssf_config/sssf.config.yaml`                                                                                                              |
-
-`--config` takes the path directly; the justfile recipes read `SSSF_CONFIG` instead:
-
-```bash
-bun adws/run.ts <workflow-id> "<prompt>" --config adws/adw_sssf_config/sssf.frontier.config.yaml
-SSSF_CONFIG=adws/adw_sssf_config/sssf.frontier.config.yaml just <recipe> "<prompt>"
-```
+Change models, prompts, tools, and write boundaries directly in that one file. There are no alternate roster YAML files or `--config` overrides.
 
 Two things that bite:
 
@@ -73,27 +49,27 @@ Two things that bite:
 
 ## Observe
 
-The trace db is `adws/adw_data/sssf.db`. It is WAL, so reads never block the running writers — poll it as often as you like.
+The trace db is `.laf/sssf.db` by default. It is WAL, so reads never block the running writers — poll it as often as you like.
 
 ```bash
 # where the run stands
-sqlite3 adws/adw_data/sssf.db \
+sqlite3 .laf/sssf.db \
   "select seq, name, kind, owner, status, attempt from phases where adw_id='a1b2c3d4' order by seq;"
 
 # the live tail — cursor on rowid, same query the visualizer polls
-sqlite3 adws/adw_data/sssf.db \
+sqlite3 .laf/sssf.db \
   "select rowid, type, name, started_at from events where adw_id='a1b2c3d4' and rowid > 0 order by rowid limit 50;"
 
 # why a phase failed
-sqlite3 adws/adw_data/sssf.db \
+sqlite3 .laf/sssf.db \
   "select attempt, gate, passed, checks_json from gate_results where adw_id='a1b2c3d4';"
 
 # session-level status
-sqlite3 adws/adw_data/sssf.db \
+sqlite3 .laf/sssf.db \
   "select adw_id, request, status, total_tokens from sessions order by started_at desc limit 5;"
 
 # what an agent actually did, slowest tool calls first
-sqlite3 adws/adw_data/sssf.db \
+sqlite3 .laf/sssf.db \
   "select name, tokens, started_at, ended_at from events
    where adw_id='a1b2c3d4' and type='tool_call' order by ended_at desc limit 20;"
 ```
@@ -104,7 +80,7 @@ Poll on a cursor: keep the highest `rowid` you have seen and query `where rowid 
 
 The ADW also narrates to stdout, and every line it prints is written to the db as a `log` event — terminal and swim lane tell the same story by construction, so tailing the background process is a valid second view rather than a competing source of truth.
 
-Files are the raw record if you need more than the db shows: `adws/adw_data/sessions/{adw_id}/{agent}/raw_output.jsonl` (full coding-agent stream), `envelope.json` (the parsed final response), `prompts/` (exactly what was sent), and `context_handoff/` (what agents wrote for each other).
+Files are the raw record if you need more than the db shows: `.laf/agent-sessions/{adw_id}/{agent}/` contains the session outputs and handoffs.
 
 ## When a run is stuck
 

@@ -26,8 +26,8 @@ describe("factory distribution", () => {
       expect(resolved.sources["apps.visualizer.port"]).toBe("local");
       expect(resolved.value.workflow.database).toBe("global.db");
       expect(resolved.sources["workflow.database"]).toBe("global");
-      expect(resolved.value.workflow.config).toBe("adws/adw_sssf_config/sssf.config.yaml");
-      expect(resolved.sources["workflow.config"]).toBe("built-in");
+      expect(resolved.value.workflow.agents.length).toBeGreaterThan(0);
+      expect(resolved.sources["workflow.agents"]).toBe("built-in");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

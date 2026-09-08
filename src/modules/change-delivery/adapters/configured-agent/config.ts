@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve as resolvePath } from "node:path";
 import * as pi from "../pi-agent/agent_pi";
 import * as opencode from "../opencode-agent/agent_opencode";
 import type { AgentRuntime } from "../pi-agent/agent_runtime";
@@ -25,7 +23,7 @@ export interface AgentConfig {
   prewalk?: { implementation_model: string; implementation_thinking: string };
   color: string;
   purpose: string;
-  prompt_engineering: { system: string; user: string };
+  prompts: { system: string; user: string };
   tools: string[] | null;
   writes: string[] | null;
   allowed_env: string[];
@@ -35,60 +33,130 @@ export interface SSSFConfig {
   observability: { db: string; poll_ms: number };
   agents: AgentConfig[];
 }
-export function resolveRuntimePath(value: string) {
-  return resolvePath(process.cwd(), value);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-export function loadConfig(path = "adws/adw_sssf_config/sssf.config.yaml"): SSSFConfig {
-  const text = readFileSync(path, "utf8");
-  let raw: any;
-  try {
-    raw = (typeof Bun !== "undefined" ? Bun.YAML.parse(text) : JSON.parse(text)) || {};
-  } catch (error) {
-    throw new Error(`Cannot parse agent configuration ${path}: ${String(error)}`);
+
+function stringValue(value: unknown, fallback: string, field: string): string {
+  if (value === undefined) return fallback;
+  if (typeof value !== "string") throw new Error(`${field} must be a string`);
+  return value;
+}
+
+function stringArray(value: unknown, fallback: string[], field: string): string[] {
+  if (value === undefined) return fallback;
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    throw new Error(`${field} must be an array of strings`);
   }
-  const d = raw.defaults || {};
+  return value;
+}
+
+function loadSource(source: unknown): Record<string, unknown> {
+  if (!isRecord(source)) throw new Error("inline workflow configuration must be an object");
+  if (source.workflow !== undefined) {
+    if (!isRecord(source.workflow)) throw new Error("workflow must be an object");
+    return source.workflow;
+  }
+  return source;
+}
+
+export function loadConfig(source: unknown): SSSFConfig {
+  const raw = loadSource(source);
+  const rawDefaults = raw.defaults;
+  const rawObservability = raw.observability;
+  const rawAgents = raw.agents;
+  if (rawDefaults !== undefined && !isRecord(rawDefaults)) {
+    throw new Error("workflow.defaults must be an object");
+  }
+  if (rawObservability !== undefined && !isRecord(rawObservability)) {
+    throw new Error("workflow.observability must be an object");
+  }
+  if (!Array.isArray(rawAgents)) throw new Error("workflow.agents must be an array");
+  const d = rawDefaults ?? {};
   const defaults: ConfigDefaults = {
-    coding_agent: d.coding_agent || "pi",
-    model: d.model || "openrouter/google/gemini-3.6-flash",
-    thinking: d.thinking || "medium",
-    color: d.color || "",
-    tools: d.tools ?? null,
-    protected_files: d.protected_files || ["adws/factory/", "adws/adw_sssf_config/", "adws/run.ts"],
-    data_dir: d.data_dir || "adws/adw_data",
-    allowed_env: d.allowed_env || [],
-    harness_timeout_seconds: Number(d.harness_timeout_seconds || 600),
-    run_timeout_seconds: Number(d.run_timeout_seconds || 3600),
-    max_output_bytes: Number(d.max_output_bytes || 1_000_000),
+    coding_agent: stringValue(d.coding_agent, "pi", "workflow.defaults.coding_agent"),
+    model: stringValue(d.model, "openrouter/google/gemini-3.6-flash", "workflow.defaults.model"),
+    thinking: stringValue(d.thinking, "medium", "workflow.defaults.thinking"),
+    color: stringValue(d.color, "", "workflow.defaults.color"),
+    tools: d.tools === null ? null : stringArray(d.tools, [], "workflow.defaults.tools"),
+    protected_files: stringArray(
+      d.protected_files,
+      [".laf/", "local-agent-factory.config.yaml"],
+      "workflow.defaults.protected_files",
+    ),
+    data_dir: stringValue(d.data_dir, ".laf", "workflow.defaults.data_dir"),
+    allowed_env: stringArray(d.allowed_env, [], "workflow.defaults.allowed_env"),
+    harness_timeout_seconds: Number(d.harness_timeout_seconds ?? 600),
+    run_timeout_seconds: Number(d.run_timeout_seconds ?? 3600),
+    max_output_bytes: Number(d.max_output_bytes ?? 1_000_000),
   };
-  const agents = (raw.agents || []).map((a: any) => ({
-    ...a,
-    prompt_engineering: {
-      system: resolveRuntimePath(a.prompt_engineering.system),
-      user: resolveRuntimePath(a.prompt_engineering.user),
-    },
-    coding_agent: a.coding_agent ?? defaults.coding_agent,
-    model: a.model ?? defaults.model,
-    thinking: a.thinking ?? defaults.thinking,
-    prewalk: a.prewalk
-      ? {
-          implementation_model: a.prewalk.implementation_model,
-          implementation_thinking: a.prewalk.implementation_thinking ?? defaults.thinking,
-        }
-      : undefined,
-    color: a.color ?? defaults.color,
-    tools: a.tools ?? defaults.tools,
-    writes: a.writes === undefined ? null : a.writes,
-    allowed_env: a.allowed_env ?? defaults.allowed_env,
-  }));
+  const agents = rawAgents.map((rawAgent, index) => {
+    if (!isRecord(rawAgent)) throw new Error(`workflow.agents[${index}] must be an object`);
+    const prompts = rawAgent.prompts;
+    if (!isRecord(prompts)) throw new Error(`workflow.agents[${index}].prompts must be an object`);
+    const system = stringValue(prompts.system, "", `workflow.agents[${index}].prompts.system`);
+    const user = stringValue(prompts.user, "", `workflow.agents[${index}].prompts.user`);
+    const prewalk = rawAgent.prewalk;
+    if (prewalk !== undefined && !isRecord(prewalk)) {
+      throw new Error(`workflow.agents[${index}].prewalk must be an object`);
+    }
+    return {
+      name: stringValue(rawAgent.name, "", `workflow.agents[${index}].name`),
+      purpose: stringValue(rawAgent.purpose, "", `workflow.agents[${index}].purpose`),
+      prompts: { system, user },
+      coding_agent: stringValue(
+        rawAgent.coding_agent,
+        defaults.coding_agent,
+        `workflow.agents[${index}].coding_agent`,
+      ),
+      model: stringValue(rawAgent.model, defaults.model, `workflow.agents[${index}].model`),
+      thinking: stringValue(
+        rawAgent.thinking,
+        defaults.thinking,
+        `workflow.agents[${index}].thinking`,
+      ),
+      color: stringValue(rawAgent.color, defaults.color, `workflow.agents[${index}].color`),
+      tools:
+        rawAgent.tools === null
+          ? null
+          : stringArray(rawAgent.tools, defaults.tools ?? [], `workflow.agents[${index}].tools`),
+      writes:
+        rawAgent.writes === null
+          ? null
+          : stringArray(rawAgent.writes, [], `workflow.agents[${index}].writes`),
+      allowed_env: stringArray(
+        rawAgent.allowed_env,
+        defaults.allowed_env,
+        `workflow.agents[${index}].allowed_env`,
+      ),
+      prewalk: prewalk
+        ? {
+            implementation_model: stringValue(
+              prewalk.implementation_model,
+              "",
+              `workflow.agents[${index}].prewalk.implementation_model`,
+            ),
+            implementation_thinking: stringValue(
+              prewalk.implementation_thinking,
+              defaults.thinking,
+              `workflow.agents[${index}].prewalk.implementation_thinking`,
+            ),
+          }
+        : undefined,
+    };
+  });
+  const o = rawObservability ?? {};
   return {
     defaults,
     observability: {
-      db: raw.observability?.db || "adws/adw_data/sssf.db",
-      poll_ms: raw.observability?.poll_ms || 500,
+      db: stringValue(o.db, ".laf/sssf.db", "workflow.observability.db"),
+      poll_ms: Number(o.poll_ms ?? 500),
     },
     agents,
   };
 }
+
 export function resolveAgent(cfg: SSSFConfig, name: string): AgentConfig {
   const agent = cfg.agents.find((candidate) => candidate.name === name);
   if (!agent)
@@ -97,6 +165,7 @@ export function resolveAgent(cfg: SSSFConfig, name: string): AgentConfig {
     );
   return agent;
 }
+
 export function validate(cfg: SSSFConfig, required: string[]): void {
   const problems: string[] = [];
   for (const name of required) {
@@ -104,8 +173,8 @@ export function validate(cfg: SSSFConfig, required: string[]): void {
       const agent = resolveAgent(cfg, name);
       if (agent.coding_agent !== "pi" && agent.coding_agent !== "opencode")
         problems.push(`agent ${name}: unsupported coding_agent ${agent.coding_agent}`);
-      for (const path of [agent.prompt_engineering.system, agent.prompt_engineering.user])
-        if (!existsSync(path)) problems.push(`agent ${name}: prompt not found: ${path}`);
+      if (!agent.prompts.system.trim()) problems.push(`agent ${name}: system prompt is empty`);
+      if (!agent.prompts.user.trim()) problems.push(`agent ${name}: user prompt is empty`);
       const runtime: AgentRuntime =
         agent.coding_agent === "opencode" ? opencode.runtime : pi.runtime;
       runtime.assertCredential(runtime.resolveModel(agent.model)[0]);

@@ -152,9 +152,7 @@ The Bun package contains the CLI, workflow definitions, the visualizer, and appr
 mock skills. These assets stay inside the package; installing the package does not copy
 them into a target repository.
 
-`laf init` creates only the configuration file that selects workflow and visualizer
-paths. Runtime data is written only when a command is explicitly run against a
-configured database.
+`laf init` creates one self-contained `local-agent-factory.config.yaml` containing the workflow defaults, agent roster, inline prompts, and visualizer settings. Runtime data is written only when a command is explicitly run against the configured database.
 
 There is no repository stamping step, remote installer, or generated `adws/` tree.
 
@@ -162,33 +160,29 @@ There is no repository stamping step, remote installer, or generated `adws/` tre
 
 ## The agent roster
 
-`adws/adw_sssf_config/sssf.config.yaml` answers one question per entry: who is this agent. One agent, one prompt, one purpose.
+`local-agent-factory.config.yaml` answers one question per entry: who is this agent. One agent, one prompt, one purpose. Prompts are inline strings, so the target repository has no dependency on factory-owned YAML or Markdown files.
 
 ```yaml
-defaults:
-  coding_agent: pi # Pi is the default Agent Runtime adapter
-  model: google/gemini-3.6-flash # provider/model-id, a bare id can match several providers
-  thinking: medium # off | minimal | low | medium | high | xhigh | max
-  protected_files: # no agent may edit the machinery that grades it
-    - adws/factory/modules/
-    - adws/adw_sssf_config/
-    - adws/factory/modules/change-delivery/workflows/
-  data_dir: adws/adw_data
-
-agents:
-  - name: planner
-    model: fireworks/accounts/fireworks/models/kimi-k3
-    thinking: high # per-agent overrides win over defaults
-    color: "#a78bfa" # this agent's lane swatch in the trace
-    purpose: Turn a request into a plan the builder can implement without asking questions.
-    prompt_engineering:
-      system: adws/adw_data/prompt_engineering/planner/system.md
-      user: adws/adw_data/prompt_engineering/planner/user.md
-    writes: # the plan is all it may leave in the repo
-      - specs/
+workflow:
+  database: .laf/sssf.db
+  defaults:
+    coding_agent: pi
+    model: provider/model-id
+    thinking: medium
+    tools: [read, bash, edit, write]
+  agents:
+    - name: planner
+      purpose: Turn a request into a plan.
+      prompts:
+        system: |
+          You are a bounded workflow agent.
+        user: |
+          Work on this request: {{prompt}}
+      writes: [specs/]
+      tools: [read, bash, write]
 ```
 
-Five starter agents ship in the box: `planner`, `builder`, `scout` (read-only recon), `reviewer`, and `documenter`. There is no tester, because running a suite is a known command and therefore code.
+Starter agents ship in the box, including `planner`, `builder`, `scout` (read-only recon), `reviewer`, and `documenter`. There is no tester, because running a suite is a known command and therefore code.
 
 Every agent gets its own model, thinking level, prompts, and built-in Pi tools. Give the planner a frontier model and the builder a cheap fast one. Give the reviewer no ability to write code at all. Extensions, custom tools, and subagents are deliberately outside the factory's runtime surface.
 
@@ -315,7 +309,7 @@ source, workflow, skill, environment, or task-runner files into another reposito
 Every workflow takes the same shape:
 
 ```bash
-laf workflow run <workflow-id> "<prompt or path/to/prompt.md>" [--config /path/to/sssf.config.yaml] [--cwd /path/to/repository]
+laf workflow run <workflow-id> "<prompt>" [--cwd /path/to/repository]
 ```
 
 | ADW                             | Chain                                  | Reach for it when                                            |
@@ -339,16 +333,16 @@ The repository-only composition examples are documented in [`docs/adw-examples/`
 `--adw-id` is optional everywhere. Omit it and a fresh id is minted and printed. Supply it and the run joins that session: same dirs, same `context_handoff/`, and each agent **resumes its existing context window** through `agent_map.json` instead of starting cold. That is how you chain workflows.
 
 ```bash
-laf workflow run plan "add a /health endpoint" --config /path/to/sssf.config.yaml
-laf workflow run build "implement the plan" --config /path/to/sssf.config.yaml
+laf workflow run plan "add a /health endpoint"
+laf workflow run build "implement the plan"
 ```
 
 Watch a run with the trace db directly:
 
 ```bash
-sqlite3 adws/adw_data/sssf.db "select adw_id, status, substr(request,1,60), total_tokens from sessions order by started_at desc limit 10;"
-sqlite3 adws/adw_data/sssf.db "select seq, name, kind, owner, status from phases where adw_id='a1b2c3d4' order by seq;"
-sqlite3 adws/adw_data/sssf.db "select kind, name, pid, command from processes where adw_id='a1b2c3d4' and ended_at is null;"
+sqlite3 .laf/sssf.db "select adw_id, status, substr(request,1,60), total_tokens from sessions order by started_at desc limit 10;"
+sqlite3 .laf/sssf.db "select seq, name, kind, owner, status from phases where adw_id='a1b2c3d4' order by seq;"
+sqlite3 .laf/sssf.db "select kind, name, pid, command from processes where adw_id='a1b2c3d4' and ended_at is null;"
 ```
 
 Reads never block a running workflow; the trace database uses WAL. Inspect it directly
@@ -385,14 +379,13 @@ The tests it ships are not your tests. The prompts it ships describe a demo app,
 
 Where to start, roughly in the order that pays off fastest:
 
-| Change                  | File                                              | Why                                                                                              |
-| ----------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Your real commands      | `adws/factory/modules/quality.ts`                 | The shipped blocks are placeholders that exit 0. Until you wire this, your test phase is theater |
-| Your prompts            | `adws/adw_data/prompt_engineering/{agent}/`       | Where your standards live: what a good plan looks like, what a review has to catch               |
-| Your roster             | `adws/adw_sssf_config/sssf.config.yaml`           | Models, thinking levels, tools, and what each agent is allowed to write                          |
-| Your chains             | `adws/factory/modules/change-delivery/workflows/` | Copy the closest workflow and edit the phase list. They are 40 to 180 lines on purpose           |
-| Your definition of done | `adws/factory/modules/gates.ts`                   | A gate is one function. Whatever "done" means where you work, write it here                      |
-| Your agent capabilities | `adws/adw_sssf_config/sssf.config.yaml`           | Built-in Pi tools and write boundaries, configured per agent                                     |
+| Change                  | File                              | Why                                                                                              |
+| ----------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Your real commands      | `adws/factory/modules/quality.ts` | The shipped blocks are placeholders that exit 0. Until you wire this, your test phase is theater |
+| Your prompts and roster | `local-agent-factory.config.yaml` | Models, thinking levels, tools, write boundaries, and inline prompt text                         |
+| Your chains             | Package workflow registry         | Select a registered workflow and customize the request                                           |
+| Your definition of done | `adws/factory/modules/gates.ts`   | A gate is one function. Whatever "done" means where you work, write it here                      |
+| Your agent capabilities | `local-agent-factory.config.yaml` | Built-in Pi tools and write boundaries, configured per agent                                     |
 
 It still does not provide cloud workers, distributed scheduling, or automatic integration. The local safety boundary is the clean source check, disposable clone, bounded process runner, isolated environment, durable evidence, and manual review Gate.
 
