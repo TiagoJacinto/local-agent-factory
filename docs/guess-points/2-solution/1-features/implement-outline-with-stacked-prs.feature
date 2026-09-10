@@ -1,6 +1,23 @@
 Feature: Implement a structure outline as reviewed stacked pull requests
   A Workflow Operator can turn each phase of a structure outline into a validated pull request while deterministic code controls sequencing, publication, visual evidence, and feedback handling.
 
+  Rule: Honor the problem's worktree policy before implementation
+
+    Scenario: Create a worktree for either deferred or immediate worktree configuration
+      Given problem.md configures one of these worktree modes
+        | worktrees |
+        | now       |
+        | later     |
+      When I execute the implement-outline Workflow
+      Then one worktree is created before the first implementation phase begins
+      And the entire outline is implemented in that worktree
+
+    Scenario: Implement without creating a worktree when worktrees are disabled
+      Given problem.md configures worktrees as never
+      When I execute the implement-outline Workflow
+      Then no worktree is created
+      And the outline is implemented in the current checkout
+
   Rule: Publish each validated outline phase as one pull request in a stack
 
     Scenario: Implement and publish a two-phase outline

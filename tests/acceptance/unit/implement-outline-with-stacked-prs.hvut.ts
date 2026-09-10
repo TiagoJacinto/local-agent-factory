@@ -13,6 +13,8 @@ type State = {
   commentsProcessed: string[];
   merges: number;
   awaitingIntegration: boolean;
+  worktreesCreated: number;
+  implementationLocation: "current-checkout" | "worktree";
 };
 
 const feature = await loadFeature(
@@ -30,10 +32,56 @@ function state(): State {
     commentsProcessed: [],
     merges: 0,
     awaitingIntegration: false,
+    worktreesCreated: 0,
+    implementationLocation: "current-checkout",
   };
 }
 
 describeFeature(feature, ({ Rule }) => {
+  Rule("Honor the problem's worktree policy before implementation", ({ RuleScenario }) => {
+    RuleScenario(
+      "Create a worktree for either deferred or immediate worktree configuration",
+      ({ Given, When, Then, And }) => {
+        const run = state();
+        let modes: string[] = [];
+        Given("problem.md configures one of these worktree modes", (_ctx: unknown, rows: Row[]) => {
+          modes = rows.map((row) => row.worktrees);
+        });
+        When("I execute the implement-outline Workflow", () => {
+          for (const mode of modes) {
+            expect(["now", "later"]).toContain(mode);
+            run.worktreesCreated = 1;
+            run.implementationLocation = "worktree";
+          }
+        });
+        Then("one worktree is created before the first implementation phase begins", () =>
+          expect(run.worktreesCreated).toBe(1),
+        );
+        And("the entire outline is implemented in that worktree", () =>
+          expect(run.implementationLocation).toBe("worktree"),
+        );
+      },
+    );
+
+    RuleScenario(
+      "Implement without creating a worktree when worktrees are disabled",
+      ({ Given, When, Then, And }) => {
+        const run = state();
+        let mode = "";
+        Given("problem.md configures worktrees as never", () => {
+          mode = "never";
+        });
+        When("I execute the implement-outline Workflow", () => {
+          expect(mode).toBe("never");
+        });
+        Then("no worktree is created", () => expect(run.worktreesCreated).toBe(0));
+        And("the outline is implemented in the current checkout", () =>
+          expect(run.implementationLocation).toBe("current-checkout"),
+        );
+      },
+    );
+  });
+
   Rule(
     "Publish each validated outline phase as one pull request in a stack",
     ({ RuleScenario }) => {

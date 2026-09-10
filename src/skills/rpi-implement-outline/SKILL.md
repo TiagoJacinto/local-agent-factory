@@ -9,7 +9,17 @@ The `implement-outline` Workflow is the canonical execution path for this capabi
 
 ## Contract
 
-Invoke the registered `implement-outline` Workflow with the structure-outline path as its request. The Workflow:
+Before invoking the registered Workflow:
+
+1. Locate `problem.md` in the structure outline's problem directory.
+2. Read its leading YAML frontmatter and require `slug` and `worktrees`.
+3. Require `worktrees` to be exactly `now`, `later`, or `never`; do not infer a default.
+4. For either `now` or `later`, invoke `custom-create-worktree` with the problem's `slug`. These values have exactly the same behavior here.
+5. Continue from that worktree and use it for the entire outline implementation. Create only one worktree, before freshness checks or implementation.
+6. For `never`, continue in the current checkout without creating a worktree.
+7. Stop with the exact validation error when `problem.md`, its frontmatter, `slug`, or `worktrees` is missing or invalid.
+
+Then invoke the registered `implement-outline` Workflow with the structure-outline path as its request. The Workflow:
 
 1. Reads `## Phase N: Title` sections in order.
 2. Creates a fresh builder-agent invocation for each phase.
