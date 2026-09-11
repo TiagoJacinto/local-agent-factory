@@ -2,6 +2,7 @@ import { buildReviewWorkflow } from "./workflows/build-review";
 import { buildWorkflow } from "./workflows/build";
 import { documentWorkflow } from "./workflows/document";
 import { implementOutlineWorkflow, parseStructureOutline } from "./workflows/implement-outline";
+import { implementWorkflow } from "./workflows/implement";
 import { doubleTddWorkflow } from "./workflows/double-tdd";
 import { planWorkflow } from "./workflows/plan";
 import { prdOrientedDesignWorkflow } from "./workflows/prd-oriented-design";
@@ -25,6 +26,7 @@ export const changeDeliveryWorkflows: readonly WorkflowDefinition[] = [
   doubleTddWorkflow,
   documentWorkflow,
   implementOutlineWorkflow,
+  implementWorkflow,
   researchWorkflow,
   prdOrientedDesignWorkflow,
   prdOrientedDiscoveryWorkflow,

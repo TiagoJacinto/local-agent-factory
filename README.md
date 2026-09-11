@@ -321,6 +321,7 @@ laf workflow run <workflow-id> "<prompt>" [--cwd /path/to/repository]
 | `run.ts quality`                | engineer to code(quality)              | lint, typecheck, build, no agents at all                     |
 | `run.ts build-review`           | builder, reviewer, bounded revise loop | "is this what was asked for" matters more than "does it run" |
 | `run.ts double-tdd`             | outer and inner TDD loops              | drive implementation from acceptance scenarios               |
+| `run.ts implement`              | ordinary red-green TDD, one PR         | implement a specification with focused seam tests            |
 | `run.ts document`               | code(git diff), documenter             | write up what just shipped                                   |
 | `run.ts prd-oriented-discovery` | research, PRD, technical design        | discover and design from evidence                            |
 | `run.ts prd-oriented-design`    | research, PRD, technical design        | turn existing research into a technical design               |
