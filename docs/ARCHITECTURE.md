@@ -4,14 +4,15 @@ Local Agent Factory is one system, not a collection of scripts. It converts an e
 
 ## Read this first
 
-| Need                                    | Read next                                                                                |
-| --------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Domain language                         | [`../CONTEXT.md`](../CONTEXT.md)                                                         |
-| Product intent and current behavior     | [`../README.md`](../README.md)                                                           |
-| Actor and platform contracts            | [`guess-points/README.md`](guess-points/README.md)                                       |
-| Long-term reliability options           | [`../ROBUSTNESS.md`](../ROBUSTNESS.md)                                                   |
-| How an installed factory agent operates | [`../src/skills/sssf/SKILL.md`](../src/skills/sssf/SKILL.md)                             |
-| Target source migration                 | [`plans/agent-native-source-architecture.md`](plans/agent-native-source-architecture.md) |
+| Need                                    | Read next                                                                                      |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Domain language                         | [`../CONTEXT.md`](../CONTEXT.md)                                                               |
+| Product intent and current behavior     | [`../README.md`](../README.md)                                                                 |
+| Actor and platform contracts            | [`guess-points/README.md`](guess-points/README.md)                                             |
+| Long-term reliability options           | [`../ROBUSTNESS.md`](../ROBUSTNESS.md)                                                         |
+| How an installed factory agent operates | [`../src/skills/sssf/SKILL.md`](../src/skills/sssf/SKILL.md)                                   |
+| Target source migration                 | [`plans/agent-native-source-architecture.md`](plans/agent-native-source-architecture.md)       |
+| Interactive CLI agent execution         | [`plans/interactive-cli-agent-orchestration.md`](plans/interactive-cli-agent-orchestration.md) |
 
 ## One control loop
 
@@ -26,6 +27,10 @@ engineer request
 ```
 
 Agents propose. Deterministic code owns sequencing, validation, evidence, and resource limits. A person owns integration and any promotion of cross-run knowledge.
+
+## Control ownership rule
+
+The Factory owns control flow by default. Every conditional branch, retry, loop, phase transition, budget check, validation gate, and external side effect belongs in typed Workflow or Workflow Executor code whenever it can be expressed deterministically. Agents decide only the bounded work that genuinely requires interpretation; their prompts must not own the outer sequence or decide when a run is complete. If an agent proposes the next action, the Factory records and validates that proposal before executing it.
 
 ## Tower of abstractions
 
@@ -59,7 +64,7 @@ The **Workflow Executor** is the primary product and testing seam. The Factory f
 1. One canonical execution kernel owns a Workflow Run. The current `src/workflow.ts` prototype and `src/adws/adw_modules/runner.ts` are migration inputs, not permanent peer architectures.
 2. A Workflow owns a capability. Its entrypoint, typed request, phase graph, tests, and agent-facing guide stay together.
 3. A Phase owns one purpose and its budget. Phase descriptions explain why the work exists, not merely its name.
-4. Workflow control flow is typed code. Prompts, configuration, and skills select behavior inside a bounded phase. They do not own outer sequencing.
+4. The Factory owns control flow by default: typed code owns conditionals, loops, retries, phase transitions, budgets, validation, and side effects. Prompts, configuration, and skills select bounded agent behavior; they do not own outer sequencing or completion.
 5. Known commands use the Command Primitive. Agents receive failures as typed evidence and decide only what requires judgement.
 6. Source-changing workflows require a clean Git Source Repository at an expected Source Revision and run only in a Disposable Workspace. The Factory never merges, pushes, deploys, or integrates automatically.
 7. The Envelope is a claim manifest. Gates verify claims against artifacts and command results. A passing command never substitutes for review of whether the requested capability was delivered.

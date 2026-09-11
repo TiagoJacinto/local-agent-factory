@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { isAbsolute, relative } from "node:path";
 import { Factory } from "../../modules/workflow-execution";
 import { changeDeliveryWorkflows } from "../../modules/change-delivery";
 import { ConfiguredAgentRuntime } from "../../modules/change-delivery/configured-agent-runtime";
@@ -21,17 +23,30 @@ export async function runWorkflowCli(
     .join(" ");
   const workflow = changeDeliveryWorkflows.find((candidate) => candidate.id === workflowId);
   if (!workflow || !request) return 2;
+  const workflowRequest =
+    workflowId === "implement" && isAbsolute(request)
+      ? relative(process.cwd(), request) || "."
+      : request;
   const config = resolveConfig();
   const run = await new Factory(changeDeliveryWorkflows, {
     agentRuntime: new ConfiguredAgentRuntime(config.value.workflow),
     traceSink: new SqliteTraceSink(process.env.SSSF_DB ?? config.value.workflow.database),
   }).execute({
     workflowId,
-    request,
+    request: workflowRequest,
     agentOwner: option("--agent") ?? (workflowId === "prompt" ? "scout" : undefined),
     problemFolder: option("--problem-folder"),
-    ...(option("--revision") ? { expectedSourceRevision: option("--revision") } : {}),
-    ...(workflow.changesSource ? { sourceRepository: process.cwd() } : {}),
+    ...(workflow.changesSource
+      ? {
+          sourceRepository: process.cwd(),
+          expectedSourceRevision:
+            option("--revision") ??
+            execFileSync("git", ["rev-parse", "HEAD"], {
+              cwd: process.cwd(),
+              encoding: "utf8",
+            }).trim(),
+        }
+      : {}),
   });
   if (run.status !== "Succeeded") {
     console.error(run.failure ?? `${workflowId} failed`);

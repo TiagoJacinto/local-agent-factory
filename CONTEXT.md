@@ -43,6 +43,18 @@ A Workflow Primitive that obtains a model response without a tool-enabled workin
 A Workflow Primitive that delegates a bounded goal to an agent in a tool-enabled working environment.
 _Avoid_: Agent phase
 
+**Interactive Harness Invocation**:
+A Harness Primitive invocation that temporarily attaches a person's terminal to one persistent Agent Session, then resumes that session non-interactively to check completion.
+_Avoid_: Interactive Workflow, human handoff
+
+**Agent Session**:
+A runtime-specific conversation identity that may alternate between interactive attachment and non-interactive invocation within one Workflow Run.
+_Avoid_: Workflow Run, handoff
+
+**Completion Check**:
+A non-interactive invocation of an Agent Session that either produces a candidate Envelope or states why further agent work is required. The Workflow Executor, not process termination, determines completion through validation and Gates.
+_Avoid_: Exit status, handoff
+
 **Command Primitive**:
 A Workflow Primitive that executes a known deterministic command without asking an agent to rediscover it.
 _Avoid_: Code phase, tester agent

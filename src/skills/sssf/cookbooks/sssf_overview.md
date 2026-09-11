@@ -10,4 +10,4 @@ A workflow is a registered `WorkflowDefinition` with a local controller. Control
 - `command` runs deterministic checks in the disposable workspace.
 - `review` waits for an explicit human integration decision.
 
-The supported change-delivery IDs are prompt, scout, plan, prewalk, build, quality, build-review, double-tdd, document, research, prd-oriented-design, and prd-oriented-discovery. Source-changing workflows require a clean Git source and expected revision; execution happens in an independent clone. The evidence manifest and SQLite trace are the durable run record.
+The supported change-delivery IDs are prompt, scout, plan, prewalk, build, quality, build-review, double-tdd, document, implement, research, prd-oriented-design, and prd-oriented-discovery. Source-changing workflows require a clean Git source and expected revision; execution happens in an independent clone. The evidence manifest and SQLite trace are the durable run record.

@@ -3,8 +3,9 @@ import type {
   WorkflowContext,
   WorkflowDefinition,
 } from "../../../workflow-execution";
+import { followPullRequest } from "../pull-request-follow-up";
 import { parseStructureOutline } from "./outline-parser";
-import type { CommentDisposition, OutlinePhase, StackPullRequest } from "./request";
+import type { OutlinePhase, StackPullRequest } from "./request";
 
 const MAX_VALIDATION_ATTEMPTS = 3;
 
@@ -42,43 +43,6 @@ function slugFromPath(path: string): string {
     .replace(/[^a-z0-9]+/gi, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase();
-}
-
-function outputValue(result: unknown): Record<string, unknown> | undefined {
-  const value = (result as { output?: { value?: unknown } } | undefined)?.output?.value;
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function parseJson<T>(text: string, description: string): T {
-  try {
-    return JSON.parse(text) as T;
-  } catch (error) {
-    throw new Error(
-      `${description} returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-}
-
-function disposition(value: unknown, commentId: string): CommentDisposition {
-  if (!value || typeof value !== "object")
-    return {
-      commentId,
-      action: "no_change",
-      rationale: "The feedback agent returned no actionable disposition.",
-      changedFiles: [],
-      reply: "Reviewed; no change is required.",
-    };
-  const candidate = value as Partial<CommentDisposition>;
-  const action = candidate.action;
-  return {
-    commentId,
-    action: action === "fix" || action === "reply_only" ? action : "no_change",
-    rationale: candidate.rationale ?? "Reviewed against the current pull request diff.",
-    changedFiles: candidate.changedFiles ?? [],
-    reply: candidate.reply ?? "Reviewed; no change is required.",
-  };
 }
 
 async function validatePhase(
@@ -142,12 +106,19 @@ async function publishPhase(
     context,
     `gh pr view ${branch} --json number,url,headRefName,baseRefName`,
   );
-  const parsed = parseJson<{
+  let parsed: {
     number: number;
     url: string;
     headRefName: string;
     baseRefName: string;
-  }>(metadata.stdout, "gh pr view");
+  };
+  try {
+    parsed = JSON.parse(metadata.stdout) as typeof parsed;
+  } catch (error) {
+    throw new Error(
+      `gh pr view returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   return {
     phase: phase.number,
     number: parsed.number,
@@ -155,46 +126,6 @@ async function publishPhase(
     headBranch: parsed.headRefName,
     baseBranch: parsed.baseRefName,
   };
-}
-
-async function babysit(
-  context: WorkflowContext,
-  pullRequest: StackPullRequest,
-  processed: Set<string>,
-): Promise<void> {
-  const result = await runCommand(
-    context,
-    `gh pr view ${pullRequest.number} --json comments,reviews`,
-  );
-  const payload = parseJson<{ comments?: Array<{ id: string; body: string }> }>(
-    result.stdout,
-    "gh pr view comments",
-  );
-  for (const comment of payload.comments ?? []) {
-    if (processed.has(comment.id)) continue;
-    processed.add(comment.id);
-    const inspection = await context.ai(
-      `pr-comment-${comment.id}`,
-      "Inspect pull request feedback",
-      `Pull request #${pullRequest.number} received comment ${comment.id}:\n${comment.body}\nReturn a JSON disposition with action, rationale, changedFiles, and reply.`,
-      { agentOwner: "reviewer", sessionPolicy: "fresh", outputArtifact: `comment-${comment.id}` },
-    );
-    const result = disposition(outputValue(inspection), comment.id);
-    await runCommand(
-      context,
-      `gh pr comment ${pullRequest.number} --body ${JSON.stringify(result.reply)}`,
-    );
-    if (result.action === "fix") {
-      await context.ai(
-        `pr-comment-fix-${comment.id}`,
-        "Apply pull request feedback",
-        `Apply the requested correction for comment ${comment.id}: ${comment.body}`,
-        { agentOwner: "builder", sessionPolicy: "fresh" },
-      );
-      await runCommand(context, "git add -A && git commit -m 'fix: address pull request feedback'");
-      await runCommand(context, "git push");
-    }
-  }
 }
 
 export const implementOutlineWorkflow: WorkflowDefinition = {
@@ -279,7 +210,7 @@ export const implementOutlineWorkflow: WorkflowDefinition = {
         async () => {
           await capture(context, outlinePhase, "after");
           const pullRequest = await publishPhase(context, outlinePhase, slug, parentBranch);
-          await babysit(context, pullRequest, processedComments);
+          await followPullRequest(context, pullRequest, processedComments);
           await context.review();
           parentBranch = pullRequest.headBranch;
         },

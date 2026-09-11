@@ -9,21 +9,22 @@ SSSF runs registered change-delivery workflows through the canonical Factory. St
 
 ## Supported workflows
 
-| Workflow               | Purpose                                |
-| ---------------------- | -------------------------------------- |
-| prompt                 | bounded agent request                  |
-| scout                  | read-only repository mapping           |
-| plan                   | implementable plan                     |
-| prewalk                | bounded planning handoff               |
-| build                  | implementation with human review       |
-| quality                | deterministic validation               |
-| build-review           | bounded build/review/revise loop       |
-| double-tdd             | acceptance and unit TDD loop           |
-| document               | diff capture and documentation         |
-| implement-outline      | phased implementation with stacked PRs |
-| research               | scoped RPI research                    |
-| prd-oriented-design    | PRD then technical design              |
-| prd-oriented-discovery | research followed by PRD and design    |
+| Workflow               | Purpose                                 |
+| ---------------------- | --------------------------------------- |
+| prompt                 | bounded agent request                   |
+| scout                  | read-only repository mapping            |
+| plan                   | implementable plan                      |
+| prewalk                | bounded planning handoff                |
+| build                  | implementation with human review        |
+| quality                | deterministic validation                |
+| build-review           | bounded build/review/revise loop        |
+| double-tdd             | acceptance and unit TDD loop            |
+| document               | diff capture and documentation          |
+| implement              | ordinary TDD implementation with one PR |
+| implement-outline      | phased implementation with stacked PRs  |
+| research               | scoped RPI research                     |
+| prd-oriented-design    | PRD then technical design               |
+| prd-oriented-discovery | research followed by PRD and design     |
 
 ## Operating contract
 
